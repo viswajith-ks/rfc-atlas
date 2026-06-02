@@ -1,0 +1,26 @@
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+env/
+venv/
+
+# Data & Database
+data/raw/
+data/normalized/
+data/embeddings/
+data/lancedb/
+data/graph/
+*.json
+*.sqlite
+*.db
+
+# Environment variables
+.env
+.env.local
+
+# IDEs
+.vscode/
+.idea/
+.DS_Store
