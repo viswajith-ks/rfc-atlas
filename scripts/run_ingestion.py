@@ -89,8 +89,7 @@ class PipelineOrchestrator:
             )
 
     def run_legacy_text_ingestion(self):
-        """Processes RFC 1 through 8649 via the heuristic plaintext parsing pipeline.
-        """
+        """Processes RFC 1 through 8649 via the heuristic plaintext parsing pipeline."""
         print("Starting Legacy Era (RFC 1 - 8649) Text Ingestion...")
         print("-" * 50)
 
@@ -139,8 +138,7 @@ class PipelineOrchestrator:
         )
 
     def run_modern_xml_ingestion(self):
-        """Processes RFC 8650+ via the native XML structural parsing pipeline.
-        """
+        """Processes RFC 8650+ via the native XML structural parsing pipeline."""
         print("\nStarting Modern Era (RFC 8650+) XML Ingestion...")
         print("-" * 50)
 

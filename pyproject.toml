@@ -11,6 +11,7 @@ select = [
     "UP",  # pyupgrade
     "SIM", # simplify
     "C4",  # comprehensions
+    "ANN", # annotations
 ]
 
 ignore = [

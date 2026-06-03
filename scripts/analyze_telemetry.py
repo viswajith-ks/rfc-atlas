@@ -10,8 +10,7 @@ import os
 
 
 def analyze_telemetry():
-    """Parses the telemetry ledger and prints a formatted terminal report of dataset statistics.
-    """
+    """Parses the telemetry ledger and prints a formatted terminal report of dataset statistics."""
     telemetry_path = os.path.join("data", "manifests", "telemetry_log.json")
 
     if not os.path.exists(telemetry_path):

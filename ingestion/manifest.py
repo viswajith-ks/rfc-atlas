@@ -15,8 +15,7 @@ from pydantic import BaseModel
 
 
 class DatasetManifest(BaseModel):
-    """The deterministic receipt of a completed ingestion pipeline run.
-    """
+    """The deterministic receipt of a completed ingestion pipeline run."""
 
     # ---------------------------------------------------------
     # Dataset Identity

@@ -23,7 +23,9 @@ class RFCMetadata(BaseModel):
     source_type: Literal["xml", "txt"]
     title: str
     published_at: date | None
-    status: str | None  # e.g., "INTERNET_STANDARD", "INFORMATIONAL", "PROPOSED_STANDARD"
+    status: (
+        str | None
+    )  # e.g., "INTERNET_STANDARD", "INFORMATIONAL", "PROPOSED_STANDARD"
     stream: str | None  # e.g., "IETF", "IAB", "IRTF"
     authors: list[str] = Field(default_factory=list)
 
