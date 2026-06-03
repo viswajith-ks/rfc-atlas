@@ -12,7 +12,9 @@ data/normalized/
 data/embeddings/
 data/lancedb/
 data/graph/
-*.json
+data/manifests/*.json
+data/normalized/*.json
+metadata/*.json
 *.sqlite
 *.db
 
