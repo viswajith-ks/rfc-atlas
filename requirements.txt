@@ -7,3 +7,6 @@ lxml-stubs==0.5.1
 
 # Text Parsing
 regex>=2023.0.0
+
+# Concurrent Processing
+pebble>=5.0.7
