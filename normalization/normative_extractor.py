@@ -1,29 +1,32 @@
-"""Normative Requirement Extraction Module
-
-Provides text analysis utilities to identify BCP-14 (RFC 2119) normative directives
-within canonical protocol documents. It applies strict hierarchical safeguards to
-prevent false positives inside metadata sections or appendices.
-"""
+"""BCP-14 normative requirement extraction engine for text block enrichment."""
 
 import re
+from typing import cast, get_args
+
+from normalization.schema import CanonicalBlockDict, NormativeKeyword
 
 
 class NormativeExtractor:
-    """Scans canonical JSON blocks and enriches them by identifying RFC 2119 normative directives.
-    Includes deterministic guardrails to prevent false positives in metadata sections.
-    """
+    """Scans intermediate text blocks to isolate and normalize BCP-14 requirement keywords."""
 
-    def __init__(self):
-        """Initializes the normative extractor with strict BCP-14 regex patterns
-        and defines the hierarchical exempt list.
-        """
-        # Regex to match RFC 2119 keywords exactly.
-        self.keyword_pattern = re.compile(
-            r"\b(MUST(?:\s+NOT)?|REQUIRED|SHALL(?:\s+NOT)?|SHOULD(?:\s+NOT)?|RECOMMENDED|MAY|OPTIONAL)\b"
-        )
+    _VALID_KEYWORDS = frozenset(get_args(NormativeKeyword))
 
-        # Sections that contain meta-references to rules, not actual protocol rules.
-        self.exempt_sections = {
+    # Strict word-boundary match for exact BCP-14 compliance keywords to prevent partial matches
+    # (e.g., catching "MUST" without catching "MUSTARD").
+    _KEYWORD_PATTERN = re.compile(
+        r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b"
+    )
+
+    _NORMALIZATION_MAP: dict[str, NormativeKeyword] = {
+        "REQUIRED": "MUST",
+        "SHALL": "MUST",
+        "SHALL NOT": "MUST NOT",
+        "RECOMMENDED": "SHOULD",
+        "OPTIONAL": "MAY",
+    }
+
+    _EXEMPT_SECTIONS: frozenset[str] = frozenset(
+        {
             "abstract",
             "acknowledgments",
             "acknowledgements",
@@ -32,56 +35,95 @@ class NormativeExtractor:
             "author's address",
             "authors' addresses",
             "copyright notice",
+            "references",
         }
+    )
+
+    _BCP14_STANDARD_THRESHOLD = 2119
 
     def _is_exempt(self, hierarchy_path: str) -> bool:
-        """Determines if a block belongs to a metadata section that should be ignored.
-        Handles the exact depth nuance: "Abstract" is skipped, "3.1 Abstract Syntax" is scanned.
+        """Evaluates a section trajectory path to identify structural exclusions.
 
         Args:
-            hierarchy_path (str): The breadcrumb path of the section.
+            hierarchy_path (str): The full breadcrumb trajectory text path string.
 
         Returns:
-            bool: True if the section is exempt from normative scanning, False otherwise.
+            bool: True if the section context matches an exclusion constraint, else False.
         """
-        # Get the actual current section name (the last part of the breadcrumb trail)
-        parts = [p.strip().lower() for p in hierarchy_path.split(">")]
+        parts = hierarchy_path.split(" > ")
+
+        if any(p.lower() == "back" for p in parts):
+            return True
+
         current_section = parts[-1]
+        clean_section = (
+            # Matches hierarchy paths starting with "appendix" followed by a space, alphanumeric characters/dots,
+            # and trailing spaces. Used to cleanly strip appendix prefixes for section evaluations.
+            re.sub(
+                r"^(appendix\s+[a-z0-9.]+\s*)", "", current_section, flags=re.IGNORECASE
+            )
+            .strip()
+            .lower()
+        )
 
-        # Strip legacy appendix prefixes to cleanly evaluate the base title
-        clean_section = re.sub(
-            r"^(appendix\s+[a-z0-9.]+\s*)", "", current_section
-        ).strip()
+        return clean_section in self._EXEMPT_SECTIONS
 
-        return clean_section in self.exempt_sections
-
-    def process_blocks(self, blocks: list) -> list:
-        """Iterates through a list of canonical blocks and applies normative enrichment.
+    def process_blocks(
+        self, blocks: list[CanonicalBlockDict]
+    ) -> list[CanonicalBlockDict]:
+        """Iterates across intermediate blocks to append extracted keyword metadata vectors.
 
         Args:
-            blocks (list): A list of flat dictionaries representing extracted document blocks.
+            blocks (list[CanonicalBlockDict]): A list of target intermediate block maps.
 
         Returns:
-            list: The modified list of blocks with normative metadata appended.
+            list[CanonicalBlockDict]: Processed block collection records with added keywords.
         """
-        enriched_blocks = []
+        enriched_blocks: list[CanonicalBlockDict] = []
+        target_block_types = ("prose", "security", "list", "table")
 
         for block in blocks:
-            # Scans standard prose excluding exempt metadata sections.
-            if block["block_type"] == "prose" and not self._is_exempt(
+            if block["block_type"] in target_block_types and not self._is_exempt(
                 block["hierarchy_path"]
             ):
-                # Find all unique RFC 2119 keywords in the text
-                matches = self.keyword_pattern.findall(block["normalized_text"])
+                if block["rfc_id"] < self._BCP14_STANDARD_THRESHOLD:
+                    matches: list[str] = self._KEYWORD_PATTERN.findall(
+                        block["normalized_text"]
+                    )
+                else:
+                    matches = self._KEYWORD_PATTERN.findall(block["normalized_text"])
 
                 if matches:
-                    unique_keywords = list(set(matches))
+                    normalized_keywords: list[NormativeKeyword] = []
 
-                    # 1. Elevate the block type
-                    block["block_type"] = "normative"
+                    for kw in matches:
+                        clean_kw = " ".join(kw.split())
+                        normalized_keywords.append(
+                            self._NORMALIZATION_MAP.get(
+                                clean_kw, cast(NormativeKeyword, clean_kw)
+                            )
+                        )
 
-                    # 2. Inject the extracted keywords into the metadata schema
-                    block["metadata"]["normative_keywords"] = unique_keywords
+                    validated_keywords = cast(
+                        list[NormativeKeyword],
+                        [
+                            kw
+                            for kw in normalized_keywords
+                            if kw in self._VALID_KEYWORDS
+                        ],
+                    )
+
+                    if validated_keywords:
+                        block = cast(
+                            CanonicalBlockDict,
+                            {
+                                **block,
+                                "metadata": {
+                                    **block["metadata"],
+                                    "normative_keywords": validated_keywords,
+                                },
+                            },
+                        )
 
             enriched_blocks.append(block)
 

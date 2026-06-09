@@ -1,77 +1,140 @@
-"""Canonical Tree Assembly Module
+"""Tree builder engine for assembling flat intermediate blocks into nested canonical RFC documents."""
 
-This module serves as the primary schema enforcer. It accepts flat lists of
-heuristically or structurally parsed blocks and combines them with global
-metadata to construct deeply nested, fully compliant Pydantic NormalizedRFC objects.
-"""
-
-import contextlib
 import json
-import os
-from datetime import datetime
-from typing import Any
+import logging
+from pathlib import Path
+from typing import get_args
 
+from metadata.schema import RFCIndexEntryDict, RFCPublicationDate
 from normalization.schema import (
+    INTERMEDIATE_TO_FINAL_TYPE_MAP,
     Block,
+    BlockType,
+    CanonicalBlockDict,
     NormalizedRFC,
+    NormativeKeyword,
     NormativeStatement,
     RFCMetadata,
     Section,
+    SourceType,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class CanonicalTreeBuilder:
-    """Transforms a flat list of parsed blocks into the strict, nested
-    NormalizedRFC Pydantic schema using the canonical metadata index.
-    """
+    """Assembles flat text or XML block dictionaries into structured Pydantic NormalizedRFC documents."""
 
-    def __init__(self, metadata_lookup_path: str):
-        """Initializes the Canonical Tree Builder.
+    def __init__(self, metadata_lookup_path: Path) -> None:
+        """Initializes the tree builder by loading global metadata index lookups.
 
         Args:
-            metadata_lookup_path (str): File path to the pre-compiled JSON metadata lookup table.
+            metadata_lookup_path (Path): Path to the compiled metadata JSON file.
 
         Raises:
-            FileNotFoundError: If the metadata lookup table has not been generated.
+            FileNotFoundError: If the metadata lookup path does not exist on disk.
         """
-        if not os.path.exists(metadata_lookup_path):
-            raise FileNotFoundError(f"Missing metadata index at {metadata_lookup_path}")
+        lookup_path = metadata_lookup_path
+        if not lookup_path.exists():
+            raise FileNotFoundError(f"Missing metadata index at {lookup_path}")
 
-        with open(metadata_lookup_path, encoding="utf-8") as f:
-            self.metadata_lookup = json.load(f)
+        with lookup_path.open(encoding="utf-8") as f:
+            self.metadata_lookup: dict[str, RFCIndexEntryDict] = json.load(f)
 
-    def build_tree(
-        self, rfc_id: str, flat_blocks: list[dict[str, Any]], source_type: str
-    ) -> NormalizedRFC:
-        """Assembles flat document blocks into a nested Pydantic DOM.
+        self.valid_keywords = frozenset(get_args(NormativeKeyword))
 
-        Resolves string-based publication dates into Python datetime objects, groups
-        sequential blocks under their respective hierarchy paths, and validates all
-        types against the Canonical Normalized RFC Schema.
+    @staticmethod
+    def _parse_section_path(
+        h_path: str, section_number: str | None
+    ) -> tuple[str, str, str]:
+        """Parses a hierarchical breadcrumb path string into distinct identification fields.
 
         Args:
-            rfc_id (str): The numerical identifier of the document (e.g., "8446").
-            flat_blocks (List[Dict[str, Any]]): The linear array of extracted text blocks.
-            source_type (str): The origin format (either "xml" or "txt").
+            h_path (str): The raw section hierarchy breadcrumb text path string.
+            section_number (str | None): Optional section identifier extracted by the parser.
 
         Returns:
-            NormalizedRFC: A fully populated, validated Pydantic object representing the document.
+            tuple[str, str, str]: Extracted section identifier, block safe section token, and section title.
         """
-        rfc_num = str(int(rfc_id))  # Normalizes "0001" to "1"
-        meta_dict = self.metadata_lookup.get(rfc_num, {})
+        if h_path.lower() in ("document root", "preface"):
+            return "preface", "preface", h_path
 
-        # Convert text-based publication dates into strict datetime objects
-        raw_date = meta_dict.get("published_at")
+        path_parts = h_path.split(" > ")
+        last_part = path_parts[-1]
+
+        if section_number:
+            sec_id = section_number.strip(".")
+            return sec_id, f"sec{sec_id}", last_part.strip()
+
+        id_split = last_part.split(" ", 1)
+        is_numbered = len(id_split) > 1 and any(c.isdigit() for c in id_split[0])
+
+        if is_numbered:
+            section_id = id_split[0]
+            sec_token = f"sec{id_split[0].strip('.')}"
+            title = id_split[1]
+            return section_id, sec_token, title.strip()
+
+        return "unknown", "secunknown", last_part.strip()
+
+    def build_tree(
+        self,
+        rfc_number: int,
+        flat_blocks: list[CanonicalBlockDict],
+        source_type: SourceType,
+    ) -> NormalizedRFC:
+        """Aggregates a flat collection of intermediate blocks into a validated document DOM structure.
+
+        Args:
+            rfc_number (int): Numeric identifier of the target RFC.
+            flat_blocks (list[CanonicalBlockDict]): Flat list of extracted intermediate blocks.
+            source_type (SourceType): Structural parser format type specifier string.
+
+        Returns:
+            NormalizedRFC: Populated and validated root canonical Pydantic model artifact.
+
+        Raises:
+            ValueError: If the provided RFC numeric identifier is zero or negative.
+        """
+        if rfc_number <= 0:
+            raise ValueError(
+                f"Cannot build canonical tree. The provided rfc_number '{rfc_number}' "
+                f"is invalid. Check file naming or parser extraction logic."
+            )
+
+        fallback_entry: RFCIndexEntryDict = {
+            "rfc_number": rfc_number,
+            "title": f"RFC {rfc_number}",
+            "published_at": None,
+            "status": "UNKNOWN",
+            "stream": "IETF",
+            "authors": [],
+            "obsoletes": [],
+            "updates": [],
+            "updated_by": [],
+            "protocol_family": None,
+        }
+
+        if str(rfc_number) not in self.metadata_lookup:
+            logger.warning(
+                f"No metadata entry discovered for RFC {rfc_number} inside the lookup ledger. "
+                f"Generating placeholder structural fallbacks."
+            )
+
+        meta_dict = self.metadata_lookup.get(str(rfc_number), fallback_entry)
+        pub_date_dict = meta_dict.get("published_at")
         parsed_date = None
-        if raw_date:
-            with contextlib.suppress(ValueError):
-                parsed_date = datetime.strptime(raw_date, "%B %Y").date()
 
-        # 1. Hydrate the Metadata Object
+        if pub_date_dict is not None:
+            parsed_date = RFCPublicationDate(
+                year=pub_date_dict["year"],
+                month=pub_date_dict["month"],
+            )
+
         metadata = RFCMetadata(
-            rfc_number=int(rfc_num),
+            rfc_number=rfc_number,
             source_type=source_type,
-            title=meta_dict.get("title", f"RFC {rfc_num}"),
+            title=meta_dict.get("title", f"RFC {rfc_number}"),
             published_at=parsed_date,
             status=meta_dict.get("status", "UNKNOWN"),
             stream=meta_dict.get("stream", "IETF"),
@@ -82,83 +145,67 @@ class CanonicalTreeBuilder:
             protocol_family=meta_dict.get("protocol_family"),
         )
 
-        preface_blocks = []
-        sections_dict = {}  # Groups blocks by their hierarchy_path string
+        preface_blocks: list[Block] = []
+        sections_list: list[Section] = []
+        h_path_to_section: dict[str, Section] = {}
+        section_block_counters: dict[str, int] = {}
 
-        # Map our flat parser block_types to the strict schema Literal types
-        type_mapping = {
-            "prose": "paragraph",
-            "normative": "paragraph",  # Normative is a property of a paragraph
-            "artwork": "artwork",
-            "sourcecode": "sourcecode",
-            "table": "table",
-            "list": "list",
-            "abnf": "abnf",
-        }
+        for fb in flat_blocks:
+            normative_stmts: list[NormativeStatement] = []
+            keywords = fb["metadata"]["normative_keywords"]
 
-        # 2. Process Blocks and Group by Section
-        for i, fb in enumerate(flat_blocks):
-            # Convert normative keywords into the Pydantic NormativeStatement schema
-            normative_stmts = []
-            keywords = fb.get("metadata", {}).get("normative_keywords", [])
             for kw in keywords:
-                # Enforce strict schema constraints for BCP-14 keywords
-                if kw in ["MUST", "SHOULD", "MAY", "MUST NOT", "SHOULD NOT"]:
+                if kw in self.valid_keywords:
                     normative_stmts.append(
                         NormativeStatement(
-                            keyword=kw, statement_text=fb["normalized_text"]
+                            keyword=kw,
+                            statement_text=fb["normalized_text"],
                         )
                     )
 
-            # Resolve strict block type
-            raw_type = fb.get("block_type", "prose")
-            strict_type = type_mapping.get(raw_type, "paragraph")
+            raw_type = fb["block_type"]
+            strict_type: BlockType = INTERMEDIATE_TO_FINAL_TYPE_MAP.get(
+                raw_type, "paragraph"
+            )
+            h_path = fb.get("hierarchy_path", "Document Root")
+            sec_num = fb["metadata"].get("section_number")
 
-            # Hydrate the Block Object
+            section_id, sec_token, title = self._parse_section_path(h_path, sec_num)
+            section_block_counters[sec_token] = (
+                section_block_counters.get(sec_token, 0) + 1
+            )
+            blk_index = section_block_counters[sec_token]
+
             block = Block(
-                block_id=f"rfc{rfc_num}-blk{i}",
+                block_id=f"rfc{rfc_number}-{sec_token}-blk{blk_index}",
                 block_type=strict_type,
-                source_fragment=fb.get("source_fragment", ""),
-                normalized_text=fb.get("normalized_text", ""),
-                parsing_confidence=fb.get("parsing_confidence", 0.5),
+                sourcecode_type=fb.get("sourcecode_type"),
+                source_fragment=fb["source_fragment"],
+                normalized_text=fb["normalized_text"],
+                parsing_confidence=fb["parsing_confidence"],
                 normative_statements=normative_stmts,
             )
 
-            h_path = fb.get("hierarchy_path", "Document Root")
-
-            # Route to Preface vs. Sections
-            if h_path == "Document Root" or h_path.lower() == "preface":
+            if h_path.lower() in ("document root", "preface"):
                 preface_blocks.append(block)
             else:
-                if h_path not in sections_dict:
-                    # e.g., "3. Security Considerations > 3.1. Threats" -> ["3. Security Considerations", "3.1. Threats"]
+                if h_path not in h_path_to_section:
                     path_parts = h_path.split(" > ")
-                    last_part = path_parts[-1]
-
-                    # Heuristic to separate section ID ("3.1") from Title ("Threats")
-                    id_split = last_part.split(" ", 1)
-                    section_id = (
-                        id_split[0]
-                        if len(id_split) > 1 and any(c.isdigit() for c in id_split[0])
-                        else "unknown"
-                    )
-                    title = id_split[1] if len(id_split) > 1 else last_part
-
-                    sections_dict[h_path] = Section(
-                        section_id=section_id.strip("."),
-                        title=title.strip(),
+                    new_section = Section(
+                        section_id=section_id,
+                        title=title,
                         hierarchy_path=path_parts,
                         section_depth=len(path_parts),
                         blocks=[],
                     )
-                sections_dict[h_path].blocks.append(block)
+                    sections_list.append(new_section)
+                    h_path_to_section[h_path] = new_section
 
-        # 3. Assemble and Validate the Final Canonical Tree
-        canonical_rfc = NormalizedRFC(
-            rfc_id=int(rfc_num),
+                h_path_to_section[h_path].blocks.append(block)
+
+        return NormalizedRFC(
+            rfc_id=int(rfc_number),
             metadata=metadata,
-            sections=list(sections_dict.values()),
+            sections=sections_list,
             preface_blocks=preface_blocks,
         )
-
-        return canonical_rfc
