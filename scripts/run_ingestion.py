@@ -1,237 +1,104 @@
-"""Pipeline Orchestration Engine
+"""Command-line interface execution script for running the RFC dataset ingestion pipeline."""
 
-Coordinates the full ingestion, extraction, and validation pipeline. Routes raw documents
-to format-specific extractors, enriches them with normative metadata, builds validated
-canonical tree structures, and logs generation telemetry.
-"""
-
-import json
-import os
+import argparse
+import logging
 import sys
-from datetime import UTC, datetime
+from pathlib import Path
 
-from ingestion.manifest import DatasetManifest
-from metadata.index_parser import RFCIndexParser
-from normalization.normative_extractor import NormativeExtractor
-from normalization.tree_builder import CanonicalTreeBuilder
-from parsers.txt_parser import LegacyTextParser
-from parsers.xml_parser import ModernRFCParser
+from ingestion.orchestrator import PipelineOrchestrator
 
 
-class PipelineOrchestrator:
-    """Unified Orchestrator for the RFC Retrieval-Augmented Generation Pipeline.
-    Includes a comprehensive Telemetry Engine to log block statistics.
+def main() -> None:
+    """Parses command-line arguments and coordinates parallel execution of the RFC ingestion pipeline.
+
+    Raises:
+        SystemExit: If a critical pipeline processing exception is caught.
     """
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%H:%M:%S",
+    )
 
-    def __init__(self, raw_txt_dir, raw_xml_dir, output_dir, manifest_dir):
-        """Initializes the orchestrator, provisions local infrastructure, and instantiates
-        the document extractors and tree builders.
+    base_dir = Path(__file__).resolve().parent.parent
 
-        Args:
-            raw_txt_dir (str): Path containing raw .txt legacy RFC files.
-            raw_xml_dir (str): Path containing raw .xml modern RFC files.
-            output_dir (str): Destination path for canonical JSON structures.
-            manifest_dir (str): Destination path for operational receipts and logs.
-        """
-        self.raw_txt_dir = raw_txt_dir
-        self.raw_xml_dir = raw_xml_dir
-        self.output_dir = output_dir
+    parser = argparse.ArgumentParser(
+        description="RFC Intelligent System Ingestion Pipeline Tooling Interface."
+    )
 
-        os.makedirs(self.output_dir, exist_ok=True)
-        os.makedirs(manifest_dir, exist_ok=True)
+    parser.add_argument(
+        "--raw-txt-dir",
+        type=Path,
+        default=base_dir / "data" / "raw" / "rfcs_txt",
+        help="Path to directory containing raw legacy text RFC files.",
+    )
+    parser.add_argument(
+        "--raw-xml-dir",
+        type=Path,
+        default=base_dir / "data" / "raw" / "rfcs_xml",
+        help="Path to directory containing raw modern XML RFC files.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=base_dir / "data" / "normalized",
+        help="Destination directory for serialized canonical JSON trees.",
+    )
+    parser.add_argument(
+        "--manifest-dir",
+        type=Path,
+        default=base_dir / "data" / "manifests",
+        help="Destination directory for operational manifest tracking logs.",
+    )
+    parser.add_argument(
+        "--raw-index-path",
+        type=Path,
+        default=base_dir / "data" / "raw" / "rfc_index" / "rfc-index.xml",
+        help="Path to the foundational global raw rfc-index.xml file.",
+    )
+    parser.add_argument(
+        "--metadata-path",
+        type=Path,
+        default=base_dir / "metadata" / "rfc_metadata_lookup.json",
+        help="Path to compile or read the local parsed index JSON lookup ledger.",
+    )
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="Explicit ceiling cap for process pool worker process constraints.",
+    )
+    parser.add_argument(
+        "--per-file-timeout",
+        type=float,
+        default=45.0,
+        help="Ceiling execution limit duration granted to process an individual file.",
+    )
 
-        self.dataset_manifest_path = os.path.join(manifest_dir, "dataset_manifest.json")
-        self.telemetry_log_path = os.path.join(manifest_dir, "telemetry_log.json")
-        self.telemetry_manifest = []
+    args = parser.parse_args()
 
-        self.extractor = NormativeExtractor()
-
-        raw_index_path = os.path.join("data", "raw", "rfc_index", "rfc-index.xml")
-        metadata_path = os.path.join("metadata", "rfc_metadata_lookup.json")
-
-        os.makedirs("metadata", exist_ok=True)
-
-        if os.path.exists(raw_index_path):
-            index_parser = RFCIndexParser(raw_index_path, metadata_path)
-            index_parser.parse()
-        else:
-            print(
-                f"Warning: Raw index not found at {raw_index_path}. TreeBuilder may fail."
-            )
-
-        self.tree_builder = CanonicalTreeBuilder(metadata_path)
-
-    def _record_telemetry(self, filename, blocks, status="success", error_msg=None):
-        """Calculates and logs chunking statistics for the embedding stage."""
-        if not blocks and status == "success":
-            return
-
-        if status == "success":
-            lengths = [
-                len(b["normalized_text"]) for b in blocks if b.get("normalized_text")
-            ]
-            normative_count = sum(1 for b in blocks if b["block_type"] == "normative")
-
-            self.telemetry_manifest.append(
-                {
-                    "file": filename,
-                    "status": status,
-                    "total_blocks": len(blocks),
-                    "normative_rules": normative_count,
-                    "max_block_chars": max(lengths) if lengths else 0,
-                    "min_block_chars": min(lengths) if lengths else 0,
-                    "avg_block_chars": sum(lengths) // len(lengths) if lengths else 0,
-                }
-            )
-        else:
-            self.telemetry_manifest.append(
-                {"file": filename, "status": "failed", "error": error_msg}
-            )
-
-    def run_legacy_text_ingestion(self):
-        """Processes RFC 1 through 8649 via the heuristic plaintext parsing pipeline."""
-        print("Starting Legacy Era (RFC 1 - 8649) Text Ingestion...")
-        print("-" * 50)
-
-        success_count = 0
-        failure_count = 0
-
-        for rfc_num in range(1, 8650):
-            filename = f"rfc{rfc_num}.txt"
-            filepath = os.path.join(self.raw_txt_dir, filename)
-
-            if not os.path.exists(filepath):
-                continue
-
-            try:
-                parser = LegacyTextParser(filepath)
-                canonical_blocks = parser.parse_document()
-
-                enriched_blocks = self.extractor.process_blocks(canonical_blocks)
-
-                canonical_tree = self.tree_builder.build_tree(
-                    rfc_id=str(rfc_num), flat_blocks=enriched_blocks, source_type="txt"
-                )
-
-                output_path = os.path.join(
-                    self.output_dir, f"rfc{rfc_num}_normalized.json"
-                )
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(canonical_tree.model_dump_json(indent=2))
-
-                self._record_telemetry(filename, enriched_blocks, "success")
-                success_count += 1
-
-            except Exception as e:
-                error_msg = str(e).replace("\n", " | ")
-                self._record_telemetry(filename, [], "failed", error_msg)
-                failure_count += 1
-
-            sys.stdout.write(
-                f"\rProcessing Legacy: {filename}... Success: {success_count} | Failed: {failure_count} "
-            )
-            sys.stdout.flush()
-
-        print("\n" + "-" * 50)
-        print(
-            f"--- LEGACY ERA COMPLETE | Success: {success_count} | Failed: {failure_count} ---"
+    try:
+        orchestrator = PipelineOrchestrator.create_and_initialize(
+            raw_txt_dir=args.raw_txt_dir,
+            raw_xml_dir=args.raw_xml_dir,
+            output_dir=args.output_dir,
+            manifest_dir=args.manifest_dir,
+            raw_index_path=args.raw_index_path,
+            metadata_path=args.metadata_path,
+            max_workers=args.max_workers,
+            per_file_timeout=args.per_file_timeout,
         )
 
-    def run_modern_xml_ingestion(self):
-        """Processes RFC 8650+ via the native XML structural parsing pipeline."""
-        print("\nStarting Modern Era (RFC 8650+) XML Ingestion...")
-        print("-" * 50)
+        orchestrator.run_legacy_text_ingestion()
+        orchestrator.run_modern_xml_ingestion()
+        orchestrator.save_manifest()
 
-        success_count = 0
-        failure_count = 0
-
-        for rfc_num in range(8650, 10000):
-            filename = f"rfc{rfc_num}.xml"
-            filepath = os.path.join(self.raw_xml_dir, filename)
-
-            if not os.path.exists(filepath):
-                continue
-
-            try:
-                parser = ModernRFCParser(filepath)
-                canonical_blocks = parser.parse_document()
-
-                enriched_blocks = self.extractor.process_blocks(canonical_blocks)
-
-                canonical_tree = self.tree_builder.build_tree(
-                    rfc_id=str(rfc_num),
-                    flat_blocks=enriched_blocks,
-                    source_type="xml",
-                )
-
-                output_path = os.path.join(
-                    self.output_dir, f"rfc{rfc_num}_normalized.json"
-                )
-                with open(output_path, "w", encoding="utf-8") as f:
-                    f.write(canonical_tree.model_dump_json(indent=2))
-
-                self._record_telemetry(filename, enriched_blocks, "success")
-                success_count += 1
-
-            except Exception as e:
-                error_msg = str(e).replace("\n", " | ")
-                self._record_telemetry(filename, [], "failed", error_msg)
-                failure_count += 1
-
-            sys.stdout.write(
-                f"\rProcessing Modern: {filename}... Success: {success_count} | Failed: {failure_count} "
-            )
-            sys.stdout.flush()
-
-        print("\n" + "-" * 50)
-        print(
-            f"--- MODERN ERA COMPLETE | Success: {success_count} | Failed: {failure_count} ---"
+    except Exception:
+        logging.exception(
+            "CRITICAL FAILURE: Ingestion pipeline processing aborted abnormally."
         )
-
-    def save_manifest(self):
-        """Compiles the telemetry ledger into a strict Pydantic DatasetManifest."""
-        print("\nCompiling Final Dataset Manifest...")
-
-        successful = [r for r in self.telemetry_manifest if r["status"] == "success"]
-        total_blocks = sum(r.get("total_blocks", 0) for r in successful)
-        total_normative = sum(r.get("normative_rules", 0) for r in successful)
-
-        txt_count = sum(1 for r in successful if r["file"].endswith(".txt"))
-        xml_count = sum(1 for r in successful if r["file"].endswith(".xml"))
-
-        # Generate a timestamp for the dataset version
-        version_stamp = datetime.now(UTC).strftime("%Y-%m-%d-%H%M")
-
-        # Hydrate the Pydantic Model
-        manifest = DatasetManifest(
-            dataset_version=version_stamp,
-            pipeline_run_at=datetime.now(UTC),
-            parser_version="1.0.0",
-            chunking_version="1.0.0",
-            total_rfcs_indexed=len(successful),
-            total_blocks_generated=total_blocks,
-            total_normative_statements=total_normative,
-            xml_rfcs_processed=xml_count,
-            txt_rfcs_processed=txt_count,
-        )
-
-        manifest.save_to_disk(self.dataset_manifest_path)
-        print(f"Receipt saved securely to {self.dataset_manifest_path}.")
-
-        with open(self.telemetry_log_path, "w", encoding="utf-8") as f:
-            json.dump(self.telemetry_manifest, f, indent=2)
+        sys.exit(1)
 
 
 if __name__ == "__main__":
-    RAW_TXT_DIR = "data/raw/rfcs_txt"
-    RAW_XML_DIR = "data/raw/rfcs_xml"
-    NORMALIZED_DIR = "data/normalized"
-    LOG_DIR = "data/manifests"
-
-    orchestrator = PipelineOrchestrator(
-        RAW_TXT_DIR, RAW_XML_DIR, NORMALIZED_DIR, LOG_DIR
-    )
-
-    orchestrator.run_legacy_text_ingestion()
-    orchestrator.run_modern_xml_ingestion()
-    orchestrator.save_manifest()
+    main()

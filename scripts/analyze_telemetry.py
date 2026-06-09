@@ -1,65 +1,66 @@
-"""Telemetry Analysis Script
+"""Command-line script for parsing and summarizing pipeline execution telemetry logs."""
 
-Reads the generated telemetry log and outputs an executive summary of the dataset.
-Provides volumetric data on block counts, normative rules, and character constraints
-necessary for configuring downstream embedding vector configurations.
-"""
-
+import argparse
 import json
-import os
+import sys
+from pathlib import Path
+
+from ingestion.manifest import TelemetryRecord
 
 
-def analyze_telemetry():
-    """Parses the telemetry ledger and prints a formatted terminal report of dataset statistics."""
-    telemetry_path = os.path.join("data", "manifests", "telemetry_log.json")
+def analyze_telemetry(telemetry_log_path: Path) -> None:
+    """Parses the telemetry log file and prints an executive summary report to the console.
 
-    if not os.path.exists(telemetry_path):
+    Args:
+        telemetry_log_path (Path): Path to the JSON telemetry log file.
+
+    Raises:
+        SystemExit: If the target log file cannot be found on disk.
+    """
+    if not telemetry_log_path.exists():
         print(
-            f"Error: {telemetry_path} not found. Make sure you ran the ingestion pipeline first."
+            f"Error: Target log file '{telemetry_log_path}' could not be discovered. "
+            f"Verify that you successfully ran the ingestion pipeline framework first.",
+            file=sys.stderr,
         )
-        return
+        sys.exit(1)
 
-    with open(telemetry_path, encoding="utf-8") as f:
-        data = json.load(f)
+    with telemetry_log_path.open(encoding="utf-8") as f:
+        data: list[TelemetryRecord] = json.load(f)
 
     successful = [d for d in data if d.get("status") == "success"]
-    failed = [d for d in data if d.get("status") == "failed"]
+    failed_count = len(data) - len(successful)
 
     if not successful:
-        print("No successful records to analyze.")
+        print("No successful records to analyze.", file=sys.stderr)
         return
 
-    # Calculate global aggregates
     total_files = len(successful)
     total_blocks = sum(r.get("total_blocks", 0) for r in successful)
     total_normative = sum(r.get("normative_rules", 0) for r in successful)
+    total_chars = sum(r.get("total_chars", 0) for r in successful)
 
-    # Calculate global character statistics
-    total_chars = sum(
-        r.get("avg_block_chars", 0) * r.get("total_blocks", 0) for r in successful
-    )
-    global_avg_chars = total_chars // total_blocks if total_blocks > 0 else 0
-
-    # Find extreme length variations to inform chunking limits
+    global_avg_chars = total_chars / total_blocks if total_blocks > 0 else 0
     largest_block_file = max(successful, key=lambda x: x.get("max_block_chars", 0))
-
     valid_mins = [r for r in successful if r.get("min_block_chars", 0) > 0]
-    smallest_block_file = min(
-        valid_mins, key=lambda x: x.get("min_block_chars", float("inf"))
-    )
+    smallest_block_file = None
 
-    # Top 5 most rule-heavy RFCs
+    if valid_mins:
+        smallest_block_file = min(
+            valid_mins,
+            key=lambda x: x.get("min_block_chars", float("inf")),
+        )
+
     top_normative = sorted(
         successful, key=lambda x: x.get("normative_rules", 0), reverse=True
     )[:5]
 
-    # Print the Executive Summary
     print("=" * 50)
     print(" RFC INGESTION: GLOBAL TELEMETRY REPORT")
     print("=" * 50)
-    print(f"Total Documents Processed: {total_files + len(failed):,}")
+    print(f"Total Documents Processed: {len(data):,}")
     print(f"  -> Successful: {total_files:,}")
-    print(f"  -> Failed:     {len(failed):,}")
+    print(f"  -> Failed:     {failed_count:,}")
     print("-" * 50)
     print(" VOLUME METRICS:")
     print(f"Total Vector Chunks (Blocks) Generated: {total_blocks:,}")
@@ -69,19 +70,48 @@ def analyze_telemetry():
     )
     print("-" * 50)
     print(" CHUNKING BOUNDARIES (Character Counts):")
-    print(f"Global Average Block Size: {global_avg_chars:,} chars")
+    print(f"Global Average Block Size: {global_avg_chars:,.0f} chars")
     print(
-        f"Largest Single Block:      {largest_block_file['max_block_chars']:,} chars (Found in {largest_block_file['file']})"
+        f"Largest Single Block:      {largest_block_file.get('max_block_chars', 0):,} chars (Found in {largest_block_file['file']})"
     )
-    print(
-        f"Smallest Single Block:     {smallest_block_file['min_block_chars']:,} chars (Found in {smallest_block_file['file']})"
-    )
+
+    if valid_mins and smallest_block_file is not None:
+        print(
+            f"Smallest Single Block:     {smallest_block_file.get('min_block_chars', 0):,} chars (Found in {smallest_block_file['file']})"
+        )
+    else:
+        print(
+            "Smallest Single Block:     N/A (No non-empty semantic blocks identified)"
+        )
+
     print("-" * 50)
     print(" TOP 5 MOST STRICT PROTOCOLS (By Normative Rules):")
+
     for i, r in enumerate(top_normative, 1):
-        print(f"  {i}. {r['file'].ljust(15)} : {r['normative_rules']:,} rules")
+        print(f"  {i}. {r['file'].ljust(15)} : {r.get('normative_rules', 0):,} rules")
+
     print("=" * 50)
 
 
+def main() -> None:
+    """Main entry point for parsing execution arguments and launching telemetry summary logic."""
+    script_dir = Path(__file__).resolve().parent
+    root_dir = script_dir.parent
+
+    parser = argparse.ArgumentParser(
+        description="Aggregates and formats operational runtime telemetry summaries for compiled RFC corpora."
+    )
+
+    parser.add_argument(
+        "--telemetry-log-path",
+        type=Path,
+        default=root_dir / "data" / "manifests" / "telemetry_log.json",
+        help="Path to the JSON file where pipeline tracking metrics are recorded.",
+    )
+
+    args = parser.parse_args()
+    analyze_telemetry(args.telemetry_log_path)
+
+
 if __name__ == "__main__":
-    analyze_telemetry()
+    main()
