@@ -1,54 +1,44 @@
-"""Dataset Manifest Specification
+"""Data schemas for tracking dataset pipeline validation manifests and system telemetry logs."""
 
-This module defines the operational receipt for the dataset pipeline.
-The generated manifest acts as a strict versioning contract between the
-data generation backend (GitHub Actions) and the inference runtime (Hugging Face).
-
-If the inference engine detects a mismatch in parser or chunking versions,
-it should refuse to boot rather than serve misaligned vector citations.
-"""
-
-import os
 from datetime import datetime
+from pathlib import Path
+from typing import Literal, NotRequired, TypedDict
 
 from pydantic import BaseModel
 
 
 class DatasetManifest(BaseModel):
-    """The deterministic receipt of a completed ingestion pipeline run."""
+    """Authoritative receipt tracking validation parameters across an ingestion pipeline run."""
 
-    # ---------------------------------------------------------
-    # Dataset Identity
-    # ---------------------------------------------------------
-    dataset_version: str  # Timestamp string, e.g., "2026-06-02-1027"
-    pipeline_run_at: datetime  # Exact UTC time the ingestion job finished
-
-    # ---------------------------------------------------------
-    # Reproducibility Contracts (Component Versions)
-    # ---------------------------------------------------------
-    parser_version: str  # Semantic version or Git commit hash of the parser
-    chunking_version: str  # Semantic version of the chunking strategy
-    embedding_model: str | None = None  # Left None until later stages
-
-    # ---------------------------------------------------------
-    # Corpus Statistics (Sanity Checks)
-    # ---------------------------------------------------------
+    dataset_version: str
+    pipeline_run_at: datetime
+    parser_version: str
+    chunking_version: str
+    embedding_model: str | None = None
     total_rfcs_indexed: int
     total_blocks_generated: int
     total_normative_statements: int
+    xml_rfcs_processed: int
+    txt_rfcs_processed: int
 
-    # ---------------------------------------------------------
-    # Hybrid Ingestion Breakdown
-    # ---------------------------------------------------------
-    xml_rfcs_processed: int  # Count of modern RFCs (8650+) processed via XML
-    txt_rfcs_processed: int  # Count of legacy RFCs processed via Regex/Heuristics
-
-    def save_to_disk(self, filepath: str):
-        """Serializes the dataset manifest to a JSON receipt.
+    def save_to_disk(self, filepath: Path) -> None:
+        """Serializes the dataset manifest payload directly to a JSON file on disk.
 
         Args:
-            filepath (str): The destination path where the JSON manifest will be saved.
+            filepath (Path): Target path where the JSON manifest file will be written.
         """
-        os.makedirs(os.path.dirname(filepath), exist_ok=True)
-        with open(filepath, "w", encoding="utf-8") as f:
-            f.write(self.model_dump_json(indent=2))
+        filepath.parent.mkdir(parents=True, exist_ok=True)
+        filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+
+
+class TelemetryRecord(TypedDict):
+    """Dictionary schema specifying execution profile logs for individual source documents."""
+
+    file: str
+    status: Literal["success", "failed"]
+    total_blocks: NotRequired[int]
+    normative_rules: NotRequired[int]
+    total_chars: NotRequired[int]
+    max_block_chars: NotRequired[int]
+    min_block_chars: NotRequired[int]
+    error: NotRequired[str]
