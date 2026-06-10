@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
-from typing import Literal, NotRequired, TypedDict
+from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
@@ -31,14 +31,24 @@ class DatasetManifest(BaseModel):
         filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
 
 
-class TelemetryRecord(TypedDict):
-    """Dictionary schema specifying execution profile logs for individual source documents."""
+class SuccessRecord(TypedDict):
+    """Schema tracking a completely parsed and extracted RFC document pipeline run."""
 
     file: str
-    status: Literal["success", "failed"]
-    total_blocks: NotRequired[int]
-    normative_rules: NotRequired[int]
-    total_chars: NotRequired[int]
-    max_block_chars: NotRequired[int]
-    min_block_chars: NotRequired[int]
-    error: NotRequired[str]
+    status: Literal["success"]
+    total_blocks: int
+    normative_rules: int
+    total_chars: int
+    max_block_chars: int
+    min_block_chars: int
+
+
+class FailureRecord(TypedDict):
+    """Schema tracing a catastrophic document parsing or I/O bottleneck failure."""
+
+    file: str
+    status: Literal["failed"]
+    error: str
+
+
+TelemetryRecord = SuccessRecord | FailureRecord

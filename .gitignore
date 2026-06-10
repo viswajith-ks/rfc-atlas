@@ -11,6 +11,7 @@ data/raw/
 data/normalized/
 data/embeddings/
 data/lancedb/
+data/metadata/
 data/graph/
 data/manifests/*.json
 data/normalized/*.json

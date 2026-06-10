@@ -86,12 +86,9 @@ class NormativeExtractor:
             if block["block_type"] in target_block_types and not self._is_exempt(
                 block["hierarchy_path"]
             ):
-                if block["rfc_id"] < self._BCP14_STANDARD_THRESHOLD:
-                    matches: list[str] = self._KEYWORD_PATTERN.findall(
-                        block["normalized_text"]
-                    )
-                else:
-                    matches = self._KEYWORD_PATTERN.findall(block["normalized_text"])
+                matches: list[str] = self._KEYWORD_PATTERN.findall(
+                    block["normalized_text"]
+                )
 
                 if matches:
                     normalized_keywords: list[NormativeKeyword] = []

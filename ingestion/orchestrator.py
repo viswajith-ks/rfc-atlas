@@ -83,34 +83,19 @@ def _execute_rfc_parsing_worker(
             block for section in canonical_tree.sections for block in section.blocks
         ]
 
-        telemetry_record: TelemetryRecord
+        lengths = [len(b.normalized_text) for b in all_instantiated_blocks]
 
-        if not all_instantiated_blocks:
-            telemetry_record = {
-                "file": filename,
-                "status": "success",
-                "total_blocks": 0,
-                "normative_rules": 0,
-                "total_chars": 0,
-                "max_block_chars": 0,
-                "min_block_chars": 0,
-            }
-        else:
-            lengths = [len(b.normalized_text) for b in all_instantiated_blocks]
-            exact_total_chars = sum(lengths)
-            normative_count = sum(
+        telemetry_record: TelemetryRecord = {
+            "file": filename,
+            "status": "success",
+            "total_blocks": len(all_instantiated_blocks),
+            "normative_rules": sum(
                 len(b.normative_statements) for b in all_instantiated_blocks
-            )
-
-            telemetry_record = {
-                "file": filename,
-                "status": "success",
-                "total_blocks": len(all_instantiated_blocks),
-                "normative_rules": normative_count,
-                "total_chars": exact_total_chars,
-                "max_block_chars": max(lengths),
-                "min_block_chars": min(lengths),
-            }
+            ),
+            "total_chars": sum(lengths),
+            "max_block_chars": max(lengths, default=0),
+            "min_block_chars": min(lengths, default=0),
+        }
 
         return filename, "success", None, telemetry_record
 
@@ -123,6 +108,7 @@ class PipelineOrchestrator:
     """Coordinates multi-process parsing workflows across historical and modern RFC document layers."""
 
     _POLL_INTERVAL: float = 1.0
+    _is_instantiated: bool = False
 
     def __init__(
         self,
@@ -156,8 +142,19 @@ class PipelineOrchestrator:
             per_file_timeout (float): Execution timeout threshold per individual file in seconds.
 
         Raises:
-            RuntimeError: If initialized on a non-Linux operating system (Windows/macOS).
+            RuntimeError: If a second instance of the orchestrator is attempted,
+                or if initialized on a non-Linux operating system (Windows/macOS).
         """
+
+        if PipelineOrchestrator._is_instantiated:
+            logger.critical("Initialization aborted: Orchestrator Singleton violation.")
+            raise RuntimeError(
+                "PipelineOrchestrator is a strict Singleton. Because it utilizes Linux "
+                "Copy-on-Write (CoW) and module-level global state to share memory "
+                "across child processes, instantiating multiple orchestrators in the "
+                "same runtime will corrupt the worker pools. Only one instance is allowed."
+            )
+        PipelineOrchestrator._is_instantiated = True
 
         if sys.platform != "linux":
             logger.critical("Initialization aborted: Incompatible Host OS detected.")
@@ -295,7 +292,7 @@ class PipelineOrchestrator:
             target_dir = self.raw_xml_dir
             glob_pattern = "rfc*.xml"
             log_prefix = "Modern"
-            era_label = f"Modern Era (RFC {LEGACY_RFC_LIMIT}+) XML"
+            era_label = "Modern Era XML (Including Legacy Backports)"
         else:
             target_dir = self.raw_txt_dir
             glob_pattern = "rfc*.txt"
@@ -391,7 +388,7 @@ class PipelineOrchestrator:
             _worker_tree_builder = CanonicalTreeBuilder(self.metadata_path)
 
         # Target workers to recycle after processing roughly 25% of their total expected workload share.
-        calculated_max_tasks = round(0.25 * total_files / allocated_cores)
+        calculated_max_tasks = max(1, round(0.25 * total_files / allocated_cores))
 
         try:
             with ProcessPool(
@@ -431,8 +428,12 @@ class PipelineOrchestrator:
                         try:
                             filename, status, error_msg, telemetry = future.result()
 
-                            if status == "success" and telemetry is not None:
-                                if telemetry.get("total_blocks") == 0:
+                            if (
+                                status == "success"
+                                and telemetry is not None
+                                and telemetry["status"] == "success"
+                            ):
+                                if telemetry["total_blocks"] == 0:
                                     logger.warning(
                                         f"File {filename} processed successfully but produced 0 semantic blocks."
                                     )
@@ -495,7 +496,13 @@ class PipelineOrchestrator:
         self._execute_era_ingestion("txt")
 
     def run_modern_xml_ingestion(self) -> None:
-        """Processes modern documents (RFC 8650+) via the structural XML parsing workflow."""
+        """Processes modern documents via the structural XML parsing workflow.
+
+        Note: This does not enforce a lower-bound RFC limit. If high-fidelity XML
+        backports of legacy RFCs exist in the target directory, they will be parsed
+        here and will safely overwrite any heuristic TXT extractions generated
+        in previous pipeline steps.
+        """
         self._execute_era_ingestion("xml")
 
     def _record_telemetry(
@@ -522,7 +529,7 @@ class PipelineOrchestrator:
                 else "Unknown internal processing failure."
             )
             self.telemetry_manifest.append(
-                {"file": filename, "status": status, "error": clean_error}
+                {"file": filename, "status": "failed", "error": clean_error}
             )
 
     def save_manifest(self) -> None:
@@ -533,8 +540,8 @@ class PipelineOrchestrator:
         logger.info("Compiling Final Dataset Manifest...")
 
         successful = [r for r in self.telemetry_manifest if r["status"] == "success"]
-        total_blocks = sum(r.get("total_blocks", 0) for r in successful)
-        total_normative = sum(r.get("normative_rules", 0) for r in successful)
+        total_blocks = sum(r["total_blocks"] for r in successful)
+        total_normative = sum(r["normative_rules"] for r in successful)
 
         txt_count = sum(1 for r in successful if r["file"].endswith(".txt"))
         xml_count = sum(1 for r in successful if r["file"].endswith(".xml"))

@@ -1,6 +1,5 @@
 """Modern XML parser for extracting canonical structured blocks from xml2rfc v3 documents."""
 
-import copy
 import logging
 from pathlib import Path
 from typing import cast, get_args
@@ -17,7 +16,6 @@ from normalization.schema import (
     ReferenceMetadataDict,
     SourcecodeFormat,
 )
-from parsers.base import RFCParser
 from utils.xml_utils import (
     find_child_by_local_name,
     find_children_by_local_name,
@@ -27,29 +25,33 @@ from utils.xml_utils import (
 logger = logging.getLogger(__name__)
 
 
-class ModernRFCParser(RFCParser):
+class ModernRFCParser:
     """Structural parser for xml2rfc v3 compliant RFC documents (RFC 8650+)."""
 
     _TARGET_TAGS = frozenset(
         ["t", "sourcecode", "artwork", "table", "reference", "ul", "ol", "dl"]
     )
 
-    _INFORMATIVE_TOKENS = (
-        "informative",
-        "bibliography",
-        "non-normative",
-        "other",
-        "background",
-        "reading",
+    _INFORMATIVE_TOKENS = frozenset(
+        {
+            "informative",
+            "bibliography",
+            "non-normative",
+            "other",
+            "background",
+            "reading",
+        }
     )
-    _NORMATIVE_TOKENS = (
-        "normative",
-        "core",
-        "required",
-        "requirement",
-        "standards",
-        "specifications",
-        "mandatory",
+    _NORMATIVE_TOKENS = frozenset(
+        {
+            "normative",
+            "core",
+            "required",
+            "requirement",
+            "standards",
+            "specifications",
+            "mandatory",
+        }
     )
 
     def __init__(self, xml_filepath: Path) -> None:
@@ -273,7 +275,12 @@ class ModernRFCParser(RFCParser):
         anchor = node.get("anchor", "UNKNOWN")
         target_url = node.get("target")
 
-        title_node = node.find(".//front/title")
+        front_node = find_child_by_local_name(node, "front")
+        title_node = (
+            find_child_by_local_name(front_node, "title")
+            if front_node is not None
+            else None
+        )
         title = (
             "".join(map(str, title_node.itertext())).strip()
             if title_node is not None
@@ -284,7 +291,9 @@ class ModernRFCParser(RFCParser):
         series_name = None
         series_value = None
 
-        for info in node.findall(".//seriesInfo"):
+        for info in find_children_by_local_name(node, "seriesInfo"):
+            name = info.get("name", "")
+            value = info.get("value")
             name = info.get("name", "")
             value = info.get("value")
 
@@ -332,14 +341,8 @@ class ModernRFCParser(RFCParser):
         Returns:
             CanonicalBlockDict: Structured intermediate block artifact matching schema boundaries.
         """
-        node_skeleton = copy.deepcopy(node)
-
-        for descendant in node_skeleton.iter():
-            if descendant != node_skeleton:
-                descendant.text = None
-
         source_fragment = etree.tostring(
-            node_skeleton, encoding="unicode", pretty_print=False
+            node, encoding="unicode", pretty_print=False
         ).strip()
 
         ref_meta = None

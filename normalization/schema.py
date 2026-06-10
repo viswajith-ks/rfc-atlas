@@ -121,7 +121,7 @@ class RFCMetadata(BaseModel):
     rfc_number: int
     source_type: SourceType
     title: str
-    published_at: RFCPublicationDate | None
+    published_at: RFCPublicationDate | None = None
 
     status: str | None = Field(
         default=None,
@@ -136,7 +136,7 @@ class RFCMetadata(BaseModel):
     obsoletes: list[int] = []
     updates: list[int] = []
     updated_by: list[int] = []
-    protocol_family: str | None
+    protocol_family: str | None = None
 
 
 class NormativeStatement(BaseModel):

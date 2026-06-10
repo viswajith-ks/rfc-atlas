@@ -15,15 +15,13 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
         telemetry_log_path (Path): Path to the JSON telemetry log file.
 
     Raises:
-        SystemExit: If the target log file cannot be found on disk.
+        FileNotFoundError: If the target log file cannot be found on disk.
     """
     if not telemetry_log_path.exists():
-        print(
+        raise FileNotFoundError(
             f"Error: Target log file '{telemetry_log_path}' could not be discovered. "
-            f"Verify that you successfully ran the ingestion pipeline framework first.",
-            file=sys.stderr,
+            f"Verify that you successfully ran the ingestion pipeline framework first."
         )
-        sys.exit(1)
 
     with telemetry_log_path.open(encoding="utf-8") as f:
         data: list[TelemetryRecord] = json.load(f)
@@ -110,7 +108,12 @@ def main() -> None:
     )
 
     args = parser.parse_args()
-    analyze_telemetry(args.telemetry_log_path)
+
+    try:
+        analyze_telemetry(args.telemetry_log_path)
+    except FileNotFoundError as e:
+        print(e, file=sys.stderr)
+        sys.exit(1)
 
 
 if __name__ == "__main__":

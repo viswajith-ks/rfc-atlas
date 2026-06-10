@@ -59,8 +59,8 @@ def main() -> None:
     parser.add_argument(
         "--metadata-path",
         type=Path,
-        default=base_dir / "metadata" / "rfc_metadata_lookup.json",
-        help="Path to compile or read the local parsed index JSON lookup ledger.",
+        default=base_dir / "data" / "metadata" / "rfc_metadata_lookup.json",
+        help="Path to the compiled metadata lookup cache file.",
     )
     parser.add_argument(
         "--max-workers",

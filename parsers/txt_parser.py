@@ -1,13 +1,13 @@
 """Heuristic text parser for extracting structured blocks from legacy plaintext RFCs (RFC 1 - 8649)."""
 
 import re
+from collections import deque
 from pathlib import Path
 
 from normalization.schema import CanonicalBlockDict, IntermediateBlockType
-from parsers.base import RFCParser
 
 
-class LegacyTextParser(RFCParser):
+class LegacyTextParser:
     """Heuristic structural parser for plaintext IETF RFC documents."""
 
     # Mathematically identical to the original wildcard logic, but strictly linear.
@@ -32,11 +32,25 @@ class LegacyTextParser(RFCParser):
         r"introduction|"
         r"security\s+considerations|"
         r"references|"
-        r"authors?\'?s?\'?\s+addresses?|"
+        r"authors?'?s?'?\s+addresses?|"
         r"acknowledgements?"
         r")$",
         re.IGNORECASE,
     )
+
+    # Captures numeric hierarchy headers. Group 1 grabs the dot-separated numbers (e.g., "1.2.3"),
+    # and Group 2 grabs the remaining title text.
+    _NUMERIC_HEADER_RE = re.compile(r"^([0-9]+(?:\.[0-9]+)*)(?:\.|\s+)(.*)$")
+
+    # Captures Appendix-style headers. Group 1 grabs "Appendix A.1",
+    # and Group 2 grabs the remaining title text after ignoring trailing punctuation.
+    _APPENDIX_HEADER_RE = re.compile(
+        r"^(Appendix\s+[A-Z0-9]+(?:\.[0-9]+)*)(?:\.|\s+|-*)(.*)$",
+        re.IGNORECASE,
+    )
+
+    # Captures legacy Roman Numeral headers. Group 1 grabs the numeral (e.g., "IV"), Group 2 grabs the title.
+    _ROMAN_HEADER_RE = re.compile(r"^([IVXLCDM]+)\.\s+(.*)$", re.IGNORECASE)
 
     _BACK_MATTER_TITLES = frozenset(
         {
@@ -150,20 +164,9 @@ class LegacyTextParser(RFCParser):
         if prose_remainder and not prose_remainder.strip():
             prose_remainder = None
 
-        # Captures numeric hierarchy headers. Group 1 grabs the dot-separated numbers (e.g., "1.2.3"),
-        # and Group 2 grabs the remaining title text.
-        numeric_match = re.match(r"^([0-9]+(?:\.[0-9]+)*)(?:\.|\s+)(.*)$", first_line)
-
-        # Captures Appendix-style headers. Group 1 grabs "Appendix A.1",
-        # and Group 2 grabs the remaining title text after ignoring trailing punctuation.
-        appendix_match = re.match(
-            r"^(Appendix\s+[A-Z0-9]+(?:\.[0-9]+)*)(?:\.|\s+|-*)(.*)$",
-            first_line,
-            re.IGNORECASE,
-        )
-
-        # Captures legacy Roman Numeral headers. Group 1 grabs the numeral (e.g., "IV"), Group 2 grabs the title.
-        roman_match = re.match(r"^([IVXLCDM]+)\.\s+(.*)$", first_line, re.IGNORECASE)
+        numeric_match = self._NUMERIC_HEADER_RE.match(first_line)
+        appendix_match = self._APPENDIX_HEADER_RE.match(first_line)
+        roman_match = self._ROMAN_HEADER_RE.match(first_line)
 
         normalized_line = first_line.lower().rstrip(".:- ")
         is_unnum = bool(self._UNNUMBERED_HEADERS_RE.match(normalized_line))
@@ -296,7 +299,7 @@ class LegacyTextParser(RFCParser):
 
         canonical_blocks: list[CanonicalBlockDict] = []
         current_hierarchy = ["Document Root"]
-        block_queue = list(merged_blocks)
+        block_queue = deque(merged_blocks)
 
         prefix_to_title: dict[str, str] = {}
         last_known_at_depth: dict[int, str] = {0: "Document Root"}
@@ -304,7 +307,7 @@ class LegacyTextParser(RFCParser):
         in_back_matter = False
 
         while block_queue:
-            block = block_queue.pop(0).strip("\n")
+            block = block_queue.popleft().strip("\n")
             if not block.strip():
                 continue
 
@@ -318,19 +321,8 @@ class LegacyTextParser(RFCParser):
                 lines = block.split("\n")
                 first_line = lines[0].strip()
 
-                # Captures numeric hierarchy headers. Group 1 grabs the dot-separated numbers
-                # (e.g., "1.2.3"), and Group 2 grabs the remaining title text.
-                numeric_match = re.match(
-                    r"^([0-9]+(?:\.[0-9]+)*)(?:\.|\s+)(.*)$", first_line
-                )
-
-                # Captures Appendix-style headers. Group 1 grabs "Appendix A.1",
-                # and Group 2 grabs the remaining title text after ignoring trailing punctuation.
-                appendix_match = re.match(
-                    r"^(Appendix\s+[A-Z0-9]+(?:\.[0-9]+)*)(?:\.|\s+|-*)(.*)$",
-                    first_line,
-                    re.IGNORECASE,
-                )
+                numeric_match = self._NUMERIC_HEADER_RE.match(first_line)
+                appendix_match = self._APPENDIX_HEADER_RE.match(first_line)
 
                 reconstructed_hierarchy: list[str] = []
 
@@ -394,7 +386,7 @@ class LegacyTextParser(RFCParser):
                     current_hierarchy = reconstructed_hierarchy
 
                 if prose_remainder and prose_remainder.strip():
-                    block_queue.insert(0, prose_remainder)
+                    block_queue.appendleft(prose_remainder)
 
                 continue
 

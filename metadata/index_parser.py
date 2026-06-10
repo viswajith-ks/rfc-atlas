@@ -84,6 +84,8 @@ class RFCIndexParser:
             context = etree.iterparse(self.xml_path, events=("end",))
 
             for _, elem in context:
+                parent = elem.getparent()
+
                 if get_local_name(elem) == "rfc-entry":
                     entry = elem
                     doc_id_text = get_child_text_by_local_name(entry, "doc-id")
@@ -175,16 +177,12 @@ class RFCIndexParser:
                             }
                             self.metadata_dict[str(rfc_num)] = entry_record
 
-                    elem.clear()
-                    if elem.getparent() is not None:
-                        elem.getparent().remove(elem)
+                elif parent is None or parent.getparent() is not None:
+                    continue
 
-                elif (
-                    elem.getparent() is not None
-                    and elem.getparent().getparent() is None
-                ):
-                    elem.clear()
-                    elem.getparent().remove(elem)
+                elem.clear()
+                if parent is not None:
+                    parent.remove(elem)
 
         except etree.ParseError as e:
             logger.error(
