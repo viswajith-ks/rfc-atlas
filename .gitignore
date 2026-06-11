@@ -1,21 +1,26 @@
 # Python artifacts
 __pycache__/
+
 *.py[cod]
 *.so
+
 .venv/
+
 env/
 venv/
 
 # Data & Database
-data/raw/
-data/normalized/
+data/chunks/
 data/embeddings/
+data/graph/
 data/lancedb/
 data/metadata/
-data/graph/
+data/normalized/
+data/raw/
+
 data/manifests/*.json
-data/normalized/*.json
 metadata/*.json
+
 *.sqlite
 *.db
 
