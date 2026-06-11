@@ -32,7 +32,6 @@ logger.addHandler(file_handler)
 
 CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
-FLUSH_INTERVAL: int = 5000
 
 TABLE_ROUTING_MAP: dict[str, str] = {
     "paragraph": "prose",
@@ -158,10 +157,6 @@ class ChunkingPipeline:
             chunk_json: str = json.dumps(chunk_obj)
             self.table_file_handles[target_table].write(chunk_json + "\n")
             self.total_chunks_generated += 1
-
-            if self.total_chunks_generated % FLUSH_INTERVAL == 0:
-                for handle in self.table_file_handles.values():
-                    handle.flush()
 
         self.total_blocks_processed += 1
 
