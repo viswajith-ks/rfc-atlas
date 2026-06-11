@@ -17,6 +17,7 @@ data/lancedb/
 data/metadata/
 data/normalized/
 data/raw/
+data/logs/
 
 data/manifests/*.json
 metadata/*.json
