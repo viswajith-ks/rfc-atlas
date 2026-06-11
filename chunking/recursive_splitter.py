@@ -1,25 +1,31 @@
-"""Hierarchy-aware chunking pipeline for normalizing RFC blocks into LanceDB-ready JSONL tables."""
+"""Hierarchy-aware chunking pipeline using Pebble for multi-core scatter-gather execution."""
 
 import gc
 import json
 import logging
+import os
+import shutil
 import sys
+from concurrent.futures import Future, TimeoutError, as_completed
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, TextIO, TypedDict
 
+from pebble import ProcessPool
+
 DATA_DIR: Path = Path("data")
 NORMALIZED_DIR: Path = DATA_DIR / "normalized"
 CHUNKS_DIR: Path = DATA_DIR / "chunks"
+TMP_DIR: Path = CHUNKS_DIR / "tmp_workers"
 LOGS_DIR: Path = DATA_DIR / "logs"
 
 LOGS_DIR.mkdir(parents=True, exist_ok=True)
 CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 log_formatter = logging.Formatter(
     "%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"
 )
-
 file_handler = logging.FileHandler(
     LOGS_DIR / "chunking_pipeline.log", mode="w", encoding="utf-8"
 )
@@ -32,6 +38,8 @@ logger.addHandler(file_handler)
 
 CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
+BATCH_SIZE: int = 500
+WORKER_TIMEOUT: int = 180
 
 TABLE_ROUTING_MAP: dict[str, str] = {
     "paragraph": "prose",
@@ -61,24 +69,16 @@ class ChunkRecord(TypedDict):
     status: str | None
 
 
-class ChunkingPipeline:
-    """Manages the chunking, routing, and serialization of normalized RFC blocks."""
+class BatchChunker:
+    """Isolated worker class that processes a specific batch of files."""
 
-    def __init__(self) -> None:
-        """Initializes the pipeline state and file handle registries."""
-        self.total_blocks_processed: int = 0
-        self.total_chunks_generated: int = 0
-        self.table_file_handles: dict[str, TextIO] = {}
+    def __init__(self, batch_id: int) -> None:
+        self.batch_id = batch_id
+        self.blocks_processed: int = 0
+        self.chunks_generated: int = 0
+        self.handles: dict[str, TextIO] = {}
 
     def split_text_with_overlap(self, text: str) -> list[str]:
-        """Splits continuous text strings using a sliding window with overlap.
-
-        Args:
-            text (str): The raw text payload to be chunked.
-
-        Returns:
-            List[str]: A list of sequential text chunks.
-        """
         if not text:
             return []
         if len(text) <= CHUNK_SIZE_LIMIT:
@@ -93,7 +93,6 @@ class ChunkingPipeline:
 
             if end < text_len:
                 window_start = max(start, end - OVERLAP_SIZE)
-
                 newline_pos = text.rfind("\n", window_start, end)
                 if newline_pos != -1 and newline_pos > start:
                     end = newline_pos + 1
@@ -119,14 +118,6 @@ class ChunkingPipeline:
         h_path: list[str],
         rfc_metadata: dict[str, Any],
     ) -> None:
-        """Generates chunks for a single document block and appends them to the routing table.
-
-        Args:
-            block (Dict[str, Any]): The document block payload.
-            rfc_number (str): The associated RFC identifier.
-            h_path (List[str]): The hierarchical section path of the block.
-            rfc_metadata (Dict[str, Any]): The document-level metadata.
-        """
         b_type: str = block.get("block_type", "paragraph")
         target_table: str = TABLE_ROUTING_MAP.get(b_type, "prose")
         text_payload: str = block.get("normalized_text", "")
@@ -138,10 +129,8 @@ class ChunkingPipeline:
         block_id: str = block.get("block_id", f"rfc{rfc_number}-unknown")
 
         for i, fragment in enumerate(text_fragments):
-            chunk_id: str = f"{block_id}-chunk{i:03d}"
-
             chunk_obj: ChunkRecord = {
-                "chunk_id": chunk_id,
+                "chunk_id": f"{block_id}-chunk{i:03d}",
                 "rfc_number": rfc_number,
                 "block_type": b_type,
                 "table_route": target_table,
@@ -153,114 +142,159 @@ class ChunkingPipeline:
                 "rfc_title": rfc_metadata.get("title"),
                 "status": rfc_metadata.get("status"),
             }
+            self.handles[target_table].write(json.dumps(chunk_obj) + "\n")
+            self.chunks_generated += 1
 
-            chunk_json: str = json.dumps(chunk_obj)
-            self.table_file_handles[target_table].write(chunk_json + "\n")
-            self.total_chunks_generated += 1
+        self.blocks_processed += 1
 
-        self.total_blocks_processed += 1
-
-    def _process_sections_recursively(
+    def _process_sections(
         self,
         sections: list[dict[str, Any]],
         rfc_number: str,
         rfc_metadata: dict[str, Any],
     ) -> None:
-        """Traverses the document section hierarchy to extract nested blocks.
-
-        Args:
-            sections (List[Dict[str, Any]]): The list of section nodes to process.
-            rfc_number (str): The associated RFC identifier.
-            rfc_metadata (Dict[str, Any]): The document-level metadata.
-        """
         for section in sections:
             h_path: list[str] = section.get("hierarchy_path", [])
             for block in section.get("blocks", []):
                 self._chunk_and_route(block, rfc_number, h_path, rfc_metadata)
 
             if "children" in section:
-                self._process_sections_recursively(
-                    section["children"], rfc_number, rfc_metadata
-                )
+                self._process_sections(section["children"], rfc_number, rfc_metadata)
 
-    def process_document(self, filepath: Path) -> None:
-        """Reads a canonical JSON artifact and initiates block extraction.
-
-        Args:
-            filepath (Path): The file path to the canonical JSON document.
-        """
-        try:
-            with open(filepath, encoding="utf-8") as f:
-                doc: dict[str, Any] = json.load(f)
-        except Exception as e:
-            logger.error(f"[{filepath.name}] Failed to parse JSON: {e}")
-            return
-
-        rfc_number: str = str(doc.get("metadata", {}).get("rfc_number", "unknown"))
-
-        for block in doc.get("preface_blocks", []):
-            self._chunk_and_route(block, rfc_number, ["Preface"], doc["metadata"])
-
-        self._process_sections_recursively(
-            doc.get("sections", []), rfc_number, doc["metadata"]
-        )
-
-        del doc
-
-    def _update_ticker(self, current: int, total: int) -> None:
-        """Outputs a real-time progress indicator to stderr.
-
-        Args:
-            current (int): The current file index.
-            total (int): The total number of files to process.
-        """
-        if sys.stderr.isatty():
-            sys.stderr.write(
-                f"\r\033[K[Processing] Files: {current}/{total} | Blocks: {self.total_blocks_processed:,} | Chunks: {self.total_chunks_generated:,}"
-            )
-            sys.stderr.flush()
-
-    def run(self) -> None:
-        """Executes the pipeline sequentially across all available normalized artifacts."""
-        print("Initializing Phase 2 Chunking Pipeline...")
-
+    def run(self, file_paths: list[Path]) -> dict[str, int]:
+        """Executes the batch and manages isolated temporary files."""
         with ExitStack() as stack:
             for table_name in set(TABLE_ROUTING_MAP.values()):
-                file_path: Path = CHUNKS_DIR / f"{table_name}.jsonl"
-                self.table_file_handles[table_name] = stack.enter_context(
-                    open(file_path, "w", encoding="utf-8")
+                tmp_file = TMP_DIR / f"{table_name}_batch_{self.batch_id}.jsonl"
+                self.handles[table_name] = stack.enter_context(
+                    open(tmp_file, "w", encoding="utf-8")
                 )
 
-            try:
-                json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
-                total_files: int = len(json_files)
-                print(f"Discovered {total_files} files. Commencing chunking...")
+            for filepath in file_paths:
+                try:
+                    with open(filepath, encoding="utf-8") as f:
+                        doc = json.load(f)
 
-                for idx, filepath in enumerate(json_files, 1):
-                    self.process_document(filepath)
-                    self._update_ticker(idx, total_files)
+                    rfc_number: str = str(
+                        doc.get("metadata", {}).get("rfc_number", "unknown")
+                    )
 
-                    if idx % 100 == 0:
-                        gc.collect()
+                    for block in doc.get("preface_blocks", []):
+                        self._chunk_and_route(
+                            block, rfc_number, ["Preface"], doc["metadata"]
+                        )
 
-            except KeyboardInterrupt:
-                print("\nPipeline manually interrupted.")
-            except Exception as e:
-                logger.critical(f"Pipeline crashed with FATAL ERROR: {e}")
-                raise
-            finally:
-                if sys.stderr.isatty():
-                    sys.stderr.write("\n")
-                    sys.stderr.flush()
+                    self._process_sections(
+                        doc.get("sections", []), rfc_number, doc["metadata"]
+                    )
+                    del doc
+                except Exception as e:
+                    logger.error(
+                        f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
+                    )
 
-        print(
-            f"Pipeline complete. Output: {self.total_chunks_generated:,} chunks saved to {CHUNKS_DIR}."
-        )
+        gc.collect()
+        return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
+
+
+def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:
+    chunker = BatchChunker(batch_id)
+    return chunker.run(file_paths)
+
+
+def get_optimal_workers() -> int:
+    """Calculates optimal process count, reserving a core for the OS."""
+    cpu_count = os.cpu_count() or 4
+    return max(1, cpu_count - 1)
+
+
+def gather_files(total_batches: int) -> None:
+    """Concatenates all isolated worker files into the final master JSONL tables."""
+    print("\n[PHASE] Gather Phase: Concatenating worker chunks into master tables...")
+
+    unique_tables = set(TABLE_ROUTING_MAP.values())
+
+    COPY_BUFFER_SIZE = 16 * 1024 * 1024
+
+    for table_name in unique_tables:
+        master_path = CHUNKS_DIR / f"{table_name}.jsonl"
+
+        with open(master_path, "wb") as master_file:
+            for batch_id in range(total_batches):
+                tmp_path = TMP_DIR / f"{table_name}_batch_{batch_id}.jsonl"
+                if tmp_path.exists():
+                    with open(tmp_path, "rb") as tmp_file:
+                        shutil.copyfileobj(
+                            tmp_file, master_file, length=COPY_BUFFER_SIZE
+                        )
+
+    shutil.rmtree(TMP_DIR)
+    print("[SUCCESS] Gather complete. Temporary files wiped.")
 
 
 def main() -> None:
-    pipeline = ChunkingPipeline()
-    pipeline.run()
+    json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
+    total_files = len(json_files)
+
+    if total_files == 0:
+        print("[WARN] No normalized JSON files found. Exiting.")
+        return
+
+    batches = [
+        json_files[i : i + BATCH_SIZE] for i in range(0, total_files, BATCH_SIZE)
+    ]
+    total_batches = len(batches)
+    optimal_workers = get_optimal_workers()
+
+    print("====================================================")
+    print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
+    print(
+        f"       Files: {total_files:,} | Worker Threads: {optimal_workers} | Batches: {total_batches}"
+    )
+    print("====================================================\n")
+
+    global_blocks = 0
+    global_chunks = 0
+    completed_batches = 0
+
+    with ProcessPool(max_workers=optimal_workers) as pool:
+        future_map: dict[Future[dict[str, int]], int] = {}
+        for batch_id, batch_files in enumerate(batches):
+            future: Future[dict[str, int]] = pool.schedule(  # type: ignore
+                worker_task, args=[batch_id, batch_files], timeout=WORKER_TIMEOUT
+            )
+            future_map[future] = batch_id
+
+        for future in as_completed(future_map):
+            batch_id = future_map[future]
+            try:
+                result = future.result()
+                global_blocks += result["blocks"]
+                global_chunks += result["chunks"]
+                completed_batches += 1
+
+                sys.stderr.write(
+                    f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} "
+                    f"| Blocks: {global_blocks:,} | Chunks: {global_chunks:,}"
+                )
+                sys.stderr.flush()
+
+            except TimeoutError:
+                logger.error(f"Batch {batch_id} timed out after {WORKER_TIMEOUT}s!")
+                sys.stderr.write(f"\n[ERROR] Batch {batch_id} Timed Out. See Logs.\n")
+                sys.stderr.flush()
+            except Exception as error:
+                logger.error(f"Batch {batch_id} raised a FATAL exception: {error}")
+                sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
+                sys.stderr.flush()
+
+    print("\n\n[SUCCESS] Scatter phase complete.")
+
+    gather_files(total_batches)
+
+    print("\n====================================================")
+    print(f"[SUCCESS] PIPELINE COMPLETE: {global_chunks:,} chunks generated safely!")
+    print("====================================================")
 
 
 if __name__ == "__main__":
