@@ -15,7 +15,8 @@ from pebble import ProcessPool
 
 from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
 
-DATA_DIR: Path = Path("data")
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+DATA_DIR: Path = PROJECT_ROOT / "data"
 NORMALIZED_DIR: Path = DATA_DIR / "normalized"
 CHUNKS_DIR: Path = DATA_DIR / "chunks"
 TMP_DIR: Path = CHUNKS_DIR / "tmp_workers"
@@ -220,14 +221,13 @@ def get_optimal_workers() -> int:
 
 
 def gather_files(total_batches: int) -> None:
-    """Concatenates all isolated worker files and logs into master outputs.
+    """Concatenates all isolated worker files and logs into master outputs atomically.
 
-    Uses a 16MB raw binary buffer via shutil.copyfileobj to hyper-accelerate
-    the merging of temporary data files into the final JSONL tables.
+    Uses temporary files and OS-level atomic replacement to guarantee that
+    a crash during gathering never leaves a corrupted/partial file in the chunks directory.
 
     Args:
-        total_batches (int): The total number of batches processed, used to loop
-                             through and locate the temporary batch files.
+        total_batches (int): The total number of batches processed.
     """
     print("\n[PHASE] Gather Phase: Concatenating worker chunks and logs into master files...")
 
@@ -236,29 +236,36 @@ def gather_files(total_batches: int) -> None:
 
     for table_name in unique_tables:
         master_path = CHUNKS_DIR / f"{table_name}.jsonl"
-        with open(master_path, "wb") as master_file:
+        tmp_master_path = CHUNKS_DIR / f"{table_name}.jsonl.tmp"
+
+        with open(tmp_master_path, "wb") as master_file:
             for batch_id in range(total_batches):
-                tmp_path = TMP_DIR / f"{table_name}_batch_{batch_id}.jsonl"
-                if tmp_path.exists():
-                    with open(tmp_path, "rb") as tmp_file:
+                worker_tmp_path = TMP_DIR / f"{table_name}_batch_{batch_id}.jsonl"
+                if worker_tmp_path.exists():
+                    with open(worker_tmp_path, "rb") as tmp_file:
                         shutil.copyfileobj(tmp_file, master_file, length=COPY_BUFFER_SIZE)
 
-    master_log_path = LOGS_DIR / "chunking_pipeline.log"
-    with open(master_log_path, "wb") as master_log:
+        os.replace(tmp_master_path, master_path)
 
+    master_log_path = LOGS_DIR / "chunking_pipeline.log"
+    tmp_log_path = LOGS_DIR / "chunking_pipeline.log.tmp"
+
+    with open(tmp_log_path, "wb") as master_log:
         orch_log = TMP_DIR / "orchestrator_errors.log"
         if orch_log.exists():
             with open(orch_log, "rb") as f:
                 shutil.copyfileobj(f, master_log)
 
         for batch_id in range(total_batches):
-            tmp_log = TMP_DIR / f"batch_{batch_id}_errors.log"
-            if tmp_log.exists():
-                with open(tmp_log, "rb") as f:
+            worker_tmp_log = TMP_DIR / f"batch_{batch_id}_errors.log"
+            if worker_tmp_log.exists():
+                with open(worker_tmp_log, "rb") as f:
                     shutil.copyfileobj(f, master_log)
 
+    os.replace(tmp_log_path, master_log_path)
+
     shutil.rmtree(TMP_DIR)
-    print("[SUCCESS] Gather complete. Temporary files wiped.")
+    print("[SUCCESS] Gather complete. Temporary files wiped. Master tables locked atomically.")
 
 
 def main() -> None:
