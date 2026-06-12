@@ -8,10 +8,12 @@ import shutil
 import sys
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, TextIO, TypedDict
+from typing import Any, TextIO
 from concurrent.futures import Future, TimeoutError, as_completed
 
 from pebble import ProcessPool
+
+from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
 
 DATA_DIR: Path = Path("data")
 NORMALIZED_DIR: Path = DATA_DIR / "normalized"
@@ -24,45 +26,35 @@ logger.setLevel(logging.DEBUG)
 
 CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
-BATCH_SIZE: int = 500
+BATCH_SIZE: int = 50
 WORKER_TIMEOUT: int = 180
-
-TABLE_ROUTING_MAP: dict[str, str] = {
-    "paragraph": "prose",
-    "list": "prose",
-    "security": "security",
-    "references": "references",
-    "abnf": "abnf",
-    "sourcecode": "sourcecode",
-    "artwork": "artwork",
-    "table": "table",
-}
-
-class ChunkRecord(TypedDict):
-    """Schema defining a structured chunk prior to LanceDB ingestion."""
-    chunk_id: str
-    rfc_number: str
-    block_type: str
-    table_route: str
-    hierarchy_path: str
-    text_payload: str
-    sourcecode_type: str | None
-    parsing_confidence: float
-    normative_statements: list[dict[str, Any]]
-    rfc_title: str | None
-    status: str | None
-
 
 class BatchChunker:
     """Isolated worker class that processes a specific batch of files."""
 
     def __init__(self, batch_id: int) -> None:
+        """Initializes state for an isolated worker handling a specific file batch.
+
+        Args:
+            batch_id (int): The unique sequential identifier for this worker's batch.
+        """
         self.batch_id = batch_id
         self.blocks_processed: int = 0
         self.chunks_generated: int = 0
         self.handles: dict[str, TextIO] = {}
 
     def split_text_with_overlap(self, text: str) -> list[str]:
+        """Splits continuous text strings using a sliding window with overlap.
+
+        Calculates split boundaries prioritizing newlines or spaces to avoid
+        slicing words in half, ensuring dense context for vector embeddings.
+
+        Args:
+            text (str): The raw text payload to be chunked.
+
+        Returns:
+            list[str]: A list of sequential, overlapping text chunks.
+        """
         if not text:
             return []
         if len(text) <= CHUNK_SIZE_LIMIT:
@@ -102,6 +94,17 @@ class BatchChunker:
     def _chunk_and_route(
         self, block: dict[str, Any], rfc_number: str, h_path: list[str], rfc_metadata: dict[str, Any]
     ) -> None:
+        """Chunks a single document block and writes it to the appropriate isolated table log.
+
+        Extracts the payload, determines the table routing (e.g., 'prose', 'sourcecode'),
+        generates the sliding window fragments, and serializes them to disk.
+
+        Args:
+            block (dict[str, Any]): The document block payload from the normalized JSON.
+            rfc_number (str): The RFC identifier (e.g., "6716").
+            h_path (list[str]): The hierarchical section breadcrumb path of the block.
+            rfc_metadata (dict[str, Any]): Document-level metadata injected into every chunk.
+        """
         b_type: str = block.get("block_type", "paragraph")
         target_table: str = TABLE_ROUTING_MAP.get(b_type, "prose")
         text_payload: str = block.get("normalized_text", "")
@@ -132,7 +135,16 @@ class BatchChunker:
         self.blocks_processed += 1
 
     def run(self, file_paths: list[Path]) -> dict[str, int]:
-        """Executes the batch and manages isolated temporary files."""
+        """Executes the chunking pipeline sequentially across the assigned batch.
+
+        Args:
+            file_paths (list[Path]): The list of canonical JSON file paths for this batch.
+
+        Returns:
+            dict[str, int]: A metrics dictionary containing:
+                - 'blocks': Total normalized blocks processed.
+                - 'chunks': Total overlapping chunks generated.
+        """
         with ExitStack() as stack:
             for table_name in set(TABLE_ROUTING_MAP.values()):
                 tmp_file = TMP_DIR / f"{table_name}_batch_{self.batch_id}.jsonl"
@@ -140,6 +152,10 @@ class BatchChunker:
 
             for filepath in file_paths:
                 try:
+                    logger.info(f"[Batch {self.batch_id}] Starting {filepath.name}")
+                    for handler in logger.handlers:
+                        handler.flush()
+
                     with open(filepath, encoding="utf-8") as f:
                         doc = json.load(f)
 
@@ -153,6 +169,10 @@ class BatchChunker:
                         for block in section.get("blocks", []):
                             self._chunk_and_route(block, rfc_number, h_path, doc["metadata"])
 
+                    for handle in self.handles.values():
+                        handle.flush()
+                        os.fsync(handle.fileno())
+
                     del doc
                 except Exception as e:
                     logger.error(f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}")
@@ -162,7 +182,18 @@ class BatchChunker:
 
 
 def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:
-    """Isolated worker process entry point with local logging."""
+    """Isolated worker process entry point for Pebble ProcessPool.
+
+    Configures local, process-isolated logging to prevent thread contention,
+    then instantiates and runs the BatchChunker.
+
+    Args:
+        batch_id (int): The unique sequential identifier for this batch.
+        file_paths (list[Path]): The subset of JSON files assigned to this worker.
+
+    Returns:
+        dict[str, int]: Batch execution metrics (blocks and chunks processed).
+    """
     worker_logger = logging.getLogger(__name__)
     worker_logger.handlers.clear()
 
@@ -176,12 +207,28 @@ def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:
 
 
 def get_optimal_workers() -> int:
+    """Calculates the optimal core count for the multiprocessing pool.
+
+    Reserves one core for the OS and the main Python orchestrator thread
+    to prevent UI lockup and system thrashing.
+
+    Returns:
+        int: The number of worker processes to spawn.
+    """
     cpu_count = os.cpu_count() or 4
     return max(1, cpu_count - 1)
 
 
 def gather_files(total_batches: int) -> None:
-    """Concatenates all isolated worker files and logs into master files."""
+    """Concatenates all isolated worker files and logs into master outputs.
+
+    Uses a 16MB raw binary buffer via shutil.copyfileobj to hyper-accelerate
+    the merging of temporary data files into the final JSONL tables.
+
+    Args:
+        total_batches (int): The total number of batches processed, used to loop
+                             through and locate the temporary batch files.
+    """
     print("\n[PHASE] Gather Phase: Concatenating worker chunks and logs into master files...")
 
     unique_tables = set(TABLE_ROUTING_MAP.values())
