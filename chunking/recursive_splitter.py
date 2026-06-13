@@ -6,10 +6,10 @@ import logging
 import os
 import shutil
 import sys
+from concurrent.futures import Future, TimeoutError, as_completed
 from contextlib import ExitStack
 from pathlib import Path
 from typing import Any, TextIO
-from concurrent.futures import Future, TimeoutError, as_completed
 
 from pebble import ProcessPool
 
@@ -29,6 +29,7 @@ CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
 BATCH_SIZE: int = 50
 WORKER_TIMEOUT: int = 180
+
 
 class BatchChunker:
     """Isolated worker class that processes a specific batch of files."""
@@ -93,7 +94,11 @@ class BatchChunker:
         return chunks
 
     def _chunk_and_route(
-        self, block: dict[str, Any], rfc_number: str, h_path: list[str], rfc_metadata: dict[str, Any]
+        self,
+        block: dict[str, Any],
+        rfc_number: str,
+        h_path: list[str],
+        rfc_metadata: dict[str, Any],
     ) -> None:
         """Chunks a single document block and writes it to the appropriate isolated table log.
 
@@ -149,7 +154,9 @@ class BatchChunker:
         with ExitStack() as stack:
             for table_name in set(TABLE_ROUTING_MAP.values()):
                 tmp_file = TMP_DIR / f"{table_name}_batch_{self.batch_id}.jsonl"
-                self.handles[table_name] = stack.enter_context(open(tmp_file, "w", encoding="utf-8"))
+                self.handles[table_name] = stack.enter_context(
+                    open(tmp_file, "w", encoding="utf-8")
+                )
 
             for filepath in file_paths:
                 try:
@@ -160,15 +167,21 @@ class BatchChunker:
                     with open(filepath, encoding="utf-8") as f:
                         doc = json.load(f)
 
-                    rfc_number: str = str(doc.get("metadata", {}).get("rfc_number", "unknown"))
+                    rfc_number: str = str(
+                        doc.get("metadata", {}).get("rfc_number", "unknown")
+                    )
 
                     for block in doc.get("preface_blocks", []):
-                        self._chunk_and_route(block, rfc_number, ["Preface"], doc["metadata"])
+                        self._chunk_and_route(
+                            block, rfc_number, ["Preface"], doc["metadata"]
+                        )
 
                     for section in doc.get("sections", []):
                         h_path: list[str] = section.get("hierarchy_path", [])
                         for block in section.get("blocks", []):
-                            self._chunk_and_route(block, rfc_number, h_path, doc["metadata"])
+                            self._chunk_and_route(
+                                block, rfc_number, h_path, doc["metadata"]
+                            )
 
                     for handle in self.handles.values():
                         handle.flush()
@@ -176,7 +189,9 @@ class BatchChunker:
 
                     del doc
                 except Exception as e:
-                    logger.error(f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}")
+                    logger.error(
+                        f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
+                    )
 
         gc.collect()
         return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
@@ -200,7 +215,9 @@ def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:
 
     log_path = TMP_DIR / f"batch_{batch_id}_errors.log"
     fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
-    fh.setFormatter(logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S"))
+    fh.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(message)s", datefmt="%H:%M:%S")
+    )
     worker_logger.addHandler(fh)
 
     chunker = BatchChunker(batch_id)
@@ -229,7 +246,9 @@ def gather_files(total_batches: int) -> None:
     Args:
         total_batches (int): The total number of batches processed.
     """
-    print("\n[PHASE] Gather Phase: Concatenating worker chunks and logs into master files...")
+    print(
+        "\n[PHASE] Gather Phase: Concatenating worker chunks and logs into master files..."
+    )
 
     unique_tables = set(TABLE_ROUTING_MAP.values())
     COPY_BUFFER_SIZE = 16 * 1024 * 1024
@@ -243,7 +262,9 @@ def gather_files(total_batches: int) -> None:
                 worker_tmp_path = TMP_DIR / f"{table_name}_batch_{batch_id}.jsonl"
                 if worker_tmp_path.exists():
                     with open(worker_tmp_path, "rb") as tmp_file:
-                        shutil.copyfileobj(tmp_file, master_file, length=COPY_BUFFER_SIZE)
+                        shutil.copyfileobj(
+                            tmp_file, master_file, length=COPY_BUFFER_SIZE
+                        )
 
         os.replace(tmp_master_path, master_path)
 
@@ -265,7 +286,9 @@ def gather_files(total_batches: int) -> None:
     os.replace(tmp_log_path, master_log_path)
 
     shutil.rmtree(TMP_DIR)
-    print("[SUCCESS] Gather complete. Temporary files wiped. Master tables locked atomically.")
+    print(
+        "[SUCCESS] Gather complete. Temporary files wiped. Master tables locked atomically."
+    )
 
 
 def main() -> None:
@@ -274,8 +297,12 @@ def main() -> None:
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
     logger.handlers.clear()
-    orch_fh = logging.FileHandler(TMP_DIR / "orchestrator_errors.log", mode="w", encoding="utf-8")
-    orch_fh.setFormatter(logging.Formatter("%(asctime)s [ORCHESTRATOR] %(message)s", datefmt="%H:%M:%S"))
+    orch_fh = logging.FileHandler(
+        TMP_DIR / "orchestrator_errors.log", mode="w", encoding="utf-8"
+    )
+    orch_fh.setFormatter(
+        logging.Formatter("%(asctime)s [ORCHESTRATOR] %(message)s", datefmt="%H:%M:%S")
+    )
     logger.addHandler(orch_fh)
 
     json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
@@ -285,13 +312,17 @@ def main() -> None:
         print("[WARN] No normalized JSON files found. Exiting.")
         return
 
-    batches = [json_files[i : i + BATCH_SIZE] for i in range(0, total_files, BATCH_SIZE)]
+    batches = [
+        json_files[i : i + BATCH_SIZE] for i in range(0, total_files, BATCH_SIZE)
+    ]
     total_batches = len(batches)
     optimal_workers = get_optimal_workers()
 
     print("====================================================")
-    print(f"[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
-    print(f"       Files: {total_files:,} | Worker Threads: {optimal_workers} | Batches: {total_batches}")
+    print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
+    print(
+        f"       Files: {total_files:,} | Worker Threads: {optimal_workers} | Batches: {total_batches}"
+    )
     print("====================================================\n")
 
     global_blocks = 0

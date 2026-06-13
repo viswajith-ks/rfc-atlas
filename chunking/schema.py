@@ -1,4 +1,5 @@
 """Data contracts and routing schemas for the LanceDB vector database."""
+
 from typing import Any, TypedDict
 
 TABLE_ROUTING_MAP: dict[str, str] = {
@@ -12,8 +13,10 @@ TABLE_ROUTING_MAP: dict[str, str] = {
     "table": "table",
 }
 
+
 class ChunkRecord(TypedDict):
     """Schema defining a structured chunk prior to LanceDB ingestion."""
+
     chunk_id: str
     rfc_number: str
     block_type: str
