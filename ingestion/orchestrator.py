@@ -22,8 +22,6 @@ from parsers.xml_parser import ModernRFCParser
 
 logger = logging.getLogger(__name__)
 
-LEGACY_RFC_LIMIT = 8650
-
 _worker_tree_builder: CanonicalTreeBuilder | None = None
 WorkerFuture: TypeAlias = Future[
     tuple[str, Literal["success", "failed"], str | None, TelemetryRecord | None]
@@ -288,8 +286,30 @@ class PipelineOrchestrator:
 
         return int(match.group(1)) if match else 0
 
+    def _get_xml_covered_rfcs(self) -> frozenset[int]:
+        """Returns the set of RFC numbers for which an XML source file exists in raw_xml_dir.
+
+        Used during the txt ingestion pass to skip any RFC that already has a
+        higher-fidelity XML counterpart. This replaces the old hard-coded
+        LEGACY_RFC_LIMIT numeric cutoff, which would go stale as new RFCs are
+        published and their XML backports become available.
+
+        Returns:
+            frozenset[int]: RFC numbers with a valid XML source file present on disk.
+        """
+        return frozenset(
+            rfc_num
+            for f in self.raw_xml_dir.glob("rfc*.xml")
+            if (rfc_num := self._extract_rfc_num(f)) > 0
+        )
+
     def _execute_era_ingestion(self, source_type: Literal["txt", "xml"]) -> None:
         """Discovers, filters, and processes all RFC source files matching an execution era.
+
+        For the txt pass, any RFC whose number appears in the XML source directory is
+        skipped — the XML pass will handle it with higher fidelity. This means the txt
+        pass is self-adjusting: as XML backports are added to raw_xml_dir over time,
+        they are automatically preferred without any configuration change.
 
         Args:
             source_type (Literal["txt", "xml"]): Targeted source format for directory scans.
@@ -299,25 +319,34 @@ class PipelineOrchestrator:
             glob_pattern = "rfc*.xml"
             log_prefix = "Modern"
             era_label = "Modern Era XML (Including Legacy Backports)"
+
+            raw_files = list(target_dir.glob(glob_pattern))
+            file_num_pairs = ((f, self._extract_rfc_num(f)) for f in raw_files)
+            valid_pairs = ((f, n) for f, n in file_num_pairs if n > 0)
+
         else:
             target_dir = self.raw_txt_dir
             glob_pattern = "rfc*.txt"
             log_prefix = "Legacy"
-            era_label = f"Legacy Era (RFC 1 - {LEGACY_RFC_LIMIT - 1}) Text"
+            era_label = "Legacy Text (txt-only, skipping RFCs covered by XML)"
+
+            # Build the exclusion set once before scanning txt files. Any RFC number
+            # present here has an XML counterpart and will be handled at higher fidelity
+            # by the subsequent xml pass, so we skip it entirely in the txt pass.
+            xml_covered = self._get_xml_covered_rfcs()
+            logger.info(
+                f"Found {len(xml_covered):,} XML-covered RFCs. "
+                f"Their txt counterparts will be skipped."
+            )
+
+            raw_files = list(target_dir.glob(glob_pattern))
+            file_num_pairs = ((f, self._extract_rfc_num(f)) for f in raw_files)
+            valid_pairs = (
+                (f, n) for f, n in file_num_pairs if n > 0 and n not in xml_covered
+            )
 
         logger.info(f"Starting {era_label} Ingestion...")
         logger.info("-" * 50)
-
-        raw_files = list(target_dir.glob(glob_pattern))
-
-        file_num_pairs = ((f, self._extract_rfc_num(f)) for f in raw_files)
-
-        if source_type == "xml":
-            valid_pairs = ((f, n) for f, n in file_num_pairs if n > 0)
-        else:
-            valid_pairs = (
-                (f, n) for f, n in file_num_pairs if 0 < n < LEGACY_RFC_LIMIT
-            )
 
         sorted_files = [f for f, _ in sorted(valid_pairs, key=lambda x: x[1])]
 
@@ -342,11 +371,17 @@ class PipelineOrchestrator:
             failed (int): Cumulative count of processing execution failures.
             total (int): Total file count scheduled for processing inside the current batch.
         """
+        processed = success + failed
+
         if sys.stderr.isatty():
             sys.stderr.write(
                 f"\r\033[KProcessing {log_prefix}: {filename}... Success: {success} | Failed: {failed} | Total: {total}"
             )
             sys.stderr.flush()
+        elif processed % 1000 == 0 or processed == total:
+            logger.info(
+                f"[{log_prefix}] {processed:,}/{total:,} files processed (Success: {success}, Failed: {failed})"
+            )
 
     def _run_parallel_ingestion_pool(
         self,
@@ -498,7 +533,13 @@ class PipelineOrchestrator:
         return success_count, failure_count
 
     def run_legacy_text_ingestion(self) -> None:
-        """Processes historical documents (RFC 1 - 8649) via the heuristic plaintext parsing workflow."""
+        """Processes plaintext RFC documents that have no XML counterpart in raw_xml_dir.
+
+        Rather than filtering by a hard-coded RFC number ceiling, this pass dynamically
+        computes which RFCs are already covered by an XML source file and skips them.
+        As XML backports of older RFCs are added to the xml directory over time, they
+        are automatically preferred here without any configuration change.
+        """
         self._execute_era_ingestion("txt")
 
     def run_modern_xml_ingestion(self) -> None:

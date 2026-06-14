@@ -23,7 +23,6 @@ TMP_DIR: Path = CHUNKS_DIR / "tmp_workers"
 LOGS_DIR: Path = DATA_DIR / "logs"
 
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.DEBUG)
 
 CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
@@ -183,18 +182,17 @@ class BatchChunker:
                                 block, rfc_number, h_path, doc["metadata"]
                             )
 
-                    for handle in self.handles.values():
-                        handle.flush()
-                        os.fsync(handle.fileno())
-
-                    del doc
                 except Exception as e:
                     logger.error(
                         f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
                     )
+                finally:
+                    gc.collect()
+                    for handle in self.handles.values():
+                        handle.flush()
+                        os.fsync(handle.fileno())
 
-        gc.collect()
-        return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
+            return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
 
 def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:

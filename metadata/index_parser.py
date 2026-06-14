@@ -177,6 +177,12 @@ class RFCIndexParser:
                             }
                             self.metadata_dict[str(rfc_num)] = entry_record
 
+                # MEMORY MANAGEMENT INVARIANT:
+                # `lxml` builds a massive DOM tree in RAM by default.
+                # To stream large XML files safely, we MUST delete elements after parsing them.
+                # We ONLY want to clear top-level children of the root (e.g., <rfc> -> <front>).
+                # The condition below means: "Skip if this is the root element itself, OR if
+                # this element is buried deep inside a top-level child (deeper than 2 levels)."
                 elif parent is None or parent.getparent() is not None:
                     continue
 
