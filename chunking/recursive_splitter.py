@@ -157,40 +157,41 @@ class BatchChunker:
                     open(tmp_file, "w", encoding="utf-8")
                 )
 
-            for filepath in file_paths:
-                try:
-                    logger.info(f"[Batch {self.batch_id}] Starting {filepath.name}")
-                    for handler in logger.handlers:
-                        handler.flush()
+            try:
+                for filepath in file_paths:
+                    try:
+                        logger.info(f"[Batch {self.batch_id}] Starting {filepath.name}")
+                        for handler in logger.handlers:
+                            handler.flush()
 
-                    with open(filepath, encoding="utf-8") as f:
-                        doc = json.load(f)
+                        with open(filepath, encoding="utf-8") as f:
+                            doc = json.load(f)
 
-                    rfc_number: str = str(
-                        doc.get("metadata", {}).get("rfc_number", "unknown")
-                    )
-
-                    for block in doc.get("preface_blocks", []):
-                        self._chunk_and_route(
-                            block, rfc_number, ["Preface"], doc["metadata"]
+                        rfc_number: str = str(
+                            doc.get("metadata", {}).get("rfc_number", "unknown")
                         )
 
-                    for section in doc.get("sections", []):
-                        h_path: list[str] = section.get("hierarchy_path", [])
-                        for block in section.get("blocks", []):
+                        for block in doc.get("preface_blocks", []):
                             self._chunk_and_route(
-                                block, rfc_number, h_path, doc["metadata"]
+                                block, rfc_number, ["Preface"], doc["metadata"]
                             )
 
-                except Exception as e:
-                    logger.error(
-                        f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
-                    )
-                finally:
-                    gc.collect()
-                    for handle in self.handles.values():
-                        handle.flush()
-                        os.fsync(handle.fileno())
+                        for section in doc.get("sections", []):
+                            h_path: list[str] = section.get("hierarchy_path", [])
+                            for block in section.get("blocks", []):
+                                self._chunk_and_route(
+                                    block, rfc_number, h_path, doc["metadata"]
+                                )
+
+                    except Exception as e:
+                        logger.error(
+                            f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
+                        )
+            finally:
+                gc.collect()
+                for handle in self.handles.values():
+                    handle.flush()
+                    os.fsync(handle.fileno())
 
             return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
@@ -209,6 +210,7 @@ def worker_task(batch_id: int, file_paths: list[Path]) -> dict[str, int]:
         dict[str, int]: Batch execution metrics (blocks and chunks processed).
     """
     worker_logger = logging.getLogger(__name__)
+    worker_logger.setLevel(logging.INFO)
     worker_logger.handlers.clear()
 
     log_path = TMP_DIR / f"batch_{batch_id}_errors.log"
@@ -294,7 +296,9 @@ def main() -> None:
     CHUNKS_DIR.mkdir(parents=True, exist_ok=True)
     TMP_DIR.mkdir(parents=True, exist_ok=True)
 
+    logger.setLevel(logging.INFO)
     logger.handlers.clear()
+
     orch_fh = logging.FileHandler(
         TMP_DIR / "orchestrator_errors.log", mode="w", encoding="utf-8"
     )
