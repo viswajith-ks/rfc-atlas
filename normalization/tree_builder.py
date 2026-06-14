@@ -2,6 +2,7 @@
 
 import json
 import logging
+import uuid
 from pathlib import Path
 from typing import get_args
 
@@ -75,7 +76,8 @@ class CanonicalTreeBuilder:
             title = id_split[1]
             return section_id, sec_token, title.strip()
 
-        return "unknown", "secunknown", last_part.strip()
+        unique_suffix = uuid.uuid4().hex[:8]
+        return "unknown", f"secunknown-{unique_suffix}", last_part.strip()
 
     def build_tree(
         self,

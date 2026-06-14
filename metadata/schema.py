@@ -1,4 +1,13 @@
-"""Data schemas for RFC index metadata validation and intermediate storage."""
+"""
+Metadata Schemas for RFC Atlas.
+
+ARCHITECTURAL NOTE (TypedDict vs Pydantic):
+We intentionally maintain dual structures for these concepts.
+1. `TypedDict` models are used for the global in-memory lookup table. This guarantees
+   O(1) access speed and near-zero memory overhead across multiprocessing workers.
+2. `Pydantic` models are used exclusively at the final normalization boundary to
+   enforce strict serialization and validation of the Canonical Artifacts.
+"""
 
 from typing import TypedDict
 
@@ -35,4 +44,6 @@ class RFCIndexEntryDict(TypedDict):
     obsoletes: list[int]
     updates: list[int]
     updated_by: list[int]
+    # Placeholder for future pipeline enrichment (e.g., IANA registry mapping).
+    # Not populated by the baseline IETF index parser.
     protocol_family: str | None

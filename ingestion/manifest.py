@@ -1,5 +1,6 @@
 """Data schemas for tracking dataset pipeline validation manifests and system telemetry logs."""
 
+import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, TypedDict
@@ -28,7 +29,9 @@ class DatasetManifest(BaseModel):
             filepath (Path): Target path where the JSON manifest file will be written.
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        tmp_filepath = filepath.with_suffix(".json.tmp")
+        tmp_filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        os.replace(tmp_filepath, filepath)
 
 
 class SuccessRecord(TypedDict):

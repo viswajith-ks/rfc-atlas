@@ -136,7 +136,13 @@ class RFCMetadata(BaseModel):
     obsoletes: list[int] = []
     updates: list[int] = []
     updated_by: list[int] = []
-    protocol_family: str | None = None
+    protocol_family: str | None = Field(
+        default=None,
+        description=(
+            "Placeholder for future semantic enrichment (e.g., Transport, Routing, Cryptography). "
+            "Currently unpopulated as it is not natively provided by the baseline IETF index."
+        ),
+    )
 
 
 class NormativeStatement(BaseModel):

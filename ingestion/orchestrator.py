@@ -48,13 +48,10 @@ def _execute_rfc_parsing_worker(
     filename = filepath.name
     global _worker_tree_builder
 
-    if _worker_tree_builder is None:
-        return (
-            filename,
-            "failed",
-            "Worker process tree builder was not initialized properly.",
-            None,
-        )
+    assert _worker_tree_builder is not None, (
+        "FATAL: CoW global memory lost. Worker initialized improperly! "
+        "Ensure your OS supports 'fork' multiprocessing contexts."
+    )
 
     try:
         if source_type == "txt":
@@ -181,6 +178,15 @@ class PipelineOrchestrator:
         self.chunking_version = chunking_version
         self.max_workers = max_workers
         self.per_file_timeout = per_file_timeout
+
+    @classmethod
+    def reset_state(cls) -> None:
+        """Resets the singleton instantiation lock.
+
+        WARNING: This is intended strictly for CI/CD test suite teardowns
+        and should never be called during standard pipeline execution.
+        """
+        cls._is_instantiated = False
 
     @classmethod
     def create_and_initialize(
