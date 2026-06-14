@@ -14,7 +14,7 @@ class NormativeExtractor:
     # Strict word-boundary match for exact BCP-14 compliance keywords to prevent partial matches
     # (e.g., catching "MUST" without catching "MUSTARD").
     _KEYWORD_PATTERN = re.compile(
-        r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|RECOMMENDED|MAY|OPTIONAL)\b"
+        r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|NOT\s+RECOMMENDED|RECOMMENDED|MAY|OPTIONAL)\b"
     )
 
     _NORMALIZATION_MAP: dict[str, NormativeKeyword] = {
@@ -22,6 +22,7 @@ class NormativeExtractor:
         "SHALL": "MUST",
         "SHALL NOT": "MUST NOT",
         "RECOMMENDED": "SHOULD",
+        "NOT RECOMMENDED": "SHOULD NOT",
         "OPTIONAL": "MAY",
     }
 

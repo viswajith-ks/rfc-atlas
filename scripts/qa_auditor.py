@@ -76,6 +76,11 @@ def run_audit() -> None:
             rfc_str: str = str(doc.get("metadata", {}).get("rfc_number", "unknown"))
             size_acc: int = 0
 
+            for block in doc.get("preface_blocks", []):
+                payload: str = block.get("normalized_text", "")
+                if payload.strip():
+                    size_acc += len(payload)
+
             for section in doc.get("sections", []):
                 for block in section.get("blocks", []):
                     payload: str = block.get("normalized_text", "")

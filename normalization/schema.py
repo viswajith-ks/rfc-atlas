@@ -150,7 +150,7 @@ class NormativeStatement(BaseModel):
         description="Target protocol actor or system subject responsible for execution.",
     )
     referenced_rfcs: list[int] = Field(
-        default_factory=list[int],
+        default=[],
         description="Isolated cross-referenced protocol identifiers found within this requirement.",
     )
 

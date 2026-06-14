@@ -294,8 +294,6 @@ class ModernRFCParser:
         for info in find_children_by_local_name(node, "seriesInfo"):
             name = info.get("name", "")
             value = info.get("value")
-            name = info.get("name", "")
-            value = info.get("value")
 
             if name.upper() == "DOI":
                 doi = value

@@ -370,6 +370,8 @@ class LegacyTextParser:
                 normalized_line = first_line.lower().rstrip(".:- ")
                 if appendix_match or normalized_line in self._BACK_MATTER_TITLES:
                     in_back_matter = True
+                elif in_back_matter and re.match(r"^\d+\.", normalized_line):
+                    in_back_matter = False
 
                 for idx, level_title in enumerate(reconstructed_hierarchy, start=1):
                     last_known_at_depth[idx] = level_title
