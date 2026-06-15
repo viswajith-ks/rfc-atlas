@@ -116,20 +116,21 @@ class BatchChunker:
         block_id: str = block.get("block_id", f"rfc{rfc_number}-unknown")
 
         for i, fragment in enumerate(text_fragments):
-            chunk_obj: ChunkRecord = {
-                "chunk_id": f"{block_id}-chunk{i:03d}",
-                "rfc_number": rfc_number,
-                "block_type": b_type,
-                "table_route": target_table,
-                "hierarchy_path": " > ".join(h_path),
-                "text_payload": fragment,
-                "sourcecode_type": block.get("sourcecode_type"),
-                "parsing_confidence": block.get("parsing_confidence", 1.0),
-                "normative_statements": block.get("normative_statements", []),
-                "rfc_title": rfc_metadata.get("title"),
-                "status": rfc_metadata.get("status"),
-            }
-            self.handles[target_table].write(json.dumps(chunk_obj) + "\n")
+            chunk_obj = ChunkRecord(
+                chunk_id=f"{block_id}-chunk{i:03d}",
+                rfc_number=rfc_number,
+                block_type=b_type,
+                table_route=target_table,
+                hierarchy_path=" > ".join(h_path),
+                text_payload=fragment,
+                sourcecode_type=block.get("sourcecode_type"),
+                parsing_confidence=float(block.get("parsing_confidence", 1.0)),
+                normative_statements=block.get("normative_statements", []),
+                rfc_title=rfc_metadata.get("title"),
+                status=rfc_metadata.get("status"),
+            )
+
+            self.handles[target_table].write(chunk_obj.model_dump_json() + "\n")
             self.chunks_generated += 1
 
         self.blocks_processed += 1

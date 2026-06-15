@@ -37,3 +37,8 @@ exclude = [
     "**/__pycache__",
     ".venv",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = [
+  "."
+]

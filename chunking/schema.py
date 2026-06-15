@@ -1,6 +1,6 @@
 """Data contracts and routing schemas for the LanceDB vector database."""
 
-from typing import Any, TypedDict
+from pydantic import BaseModel, Field
 
 TABLE_ROUTING_MAP: dict[str, str] = {
     "paragraph": "prose",
@@ -14,7 +14,7 @@ TABLE_ROUTING_MAP: dict[str, str] = {
 }
 
 
-class ChunkRecord(TypedDict):
+class ChunkRecord(BaseModel):
     """Schema defining a structured chunk prior to LanceDB ingestion."""
 
     chunk_id: str
@@ -23,8 +23,10 @@ class ChunkRecord(TypedDict):
     table_route: str
     hierarchy_path: str
     text_payload: str
-    sourcecode_type: str | None
-    parsing_confidence: float
-    normative_statements: list[dict[str, Any]]
-    rfc_title: str | None
-    status: str | None
+
+    sourcecode_type: str | None = None
+    rfc_title: str | None = None
+    status: str | None = None
+
+    parsing_confidence: float = Field(ge=0.0, le=1.0)
+    normative_statements: list[dict[str, str]] = Field(default=[])
