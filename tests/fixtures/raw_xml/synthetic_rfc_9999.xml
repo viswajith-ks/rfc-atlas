@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rfc version="3" number="9999" category="info" submissionType="IETF" consensus="true">
+  <front>
+    <title abbrev="SEP">The Synthetic Edge-Case Protocol (SEP)</title>
+    <author initials="J." surname="Doe" fullname="John Doe">
+      <organization>RFC Labs</organization>
+    </author>
+    <date year="2026" month="February"/>
+    <abstract>
+      <t>This is a synthetic XML document designed to test ingestion pipelines. It contains weird line breaks, normative keywords, and strict block boundaries.</t>
+    </abstract>
+  </front>
+
+  <middle>
+    <section anchor="intro" numbered="true" title="Introduction">
+      <t>The parser MUST extract this sentence and flag it as normative. However, it SHOULD NOT crash when encountering strange formatting.</t>
+      <t>
+        This paragraph spans
+        multiple lines with awkward
+        returns to test your XML prose stitching logic.
+      </t>
+    </section>
+
+    <section anchor="data" numbered="true" title="Data Structures">
+      <t>Here is a table representing state transitions. The parser must not interpret this as prose:</t>
+      <table>
+        <thead>
+          <tr><th>State</th><th>Metric</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>IDLE</td><td>0</td><td>N/A</td></tr>
+          <tr><td>RUN</td><td>100</td><td>Hot</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section anchor="syntax" numbered="true" title="Syntax Definition">
+      <t>The syntax is strictly defined using ABNF below:</t>
+      <sourcecode type="abnf">
+protocol = "SEP" SP 1*DIGIT
+status   = "OK" / "FAIL"
+      </sourcecode>
+    </section>
+  </middle>
+
+  <back>
+    <section anchor="security" numbered="true" title="Security Considerations">
+      <t>Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.</t>
+    </section>
+  </back>
+</rfc>

@@ -1,0 +1,49 @@
+Network Working Group                                             J. Doe
+Request for Comments: 9999                                      RFC Labs
+Category: Informational                                    February 2026
+
+                 The Synthetic Edge-Case Protocol (SEP)
+
+Abstract
+
+   This is a synthetic document designed to test ingestion pipelines. It
+   contains weird line breaks, normative keywords, and ASCII boundaries.
+
+1.  Introduction
+
+   The parser MUST extract this sentence and flag it as normative.
+   However, it SHOULD NOT crash when encountering strange formatting.
+
+   This paragraph spans
+   multiple lines with awkward
+   returns to test your prose stitching logic.
+
+2.  Data Structures
+
+   Here is an ASCII table representing state transitions. The parser
+   must not interpret this as prose:
+
+   +-------+--------+-------+
+   | State | Metric | Notes |
+   +-------+--------+-------+
+   | IDLE  | 0      | N/A   |
+   | RUN   | 100    | Hot   |
+   +-------+--------+-------+
+
+RFC 9999                     Synthetic Protocol            February 2026
+
+Network Working Group                                             J. Doe
+Request for Comments: 9999                                      RFC Labs
+
+
+3.  Syntax Definition
+
+   The syntax is strictly defined using ABNF below:
+
+   protocol = "SEP" SP 1*DIGIT
+   status   = "OK" / "FAIL"
+
+99. Security Considerations
+
+   Implementations MUST NOT expose the internal state map to unauthenticated
+   callers over the network.

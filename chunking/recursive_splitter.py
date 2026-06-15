@@ -346,7 +346,6 @@ def run_chunking_pipeline(
         batch_iterator = iter(enumerate(batches))
         initial_buffer_size = optimal_workers * 2
 
-        # 1. Fill the initial execution queue
         for _ in range(initial_buffer_size):
             try:
                 batch_id, batch_files = next(batch_iterator)
@@ -361,7 +360,6 @@ def run_chunking_pipeline(
 
         pending_futures: set[Future[dict[str, int]]] = set(future_map.keys())
 
-        # 2. Process tasks continuously via sliding window
         while pending_futures:
             done_batch, pending_futures = wait(
                 pending_futures, timeout=1.0, return_when=FIRST_COMPLETED
@@ -392,7 +390,6 @@ def run_chunking_pipeline(
                     sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
                     sys.stderr.flush()
 
-                # Schedule the next batch to maintain a constant queue depth
                 try:
                     next_batch_id, next_batch_files = next(batch_iterator)
                     new_future: Future[dict[str, int]] = pool.schedule(  # type: ignore
