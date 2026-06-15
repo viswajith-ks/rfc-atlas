@@ -70,7 +70,7 @@ class RFCIndexParser:
         match = re.search(r"RFC(\d+)", doc_id, re.IGNORECASE)
         return int(match.group(1)) if match else 0
 
-    def _parse_rfc_entry(self, entry: _Element) -> "RFCIndexEntryDict | None":
+    def _parse_rfc_entry(self, entry: _Element) -> RFCIndexEntryDict | None:
         """Extracts standard attributes and edge relations from a single rfc-entry XML node.
 
         Args:
@@ -156,24 +156,38 @@ class RFCIndexParser:
         }
 
     def parse(self) -> None:
-        """Parses the global RFC index XML and compiles the metadata ledger."""
+        """Parses the global RFC index XML and compiles the metadata ledger.
+
+        Raises:
+            FileNotFoundError: If the source XML file does not exist on disk.
+            etree.ParseError: If the XML source text is structurally malformed.
+        """
+        if not self.xml_path.exists():
+            raise FileNotFoundError(f"Missing RFC index at {self.xml_path}")
+
         logger.info(f"Parsing RFC Index XML from {self.xml_path}...")
 
-        context = etree.iterparse(
-            str(self.xml_path),
-            events=("end",),
-            huge_tree=True,
-        )
+        try:
+            context = etree.iterparse(
+                str(self.xml_path),
+                events=("end",),
+                huge_tree=True,
+            )
 
-        for _, elem in context:
-            if get_local_name(elem) == "rfc-entry":
-                entry_data = self._parse_rfc_entry(elem)
-                if entry_data is not None:
-                    self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
+            for _, elem in context:
+                if get_local_name(elem) == "rfc-entry":
+                    entry_data = self._parse_rfc_entry(elem)
+                    if entry_data is not None:
+                        self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
 
-                elem.clear()
-                while elem.getprevious() is not None:
-                    del elem.getparent()[0]
+                    elem.clear()
+                    while elem.getprevious() is not None:
+                        del elem.getparent()[0]
+        except etree.ParseError as e:
+            logger.error(
+                f"RFC index XML is structurally malformed: {self.xml_path}. Error: {e}"
+            )
+            raise
 
         self._save()
 
