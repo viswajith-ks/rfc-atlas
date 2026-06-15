@@ -6,10 +6,12 @@ import os
 import re
 import sys
 import traceback
+from collections.abc import Generator
 from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
+from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 from pebble import ProcessPool
 
@@ -175,6 +177,23 @@ class PipelineOrchestrator:
         self.chunking_version = chunking_version
         self.max_workers = max_workers
         self.per_file_timeout = per_file_timeout
+
+    @classmethod
+    @contextmanager
+    def managed_instance(
+        cls,
+        **kwargs: Any,  # noqa: ANN401
+    ) -> Generator["PipelineOrchestrator", None, None]:
+        """Context manager for safe test isolation and automated teardown.
+
+        Yields:
+            PipelineOrchestrator: A securely isolated orchestrator instance.
+        """
+        instance = cls(**kwargs)
+        try:
+            yield instance
+        finally:
+            cls.reset_state()
 
     @classmethod
     def reset_state(cls) -> None:
