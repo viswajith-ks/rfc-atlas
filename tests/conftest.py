@@ -6,7 +6,6 @@ from typing import Any
 
 import pytest
 
-# Define the paths to our fixtures
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 RAW_TXT_PATH: Path = FIXTURES_DIR / "raw_txt" / "synthetic_rfc_9999.txt"
 RAW_XML_PATH: Path = FIXTURES_DIR / "raw_xml" / "synthetic_rfc_9999.xml"
