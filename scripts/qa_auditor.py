@@ -83,7 +83,7 @@ def run_audit() -> None:
 
             for section in doc.get("sections", []):
                 for block in section.get("blocks", []):
-                    payload: str = block.get("normalized_text", "")
+                    payload = block.get("normalized_text", "")
                     if payload.strip():
                         size_acc += len(payload)
 

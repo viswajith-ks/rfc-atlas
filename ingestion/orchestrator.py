@@ -24,17 +24,16 @@ logger = logging.getLogger(__name__)
 
 _worker_tree_builder: CanonicalTreeBuilder | None = None
 WorkerFuture: TypeAlias = Future[
-    tuple[str, Literal["success", "failed"], str | None, TelemetryRecord | None]
+    tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]
 ]
 
 
 def _execute_rfc_parsing_worker(
     filepath: Path, rfc_num: int, source_type: Literal["txt", "xml"], output_dir: Path
-) -> tuple[str, Literal["success", "failed"], str | None, TelemetryRecord | None]:
+) -> tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]:
     """Parses and structures an individual RFC file inside a process-isolated worker.
 
     Args:
-        filepath (Path): Path to the target source file.
         rfc_num (int): Numeric identifier of the RFC document.
         source_type (Literal["txt", "xml"]): Format type of the source document.
         output_dir (Path): Destination directory for the normalized JSON output.
@@ -92,11 +91,11 @@ def _execute_rfc_parsing_worker(
             "min_block_chars": min(lengths, default=0),
         }
 
-        return filename, "success", None, telemetry_record
+        return "success", None, telemetry_record
 
     except Exception:
         error_msg = traceback.format_exc().replace("\n", " | ")
-        return filename, "failed", error_msg, None
+        return "failed", error_msg, None
 
 
 class PipelineOrchestrator:
@@ -467,7 +466,7 @@ class PipelineOrchestrator:
                         filename = filepath.name
 
                         try:
-                            filename, status, error_msg, telemetry = future.result()
+                            status, error_msg, telemetry = future.result()
 
                             if (
                                 status == "success"

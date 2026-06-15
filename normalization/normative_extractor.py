@@ -40,8 +40,6 @@ class NormativeExtractor:
         }
     )
 
-    _BCP14_STANDARD_THRESHOLD = 2119
-
     def _is_exempt(self, hierarchy_path: str) -> bool:
         """Evaluates a section trajectory path to identify structural exclusions.
 

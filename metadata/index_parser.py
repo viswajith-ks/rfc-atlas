@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import re
 from pathlib import Path
 
@@ -199,7 +200,11 @@ class RFCIndexParser:
         self._save()
 
     def _save(self) -> None:
-        """Serializes the compiled internal lookup map to disk as JSON."""
+        """Serializes the compiled metadata dictionary to disk atomically."""
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        with self.output_path.open("w", encoding="utf-8") as f:
+        tmp_path = self.output_path.with_suffix(".json.tmp")
+
+        with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(self.metadata_dict, f, indent=2)
+
+        os.replace(tmp_path, self.output_path)
