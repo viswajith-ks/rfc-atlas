@@ -162,18 +162,18 @@ class RFCIndexParser:
         context = etree.iterparse(
             str(self.xml_path),
             events=("end",),
-            tag="rfc-entry",
             huge_tree=True,
         )
 
         for _, elem in context:
-            entry_data = self._parse_rfc_entry(elem)
-            if entry_data is not None:
-                self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
+            if get_local_name(elem) == "rfc-entry":
+                entry_data = self._parse_rfc_entry(elem)
+                if entry_data is not None:
+                    self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
 
-            elem.clear()
-            while elem.getprevious() is not None:
-                del elem.getparent()[0]
+                elem.clear()
+                while elem.getprevious() is not None:
+                    del elem.getparent()[0]
 
         self._save()
 
