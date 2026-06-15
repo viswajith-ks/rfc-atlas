@@ -5,6 +5,7 @@ from collections import deque
 from pathlib import Path
 
 from normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from parsers.base import refine_block_type
 
 
 class LegacyTextParser:
@@ -49,8 +50,12 @@ class LegacyTextParser:
         re.IGNORECASE,
     )
 
-    # Captures legacy Roman Numeral headers. Group 1 grabs the numeral (e.g., "IV"), Group 2 grabs the title.
-    _ROMAN_HEADER_RE = re.compile(r"^([IVXLCDM]+)\.\s+(.*)$", re.IGNORECASE)
+    # Strict Roman Numeral validation (prevents matching English words like "VALID." or "CIVIL.")
+    # Uses lookahead to ensure at least one valid char, followed by strict subtractive notation rules
+    _ROMAN_HEADER_RE = re.compile(
+        r"^(?=[MDCLXVI])(M*(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))\.\s+(.*)$",
+        re.IGNORECASE,
+    )
 
     _BACK_MATTER_TITLES = frozenset(
         {
@@ -441,11 +446,7 @@ class LegacyTextParser:
 
             path_lower = " > ".join(current_hierarchy).lower()
 
-            if "security considerations" in path_lower:
-                if block_type == "prose":
-                    block_type = "security"
-            elif "references" in path_lower and block_type == "prose":
-                block_type = "references"
+            block_type = refine_block_type(block_type, path_lower)
 
             canonical_blocks.append(
                 {

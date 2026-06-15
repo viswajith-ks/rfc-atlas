@@ -41,7 +41,7 @@ def run_audit() -> None:
     print("[1/3] Scanning all LanceDB JSONL Tables for Boundaries...")
     for jsonl_path in CHUNKS_DIR.glob("*.jsonl"):
         tables_scanned += 1
-        with open(jsonl_path, encoding="utf-8") as f:
+        with Path.open(jsonl_path, encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
                 try:
                     chunk: dict[str, Any] = json.loads(line)
@@ -71,7 +71,7 @@ def run_audit() -> None:
 
     normalized_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
     for json_path in normalized_files:
-        with open(json_path, encoding="utf-8") as f:
+        with Path.open(json_path, encoding="utf-8") as f:
             doc: dict[str, Any] = json.load(f)
             rfc_str: str = str(doc.get("metadata", {}).get("rfc_number", "unknown"))
             size_acc: int = 0
@@ -122,7 +122,7 @@ def run_audit() -> None:
             bloated_rfcs += 1
 
     print(f"Writing final report to {report_file_path.name}...")
-    with open(report_file_path, "w", encoding="utf-8") as report:
+    with Path.open(report_file_path, "w", encoding="utf-8") as report:
         report.write("====================================================\n")
         report.write(" QA AUDIT REPORT\n")
         report.write("====================================================\n\n")

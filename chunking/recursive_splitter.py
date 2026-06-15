@@ -149,13 +149,13 @@ class BatchChunker:
             for table_name in set(TABLE_ROUTING_MAP.values()):
                 tmp_file = self.tmp_dir / f"{table_name}_batch_{self.batch_id}.jsonl"
                 self.handles[table_name] = stack.enter_context(
-                    open(tmp_file, "w", encoding="utf-8")
+                    Path.open(tmp_file, "w", encoding="utf-8")
                 )
 
             try:
                 for filepath in file_paths:
                     try:
-                        with open(filepath, encoding="utf-8") as f:
+                        with Path.open(filepath, encoding="utf-8") as f:
                             doc = json.load(f)
 
                         rfc_number: str = str(
@@ -254,11 +254,11 @@ def gather_files(
         master_path = chunks_dir / f"{table_name}.jsonl"
         tmp_master_path = chunks_dir / f"{table_name}.jsonl.tmp"
 
-        with open(tmp_master_path, "wb") as master_file:
+        with Path.open(tmp_master_path, "wb") as master_file:
             for batch_id in range(total_batches):
                 worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
                 if worker_tmp_path.exists():
-                    with open(worker_tmp_path, "rb") as tmp_file:
+                    with Path.open(worker_tmp_path, "rb") as tmp_file:
                         shutil.copyfileobj(
                             tmp_file, master_file, length=COPY_BUFFER_SIZE
                         )
@@ -268,16 +268,16 @@ def gather_files(
     master_log_path = logs_dir / "chunking_pipeline.log"
     tmp_log_path = logs_dir / "chunking_pipeline.log.tmp"
 
-    with open(tmp_log_path, "wb") as master_log:
+    with Path.open(tmp_log_path, "wb") as master_log:
         orch_log = tmp_dir / "orchestrator_errors.log"
         if orch_log.exists():
-            with open(orch_log, "rb") as f:
+            with Path.open(orch_log, "rb") as f:
                 shutil.copyfileobj(f, master_log)
 
         for batch_id in range(total_batches):
             worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
             if worker_tmp_log.exists():
-                with open(worker_tmp_log, "rb") as f:
+                with Path.open(worker_tmp_log, "rb") as f:
                     shutil.copyfileobj(f, master_log)
 
     os.replace(tmp_log_path, master_log_path)
@@ -302,7 +302,6 @@ def run_chunking_pipeline(
         logs_dir (Path): Target directory for the final execution logs.
         tmp_dir (Path): Intermediate workspace for isolated worker file descriptors.
     """
-    """Executes the scatter-gather chunking pipeline across the provided directories."""
     logs_dir.mkdir(parents=True, exist_ok=True)
     chunks_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
@@ -334,7 +333,7 @@ def run_chunking_pipeline(
     print("====================================================")
     print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
     print(
-        f"       Files: {total_files:,} | Worker Threads: {optimal_workers} | Batches: {total_batches}"
+        f"       Files: {total_files:,} | Worker Processes: {optimal_workers} | Batches: {total_batches}"
     )
     print("====================================================\n")
 

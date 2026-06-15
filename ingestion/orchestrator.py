@@ -396,7 +396,7 @@ class PipelineOrchestrator:
                 f"\r\033[KProcessing {log_prefix}: {filename}... Success: {success} | Failed: {failed} | Total: {total}"
             )
             sys.stderr.flush()
-        elif processed % 1000 == 0 or processed == total:
+        elif processed % 100 == 0 or processed == total:
             logger.info(
                 f"[{log_prefix}] {processed:,}/{total:,} files processed (Success: {success}, Failed: {failed})"
             )

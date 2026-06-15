@@ -16,6 +16,7 @@ from normalization.schema import (
     ReferenceMetadataDict,
     SourcecodeFormat,
 )
+from parsers.base import refine_block_type
 from utils.xml_utils import (
     find_child_by_local_name,
     find_children_by_local_name,
@@ -426,11 +427,7 @@ class ModernRFCParser:
         else:
             block_type = XML_TAG_TO_INTERMEDIATE_TYPE_MAP.get(tag, "prose")
 
-        if "security considerations" in path_lower:
-            if block_type == "prose":
-                block_type = "security"
-        elif "references" in path_lower and block_type == "prose":
-            block_type = "references"
+        block_type = refine_block_type(block_type, path_lower)
 
         element_id = node.get("anchor") or node.get("pn")
 

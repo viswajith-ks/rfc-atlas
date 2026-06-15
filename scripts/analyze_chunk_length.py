@@ -80,7 +80,7 @@ def main() -> None:
 
     for idx, filepath in enumerate(json_files, 1):
         try:
-            with open(filepath, encoding="utf-8") as f:
+            with Path.open(filepath, encoding="utf-8") as f:
                 raw_data: JSONNode = json.load(f)
                 data = raw_data
 
@@ -124,13 +124,13 @@ def main() -> None:
     outliers.sort(key=lambda x: x["length"], reverse=True)
     standards.sort(key=lambda x: x["length"], reverse=True)
 
-    with open(OUTLIERS_CSV, "w", newline="", encoding="utf-8") as f:
+    with Path.open(OUTLIERS_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["rfc_id", "block_type", "length"])
         for b in outliers:
             writer.writerow([b["rfc_id"], b["block_type"], b["length"]])
 
-    with open(STANDARD_CSV, "w", newline="", encoding="utf-8") as f:
+    with Path.open(STANDARD_CSV, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["rfc_id", "block_type", "length"])
         for b in standards:
