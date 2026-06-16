@@ -94,16 +94,20 @@ class BatchChunker:
         h_path: list[str],
         rfc_metadata: dict[str, Any],
     ) -> None:
-        """Chunks a single document block and writes it to the appropriate isolated table log.
+        """Chunks a document block and writes it to the appropriate isolated table log.
 
         Extracts the payload, determines the table routing (e.g., 'prose', 'sourcecode'),
-        generates the sliding window fragments, and serializes them to disk.
+        generates the sliding window fragments, and serializes them to disk. Applies a
+        containment filter to ensure highly localized block metadata (like normative
+        statements) is only attached to chunk fragments that physically contain the
+        source text, preventing semantic hallucination during vector retrieval.
 
         Args:
             block (dict[str, Any]): The document block payload from the normalized JSON.
             rfc_number (str): The RFC identifier (e.g., "6716").
             h_path (list[str]): The hierarchical section breadcrumb path of the block.
-            rfc_metadata (dict[str, Any]): Document-level metadata injected into every chunk to aid downstream retrieval filtering.
+            rfc_metadata (dict[str, Any]): Global document-level metadata (e.g., title,
+                status) injected into every chunk to aid downstream filtering.
         """
         b_type: str = block.get("block_type", "paragraph")
         target_table: str = TABLE_ROUTING_MAP.get(b_type, "prose")
@@ -115,7 +119,15 @@ class BatchChunker:
         text_fragments: list[str] = self.split_text_with_overlap(text_payload)
         block_id: str = block.get("block_id", f"rfc{rfc_number}-unknown")
 
+        master_statements = block.get("normative_statements", [])
+
         for i, fragment in enumerate(text_fragments):
+            chunk_statements = [
+                stmt
+                for stmt in master_statements
+                if stmt.get("statement_text", "") in fragment
+            ]
+
             chunk_obj = ChunkRecord(
                 chunk_id=f"{block_id}-chunk{i:03d}",
                 rfc_number=rfc_number,
@@ -125,7 +137,7 @@ class BatchChunker:
                 text_payload=fragment,
                 sourcecode_type=block.get("sourcecode_type"),
                 parsing_confidence=float(block.get("parsing_confidence", 1.0)),
-                normative_statements=block.get("normative_statements", []),
+                normative_statements=chunk_statements,
                 rfc_title=rfc_metadata.get("title"),
                 status=rfc_metadata.get("status"),
             )
