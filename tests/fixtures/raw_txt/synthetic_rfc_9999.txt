@@ -23,25 +23,23 @@ Abstract
    Here is an ASCII table representing state transitions. The parser
    must not interpret this as prose:
 
-   +-------+--------+-------+
-   | State | Metric | Notes |
-   +-------+--------+-------+
-   | IDLE  | 0      | N/A   |
-   | RUN   | 100    | Hot   |
-   +-------+--------+-------+
+    +-------+--------+-------+
+    | State | Metric | Notes |
+    +-------+--------+-------+
+    | IDLE  | 0      | N/A   |
+    | RUN   | 100    | Hot   |
+    +-------+--------+-------+
 
-RFC 9999                     Synthetic Protocol            February 2026
+J. Doe                       Informational                      [Page 1]
 
-Network Working Group                                             J. Doe
-Request for Comments: 9999                                      RFC Labs
-
+RFC 9999                     Synthetic Protocol            February 2026
 
 3.  Syntax Definition
 
    The syntax is strictly defined using ABNF below:
 
-   protocol = "SEP" SP 1*DIGIT
-   status   = "OK" / "FAIL"
+    protocol = "SEP" SP 1*DIGIT
+    status   = "OK" / "FAIL"
 
 99. Security Considerations
 

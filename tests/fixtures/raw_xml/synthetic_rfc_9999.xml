@@ -12,7 +12,8 @@
   </front>
 
   <middle>
-    <section anchor="intro" numbered="true" title="Introduction">
+    <section anchor="intro" numbered="true">
+      <name>Introduction</name>
       <t>The parser MUST extract this sentence and flag it as normative. However, it SHOULD NOT crash when encountering strange formatting.</t>
       <t>
         This paragraph spans
@@ -21,7 +22,8 @@
       </t>
     </section>
 
-    <section anchor="data" numbered="true" title="Data Structures">
+    <section anchor="data" numbered="true">
+      <name>Data Structures</name>
       <t>Here is a table representing state transitions. The parser must not interpret this as prose:</t>
       <table>
         <thead>
@@ -34,7 +36,8 @@
       </table>
     </section>
 
-    <section anchor="syntax" numbered="true" title="Syntax Definition">
+    <section anchor="syntax" numbered="true">
+      <name>Syntax Definition</name>
       <t>The syntax is strictly defined using ABNF below:</t>
       <sourcecode type="abnf">
 protocol = "SEP" SP 1*DIGIT
@@ -44,7 +47,8 @@ status   = "OK" / "FAIL"
   </middle>
 
   <back>
-    <section anchor="security" numbered="true" title="Security Considerations">
+    <section anchor="security" numbered="true">
+      <name>Security Considerations</name>
       <t>Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.</t>
     </section>
   </back>

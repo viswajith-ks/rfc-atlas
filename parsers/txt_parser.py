@@ -103,15 +103,62 @@ class LegacyTextParser:
         )
 
     def _strip_pagination(self, text: str) -> str:
-        """Removes form feeds, footers, and headers associated with page boundaries.
+        """Removes pagination boundaries and contextually stitches the document.
+
+        This method removes the standard IETF pagination footprint (Footers,
+        Form-Feeds, and Running Headers). It then applies a structural heuristic
+        to the lines immediately preceding and following the page break to
+        determine if they are part of the same continuous block (e.g., a sentence
+        spanning two pages) or separate blocks (e.g., a table ending, followed
+        by a new section header).
 
         Args:
             text (str): Raw multi-page text body of the RFC.
 
         Returns:
-            str: Normalized single-stream text body stripped of pagination blocks.
+            str: Normalized single-stream text body where cross-page sentences
+                are seamlessly stitched, but structural boundaries are preserved.
         """
-        return self._PAGINATION_RE.sub("\n", text)
+        # Replace the matched pagination block with a highly unique temporary token
+        tokenized = self._PAGINATION_RE.sub("\n__RFC_ATLAS_PAGE_BREAK__\n", text)
+
+        lines = tokenized.split("\n")
+        stitched_lines: list[str] = []
+
+        for i, line in enumerate(lines):
+            if line.strip() == "__RFC_ATLAS_PAGE_BREAK__":
+                prev_line = ""
+                for j in range(len(stitched_lines) - 1, -1, -1):
+                    if stitched_lines[j].strip():
+                        prev_line = stitched_lines[j]
+                        break
+
+                next_line = ""
+                for j in range(i + 1, len(lines)):
+                    if lines[j].strip():
+                        next_line = lines[j]
+                        break
+
+                first_next = next_line.strip()
+                is_header = False
+
+                if first_next:
+                    normalized_line = first_next.lower().rstrip(".:- ")
+                    is_header = (
+                        bool(self._NUMERIC_HEADER_RE.match(first_next))
+                        or bool(self._APPENDIX_HEADER_RE.match(first_next))
+                        or bool(self._UNNUMBERED_HEADERS_RE.match(normalized_line))
+                    )
+
+                prev_indent = len(prev_line) - len(prev_line.lstrip(" \t"))
+                next_indent = len(next_line) - len(next_line.lstrip(" \t"))
+
+                if is_header or prev_indent != next_indent:
+                    stitched_lines.append("")
+            else:
+                stitched_lines.append(line)
+
+        return "\n".join(stitched_lines)
 
     def _split_squashed_prose(self, text: str) -> tuple[str, str | None]:
         """Separates an inline section header from trailing body text paragraph boundaries.
@@ -267,7 +314,13 @@ class LegacyTextParser:
         Returns:
             bool: True if alignment satisfies criteria, else False.
         """
-        return all(line.startswith("    ") for line in block_lines if line.strip())
+        for line in block_lines:
+            if not line.strip():
+                continue
+
+            if not line.startswith("    "):
+                return False
+        return True
 
     def _extract_blocks(self, clean_text: str) -> list[CanonicalBlockDict]:
         """Segments layout rows into contextual text chunks based on formatting profiles.
