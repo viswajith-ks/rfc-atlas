@@ -103,7 +103,9 @@ def main() -> None:
             sys.stderr.flush()
 
     if sys.stderr.isatty():
-        sys.stderr.write("\n")
+        sys.stderr.write(
+            f"\r\033[K[Scanning] Complete. Total files scanned: {total_files:,}\n"
+        )
         sys.stderr.flush()
 
     if not all_blocks:

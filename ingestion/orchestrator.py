@@ -545,7 +545,9 @@ class PipelineOrchestrator:
                         del future_to_rfc[future]
         finally:
             if sys.stderr.isatty():
-                sys.stderr.write("\n")
+                sys.stderr.write(
+                    f"\r\033[K[{log_prefix}] Parallel processing pool complete. (Total: {total_files:,})\n"
+                )
                 sys.stderr.flush()
 
         return success_count, failure_count
