@@ -1,41 +1,165 @@
 {
-  "rfc_number": "9999",
-  "title": "The Synthetic Edge-Case Protocol (SEP)",
-  "root_node": {
-    "section_id": "root",
-    "title": "Document Root",
-    "level": 0,
-    "children": [
-      {
-        "section_id": "abstract",
-        "title": "Abstract",
-        "level": 1,
-        "children": []
-      },
-      {
-        "section_id": "1",
-        "title": "1. Introduction",
-        "level": 1,
-        "children": []
-      },
-      {
-        "section_id": "2",
-        "title": "2. Data Structures",
-        "level": 1,
-        "children": []
-      },
-      {
-        "section_id": "3",
-        "title": "3. Syntax Definition",
-        "level": 1,
-        "children": []
-      },
-      {
-        "section_id": "99",
-        "title": "99. Security Considerations",
-        "level": 1,
-        "children": []
-      }
-    ]
-  }
+  "rfc_id": 9999,
+  "metadata": {
+    "rfc_number": 9999,
+    "source_type": "txt",
+    "title": "RFC 9999",
+    "status": "UNKNOWN",
+    "stream": "IETF",
+    "authors": [],
+    "obsoletes": [],
+    "updates": [],
+    "updated_by": []
+  },
+  "sections": [
+    {
+      "section_id": "unknown",
+      "title": "Abstract",
+      "hierarchy_path": [
+        "Abstract"
+      ],
+      "section_depth": 1,
+      "blocks": [
+        {
+          "block_id": "rfc9999-secunknown-622bca87-blk1",
+          "block_type": "paragraph",
+          "source_fragment": "   This is a synthetic document designed to test ingestion pipelines. It\n   contains weird line breaks, normative keywords, and ASCII boundaries.",
+          "normalized_text": "This is a synthetic document designed to test ingestion pipelines. It contains weird line breaks, normative keywords, and ASCII boundaries.",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        }
+      ]
+    },
+    {
+      "section_id": "unknown",
+      "title": "Introduction",
+      "hierarchy_path": [
+        "Introduction"
+      ],
+      "section_depth": 1,
+      "blocks": [
+        {
+          "block_id": "rfc9999-secunknown-81177439-blk1",
+          "block_type": "paragraph",
+          "source_fragment": "   The parser MUST extract this sentence and flag it as normative.\n   However, it SHOULD NOT crash when encountering strange formatting.",
+          "normalized_text": "The parser MUST extract this sentence and flag it as normative. However, it SHOULD NOT crash when encountering strange formatting.",
+          "parsing_confidence": 0.8,
+          "normative_statements": [
+            {
+              "keyword": "MUST",
+              "statement_text": "The parser MUST extract this sentence and flag it as normative.",
+              "referenced_rfcs": []
+            },
+            {
+              "keyword": "SHOULD NOT",
+              "statement_text": "However, it SHOULD NOT crash when encountering strange formatting.",
+              "referenced_rfcs": []
+            }
+          ]
+        },
+        {
+          "block_id": "rfc9999-secunknown-81177439-blk2",
+          "block_type": "paragraph",
+          "source_fragment": "   This paragraph spans\n   multiple lines with awkward\n   returns to test your prose stitching logic.",
+          "normalized_text": "This paragraph spans multiple lines with awkward returns to test your prose stitching logic.",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        }
+      ]
+    },
+    {
+      "section_id": "unknown",
+      "title": "Data Structures",
+      "hierarchy_path": [
+        "Data Structures"
+      ],
+      "section_depth": 1,
+      "blocks": [
+        {
+          "block_id": "rfc9999-secunknown-264154b4-blk1",
+          "block_type": "paragraph",
+          "source_fragment": "   Here is an ASCII table representing state transitions. The parser\n   must not interpret this as prose:",
+          "normalized_text": "Here is an ASCII table representing state transitions. The parser must not interpret this as prose:",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        },
+        {
+          "block_id": "rfc9999-secunknown-264154b4-blk2",
+          "block_type": "artwork",
+          "source_fragment": "    +-------+--------+-------+\n    | State | Metric | Notes |\n    +-------+--------+-------+\n    | IDLE  | 0      | N/A   |\n    | RUN   | 100    | Hot   |\n    +-------+--------+-------+",
+          "normalized_text": "    +-------+--------+-------+\n    | State | Metric | Notes |\n    +-------+--------+-------+\n    | IDLE  | 0      | N/A   |\n    | RUN   | 100    | Hot   |\n    +-------+--------+-------+",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        }
+      ]
+    },
+    {
+      "section_id": "unknown",
+      "title": "Syntax Definition",
+      "hierarchy_path": [
+        "Syntax Definition"
+      ],
+      "section_depth": 1,
+      "blocks": [
+        {
+          "block_id": "rfc9999-secunknown-2d9306c1-blk1",
+          "block_type": "paragraph",
+          "source_fragment": "   The syntax is strictly defined using ABNF below:",
+          "normalized_text": "The syntax is strictly defined using ABNF below:",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        },
+        {
+          "block_id": "rfc9999-secunknown-2d9306c1-blk2",
+          "block_type": "abnf",
+          "source_fragment": "    protocol = \"SEP\" SP 1*DIGIT\n    status   = \"OK\" / \"FAIL\"",
+          "normalized_text": "    protocol = \"SEP\" SP 1*DIGIT\n    status   = \"OK\" / \"FAIL\"",
+          "parsing_confidence": 0.8,
+          "normative_statements": []
+        }
+      ]
+    },
+    {
+      "section_id": "unknown",
+      "title": "Security Considerations",
+      "hierarchy_path": [
+        "Security Considerations"
+      ],
+      "section_depth": 1,
+      "blocks": [
+        {
+          "block_id": "rfc9999-secunknown-2d64dd6a-blk1",
+          "block_type": "security",
+          "source_fragment": "   Implementations MUST NOT expose the internal state map to unauthenticated\n   callers over the network.",
+          "normalized_text": "Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.",
+          "parsing_confidence": 0.8,
+          "normative_statements": [
+            {
+              "keyword": "MUST NOT",
+              "statement_text": "Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.",
+              "referenced_rfcs": []
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "preface_blocks": [
+    {
+      "block_id": "rfc9999-preface-blk1",
+      "block_type": "paragraph",
+      "source_fragment": "Network Working Group                                             J. Doe\nRequest for Comments: 9999                                      RFC Labs\nCategory: Informational                                    February 2026",
+      "normalized_text": "Network Working Group J. Doe Request for Comments: 9999 RFC Labs Category: Informational February 2026",
+      "parsing_confidence": 0.8,
+      "normative_statements": []
+    },
+    {
+      "block_id": "rfc9999-preface-blk2",
+      "block_type": "artwork",
+      "source_fragment": "                 The Synthetic Edge-Case Protocol (SEP)",
+      "normalized_text": "                 The Synthetic Edge-Case Protocol (SEP)",
+      "parsing_confidence": 0.8,
+      "normative_statements": []
+    }
+  ]
 }
