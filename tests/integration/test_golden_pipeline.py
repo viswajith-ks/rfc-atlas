@@ -16,6 +16,13 @@ def test_golden_tree_assembly(expected_tree: dict[str, Any], tmp_path: Path) -> 
 
     This acts as a strict regression test for Phase 1 and Phase 2. If any regex,
     spacing, or structural hash logic changes in the codebase, this test will fail.
+
+    Args:
+        expected_tree (dict[str, Any]): The loaded Golden Snapshot dictionary fixture.
+        tmp_path (Path): Pytest-provided temporary directory path for safe file manipulation.
+
+    Returns:
+        None
     """
     # 1. Setup paths based on standard project structure
     project_root = Path(__file__).resolve().parent.parent.parent
@@ -50,8 +57,11 @@ def test_golden_tree_assembly(expected_tree: dict[str, Any], tmp_path: Path) -> 
     )
 
     # 5. Serialize and compare the dictionaries to ensure exact structural parity
+    # We dump and load to convert Pydantic models to pure Python dicts for clean == comparison.
     actual_tree_dict = json.loads(normalized_tree.model_dump_json(exclude_none=True))
 
-    # We ignore the 'metadata' block in the comparison...
+    # We ignore the 'metadata' block in the comparison because published_at/status
+    # might fall back to "UNKNOWN" depending on the local lookup file presence.
+    # We only care that the physical document structure and normative extraction matches.
     assert actual_tree_dict["sections"] == expected_tree["sections"]
     assert actual_tree_dict["preface_blocks"] == expected_tree["preface_blocks"]
