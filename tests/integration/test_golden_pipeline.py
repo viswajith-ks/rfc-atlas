@@ -20,9 +20,6 @@ def test_golden_tree_assembly(expected_tree: dict[str, Any], tmp_path: Path) -> 
     Args:
         expected_tree (dict[str, Any]): The loaded Golden Snapshot dictionary fixture.
         tmp_path (Path): Pytest-provided temporary directory path for safe file manipulation.
-
-    Returns:
-        None
     """
     # 1. Setup paths based on standard project structure
     project_root = Path(__file__).resolve().parent.parent.parent

@@ -86,9 +86,6 @@ def test_invalid_rfc_number_rejection(tree_builder: CanonicalTreeBuilder) -> Non
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-
-    Returns:
-        None
     """
     with pytest.raises(ValueError, match="Cannot build canonical tree"):
         tree_builder.build_tree(rfc_number=0, flat_blocks=[], source_type="txt")
@@ -99,9 +96,6 @@ def test_missing_metadata_fallback(tree_builder: CanonicalTreeBuilder) -> None:
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-
-    Returns:
-        None
     """
     # RFC 9999 is NOT in our mock_metadata_file
     tree = tree_builder.build_tree(rfc_number=9999, flat_blocks=[], source_type="txt")
@@ -117,9 +111,6 @@ def test_preface_routing(tree_builder: CanonicalTreeBuilder) -> None:
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-
-    Returns:
-        None
     """
     blocks = [
         _mock_flat_block("Document Root", text="Preface Text 1"),
@@ -140,9 +131,6 @@ def test_section_block_counters_and_grouping(
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-
-    Returns:
-        None
     """
     blocks = [
         _mock_flat_block("1. Introduction", text="First paragraph"),
@@ -173,9 +161,6 @@ def test_unknown_section_deterministic_hashing(
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-
-    Returns:
-        None
     """
     # Two unnumbered blocks with the exact same path should hash to the same section token
     blocks = [
