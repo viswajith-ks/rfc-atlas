@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from normalization.schema import NormativeKeyword
+from normalization.schema import BlockType, NormativeKeyword
 
 LanceTableRoute = Literal[
     "prose", "security", "references", "abnf", "sourcecode", "artwork", "table"
@@ -36,7 +36,7 @@ class ChunkRecord(BaseModel):
 
     chunk_id: str
     rfc_number: str
-    block_type: str
+    block_type: BlockType
     table_route: LanceTableRoute
     hierarchy_path: str
     text_payload: str

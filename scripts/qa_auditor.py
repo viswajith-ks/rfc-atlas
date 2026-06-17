@@ -16,7 +16,7 @@ LOGS_DIR: Path = PROJECT_ROOT / "data" / "logs"
 
 MAX_CHUNK_SIZE: int = 2000
 MIN_CHUNK_SIZE: int = 2
-MAX_HEALTHY_EXPANSION_RATIO: float = 1.50
+MAX_HEALTHY_EXPANSION_RATIO: float = 1.20
 
 
 def run_audit() -> None:

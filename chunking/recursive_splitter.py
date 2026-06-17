@@ -9,11 +9,12 @@ import sys
 from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, TextIO, cast
 
 from pebble import ProcessPool
 
 from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
+from normalization.schema import BlockType
 
 logger = logging.getLogger(__name__)
 
@@ -110,7 +111,7 @@ class BatchChunker:
             rfc_metadata (dict[str, Any]): Global document-level metadata (e.g., title,
                 status) injected into every chunk to aid downstream filtering.
         """
-        b_type: str = block.get("block_type", "paragraph")
+        b_type: BlockType = cast(BlockType, block.get("block_type", "paragraph"))
         target_table: str = TABLE_ROUTING_MAP.get(b_type, "prose")
         text_payload: str = block.get("normalized_text", "")
 
@@ -394,11 +395,11 @@ def run_chunking_pipeline(
                     global_chunks += result["chunks"]
                     completed_batches += 1
 
-                    sys.stderr.write(
-                        f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} "
-                        f"| Blocks: {global_blocks:,} | Chunks: {global_chunks:,}"
-                    )
-                    sys.stderr.flush()
+                    if sys.stderr.isatty():
+                        sys.stderr.write(
+                            f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} ..."
+                        )
+                        sys.stderr.flush()
 
                 except TimeoutError:
                     orch_logger.error(
