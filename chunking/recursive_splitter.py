@@ -319,8 +319,10 @@ def run_chunking_pipeline(
     chunks_dir.mkdir(parents=True, exist_ok=True)
     tmp_dir.mkdir(parents=True, exist_ok=True)
 
-    logger.setLevel(logging.INFO)
-    logger.handlers.clear()
+    orch_logger = logging.getLogger(f"{__name__}.orchestrator_loop")
+    orch_logger.setLevel(logging.INFO)
+    orch_logger.handlers.clear()
+    orch_logger.propagate = False
 
     orch_fh = logging.FileHandler(
         tmp_dir / "orchestrator_errors.log", mode="w", encoding="utf-8"
@@ -328,7 +330,7 @@ def run_chunking_pipeline(
     orch_fh.setFormatter(
         logging.Formatter("%(asctime)s [ORCHESTRATOR] %(message)s", datefmt="%H:%M:%S")
     )
-    logger.addHandler(orch_fh)
+    orch_logger.addHandler(orch_fh)
 
     json_files: list[Path] = list(normalized_dir.glob("*.json"))
     total_files = len(json_files)
@@ -393,13 +395,17 @@ def run_chunking_pipeline(
                     sys.stderr.flush()
 
                 except TimeoutError:
-                    logger.error(f"Batch {batch_id} timed out after {WORKER_TIMEOUT}s!")
+                    orch_logger.error(
+                        f"Batch {batch_id} timed out after {WORKER_TIMEOUT}s!"
+                    )
                     sys.stderr.write(
                         f"\n[ERROR] Batch {batch_id} Timed Out. See Logs.\n"
                     )
                     sys.stderr.flush()
                 except Exception as error:
-                    logger.error(f"Batch {batch_id} raised a FATAL exception: {error}")
+                    orch_logger.error(
+                        f"Batch {batch_id} raised a FATAL exception: {error}"
+                    )
                     sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
                     sys.stderr.flush()
 

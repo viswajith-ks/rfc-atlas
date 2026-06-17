@@ -1,8 +1,8 @@
 """Tree builder engine for assembling flat intermediate blocks into nested canonical RFC documents."""
 
+import hashlib
 import json
 import logging
-import uuid
 from pathlib import Path
 from typing import get_args
 
@@ -46,16 +46,21 @@ class CanonicalTreeBuilder:
 
     @staticmethod
     def _parse_section_path(
-        h_path: str, section_number: str | None
+        h_path: str, section_number: str | None, rfc_number: int
     ) -> tuple[str, str, str]:
         """Parses a hierarchical breadcrumb path string into distinct identification fields.
 
         Args:
             h_path (str): The raw section hierarchy breadcrumb text path string.
             section_number (str | None): Optional section identifier extracted by the parser.
+            rfc_number (int): Numeric identifier of the target RFC, used to generate
+                deterministic hashes for unnumbered or unknown sections.
 
         Returns:
-            tuple[str, str, str]: Extracted section identifier, block safe section token, and section title.
+            tuple[str, str, str]: A 3-tuple containing:
+                - The extracted section identifier (e.g., "1.1" or "unknown").
+                - A block-safe section token (e.g., "sec1.1" or "secunknown-<hash>").
+                - The cleaned section title (e.g., "Introduction").
         """
         if h_path.lower() in ("document root", "preface"):
             return "preface", "preface", h_path
@@ -76,8 +81,8 @@ class CanonicalTreeBuilder:
             title = id_split[1]
             return section_id, sec_token, title.strip()
 
-        unique_suffix = uuid.uuid4().hex[:8]
-        return "unknown", f"secunknown-{unique_suffix}", last_part.strip()
+        stable_hash = hashlib.md5(f"{rfc_number}:{h_path}".encode()).hexdigest()[:8]
+        return "unknown", f"secunknown-{stable_hash}", last_part.strip()
 
     def build_tree(
         self,
@@ -174,7 +179,9 @@ class CanonicalTreeBuilder:
             h_path = fb.get("hierarchy_path", "Document Root")
             sec_num = fb["metadata"].get("section_number")
 
-            section_id, sec_token, title = self._parse_section_path(h_path, sec_num)
+            section_id, sec_token, title = self._parse_section_path(
+                h_path, sec_num, rfc_number
+            )
             section_block_counters[sec_token] = (
                 section_block_counters.get(sec_token, 0) + 1
             )

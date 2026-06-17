@@ -4,6 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from normalization.schema import NormativeKeyword
+
 LanceTableRoute = Literal[
     "prose", "security", "references", "abnf", "sourcecode", "artwork", "table"
 ]
@@ -23,7 +25,7 @@ TABLE_ROUTING_MAP: dict[str, LanceTableRoute] = {
 class ChunkNormativeStatement(BaseModel):
     """Schema for normative statements preserved inside a chunk."""
 
-    keyword: str
+    keyword: NormativeKeyword
     statement_text: str
     actor: str | None = None
     referenced_rfcs: list[int] = Field(default=[])
