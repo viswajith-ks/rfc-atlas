@@ -394,9 +394,13 @@ class ModernRFCParser:
             normalized_text = f"Citations Target [{node.get('anchor', 'REF')}]: {title} by {authors_str}."
             normalized_text = " ".join(normalized_text.split())
 
-            if any(tok in path_lower for tok in self._INFORMATIVE_TOKENS):
-                category = "Informative"
-            elif any(tok in path_lower for tok in self._NORMATIVE_TOKENS):
+            parent_node = node.getparent()
+            parent_anchor = (
+                parent_node.get("anchor", "").lower() if parent_node is not None else ""
+            )
+            context_string = f"{path_lower} {parent_anchor}"
+
+            if any(tok in context_string for tok in self._NORMATIVE_TOKENS):
                 category = "Normative"
             else:
                 category = "Informative"

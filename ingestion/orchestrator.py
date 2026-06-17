@@ -197,12 +197,15 @@ class PipelineOrchestrator:
 
     @classmethod
     def reset_state(cls) -> None:
-        """Resets the singleton instantiation lock.
+        """Resets the singleton instantiation lock and clears the global worker cache.
 
         WARNING: This is intended strictly for CI/CD test suite teardowns
         and should never be called during standard pipeline execution.
         """
         cls._is_instantiated = False
+
+        global _worker_tree_builder
+        _worker_tree_builder = None
 
     @classmethod
     def create_and_initialize(
