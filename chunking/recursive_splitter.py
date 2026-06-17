@@ -21,6 +21,7 @@ CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
 BATCH_SIZE: int = 50
 WORKER_TIMEOUT: int = 180
+COPY_BUFFER_SIZE: int = 16 * 1024 * 1024
 
 
 class BatchChunker:
@@ -162,13 +163,13 @@ class BatchChunker:
             for table_name in set(TABLE_ROUTING_MAP.values()):
                 tmp_file = self.tmp_dir / f"{table_name}_batch_{self.batch_id}.jsonl"
                 self.handles[table_name] = stack.enter_context(
-                    Path.open(tmp_file, "w", encoding="utf-8")
+                    tmp_file.open("w", encoding="utf-8")
                 )
 
             try:
                 for filepath in file_paths:
                     try:
-                        with Path.open(filepath, encoding="utf-8") as f:
+                        with filepath.open(encoding="utf-8") as f:
                             doc = json.load(f)
 
                         rfc_number: str = str(
@@ -261,17 +262,16 @@ def gather_files(
     )
 
     unique_tables = set(TABLE_ROUTING_MAP.values())
-    COPY_BUFFER_SIZE = 16 * 1024 * 1024
 
     for table_name in unique_tables:
         master_path = chunks_dir / f"{table_name}.jsonl"
         tmp_master_path = chunks_dir / f"{table_name}.jsonl.tmp"
 
-        with Path.open(tmp_master_path, "wb") as master_file:
+        with tmp_master_path.open("wb") as master_file:
             for batch_id in range(total_batches):
                 worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
                 if worker_tmp_path.exists():
-                    with Path.open(worker_tmp_path, "rb") as tmp_file:
+                    with worker_tmp_path.open("rb") as tmp_file:
                         shutil.copyfileobj(
                             tmp_file, master_file, length=COPY_BUFFER_SIZE
                         )
@@ -281,16 +281,16 @@ def gather_files(
     master_log_path = logs_dir / "chunking_pipeline.log"
     tmp_log_path = logs_dir / "chunking_pipeline.log.tmp"
 
-    with Path.open(tmp_log_path, "wb") as master_log:
+    with tmp_log_path.open("wb") as master_log:
         orch_log = tmp_dir / "orchestrator_errors.log"
         if orch_log.exists():
-            with Path.open(orch_log, "rb") as f:
+            with orch_log.open("rb") as f:
                 shutil.copyfileobj(f, master_log)
 
         for batch_id in range(total_batches):
             worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
             if worker_tmp_log.exists():
-                with Path.open(worker_tmp_log, "rb") as f:
+                with worker_tmp_log.open("rb") as f:
                     shutil.copyfileobj(f, master_log)
 
     os.replace(tmp_log_path, master_log_path)

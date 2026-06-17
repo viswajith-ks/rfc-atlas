@@ -36,6 +36,7 @@ def _execute_rfc_parsing_worker(
     """Parses and structures an individual RFC file inside a process-isolated worker.
 
     Args:
+        filepath (Path): Exact file path to the target RFC document.
         rfc_num (int): Numeric identifier of the RFC document.
         source_type (Literal["txt", "xml"]): Format type of the source document.
         output_dir (Path): Destination directory for the normalized JSON output.
@@ -624,6 +625,8 @@ class PipelineOrchestrator:
             pipeline_run_at=now,
             parser_version=self.parser_version,
             chunking_version=self.chunking_version,
+            # TODO: Populate embedding_model during Phase 3 pipeline integration
+            embedding_model=None,
             total_rfcs_indexed=len(successful),
             total_blocks_generated=total_blocks,
             total_normative_statements=total_normative,
