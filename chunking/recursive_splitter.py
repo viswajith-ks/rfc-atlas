@@ -270,11 +270,17 @@ def gather_files(
         with tmp_master_path.open("wb") as master_file:
             for batch_id in range(total_batches):
                 worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
+
                 if worker_tmp_path.exists():
                     with worker_tmp_path.open("rb") as tmp_file:
-                        shutil.copyfileobj(
-                            tmp_file, master_file, length=COPY_BUFFER_SIZE
-                        )
+                        shutil.copyfileobj(tmp_file, master_file)
+                else:
+                    import sys
+
+                    sys.stderr.write(
+                        f"\n[WARN] Batch {batch_id} output missing for table '{table_name}' — data from this batch was lost.\n"
+                    )
+                    sys.stderr.flush()
 
         os.replace(tmp_master_path, master_path)
 

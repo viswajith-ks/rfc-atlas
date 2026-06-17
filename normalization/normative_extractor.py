@@ -89,9 +89,7 @@ class NormativeExtractor:
                 block["hierarchy_path"]
             ):
                 sentences = self._SENTENCE_SPLIT_RE.split(block["normalized_text"])
-
                 extracted_statements: list[dict[str, str]] = []
-                found_keywords: set[NormativeKeyword] = set()
 
                 for sentence in sentences:
                     for match in self._KEYWORD_PATTERN.finditer(sentence):
@@ -101,7 +99,6 @@ class NormativeExtractor:
                         )
 
                         if normalized_kw in self._VALID_KEYWORDS:
-                            found_keywords.add(normalized_kw)
                             extracted_statements.append(
                                 {
                                     "keyword": normalized_kw,
