@@ -32,18 +32,22 @@ class ChunkNormativeStatement(BaseModel):
 
 
 class ChunkRecord(BaseModel):
-    """Schema defining a structured chunk prior to LanceDB ingestion."""
+    """Final embedding-ready text chunk with fully denormalized relational metadata."""
 
     chunk_id: str
     rfc_number: str
-    block_type: BlockType
-    table_route: LanceTableRoute
-    hierarchy_path: str
-    text_payload: str
-
-    sourcecode_type: str | None = None
     rfc_title: str | None = None
     status: str | None = None
 
+    rfc_year: int | None = None
+    stream: str | None = None
+    obsoletes: list[int] = Field(default=[])
+    updated_by: list[int] = Field(default=[])
+
+    block_type: BlockType
+    table_route: str
+    hierarchy_path: str
+    text_payload: str
+    sourcecode_type: str | None = None
     parsing_confidence: float = Field(ge=0.0, le=1.0)
     normative_statements: list[ChunkNormativeStatement] = Field(default=[])
