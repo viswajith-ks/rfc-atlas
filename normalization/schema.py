@@ -42,6 +42,10 @@ SourcecodeFormat: TypeAlias = Literal[
     "pseudocode",
     "c",
     "go",
+    "python",
+    "xml",
+    "bash",
+    "sh",
 ]
 
 IntermediateBlockType: TypeAlias = Literal[
