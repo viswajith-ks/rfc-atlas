@@ -154,14 +154,16 @@ class CanonicalTreeBuilder:
 
         for fb in flat_blocks:
             normative_stmts: list[NormativeStatement] = []
-            keywords = fb["metadata"]["normative_keywords"]
 
-            for kw in keywords:
+            extracted_statements = fb["metadata"].get("normative_statements", [])
+
+            for stmt in extracted_statements:
+                kw = stmt["keyword"]
                 if kw in self.valid_keywords:
                     normative_stmts.append(
                         NormativeStatement(
                             keyword=kw,
-                            statement_text=fb["normalized_text"],
+                            statement_text=stmt["statement_text"],
                         )
                     )
 

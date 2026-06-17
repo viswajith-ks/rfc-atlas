@@ -433,7 +433,6 @@ class ModernRFCParser:
 
         metadata_data: BlockMetadataDict = {
             "element_id": element_id,
-            "normative_keywords": [],
         }
 
         if section_number is not None:

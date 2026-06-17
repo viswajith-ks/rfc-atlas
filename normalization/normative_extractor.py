@@ -17,6 +17,9 @@ class NormativeExtractor:
         r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|NOT\s+RECOMMENDED|RECOMMENDED|MAY|OPTIONAL)\b"
     )
 
+    # NLP regex to safely split block text into individual sentences
+    _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
     _NORMALIZATION_MAP: dict[str, NormativeKeyword] = {
         "REQUIRED": "MUST",
         "SHALL": "MUST",
@@ -85,41 +88,38 @@ class NormativeExtractor:
             if block["block_type"] in target_block_types and not self._is_exempt(
                 block["hierarchy_path"]
             ):
-                matches: list[str] = self._KEYWORD_PATTERN.findall(
-                    block["normalized_text"]
-                )
+                sentences = self._SENTENCE_SPLIT_RE.split(block["normalized_text"])
 
-                if matches:
-                    normalized_keywords: list[NormativeKeyword] = []
+                extracted_statements: list[dict[str, str]] = []
+                found_keywords: set[NormativeKeyword] = set()
 
-                    for kw in matches:
-                        clean_kw = " ".join(kw.split())
-                        normalized_keywords.append(
-                            self._NORMALIZATION_MAP.get(
-                                clean_kw, cast(NormativeKeyword, clean_kw)
+                for sentence in sentences:
+                    for match in self._KEYWORD_PATTERN.finditer(sentence):
+                        kw = " ".join(match.group(0).split())
+                        normalized_kw = self._NORMALIZATION_MAP.get(
+                            kw, cast(NormativeKeyword, kw)
+                        )
+
+                        if normalized_kw in self._VALID_KEYWORDS:
+                            found_keywords.add(normalized_kw)
+                            extracted_statements.append(
+                                {
+                                    "keyword": normalized_kw,
+                                    "statement_text": sentence.strip(),
+                                }
                             )
-                        )
 
-                    validated_keywords = cast(
-                        list[NormativeKeyword],
-                        [
-                            kw
-                            for kw in normalized_keywords
-                            if kw in self._VALID_KEYWORDS
-                        ],
-                    )
-
-                    if validated_keywords:
-                        block = cast(
-                            CanonicalBlockDict,
-                            {
-                                **block,
-                                "metadata": {
-                                    **block["metadata"],
-                                    "normative_keywords": validated_keywords,
-                                },
+                if extracted_statements:
+                    block = cast(
+                        CanonicalBlockDict,
+                        {
+                            **block,
+                            "metadata": {
+                                **block["metadata"],
+                                "normative_statements": extracted_statements,
                             },
-                        )
+                        },
+                    )
 
             enriched_blocks.append(block)
 

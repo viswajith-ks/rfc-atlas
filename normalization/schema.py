@@ -92,11 +92,18 @@ class ReferenceMetadataDict(TypedDict):
     series_value: NotRequired[str]
 
 
+class ExtractedStatementDict(TypedDict):
+    """Pre-parsed normative sentence structure passed from extractor to tree builder."""
+
+    keyword: NormativeKeyword
+    statement_text: str
+
+
 class BlockMetadataDict(TypedDict):
     """Metadata constraints attached to an individual content block."""
 
     element_id: str | None
-    normative_keywords: list[NormativeKeyword]
+    normative_statements: NotRequired[list[ExtractedStatementDict]]
     section_number: NotRequired[str]
     reference_metadata: NotRequired[ReferenceMetadataDict]
 

@@ -512,7 +512,6 @@ class LegacyTextParser:
                     "parsing_confidence": self.base_confidence,
                     "metadata": {
                         "element_id": None,
-                        "normative_keywords": [],
                     },
                 }
             )
