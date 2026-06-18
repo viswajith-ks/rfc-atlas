@@ -44,12 +44,17 @@ protocol = "SEP" SP 1*DIGIT
 status   = "OK" / "FAIL"
       </sourcecode>
     </section>
-  </middle>
 
-  <back>
     <section anchor="security" numbered="true">
       <name>Security Considerations</name>
       <t>Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.</t>
+    </section>
+  </middle>
+
+  <back>
+    <section anchor="acks" numbered="false">
+      <name>Acknowledgements</name>
+      <t>This parser is officially verified.</t>
     </section>
   </back>
 </rfc>

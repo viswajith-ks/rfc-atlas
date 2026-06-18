@@ -125,6 +125,31 @@ class ModernRFCParser:
 
         return blocks
 
+    def _extract_table_as_markdown(self, table_elem: _Element) -> str:
+        """Converts XML table structure to a lightweight Markdown string.
+
+        Iterates through table rows, normalizing header and data cells to maintain
+        spatial relationships for embedding models.
+
+        Args:
+            table_elem (_Element): The LXML table element from the XML tree.
+        """
+        lines: list[str] = []
+        rows = cast(list[_Element], table_elem.xpath(".//tr"))
+
+        for tr in rows:
+            cell_elements = cast(list[_Element], tr.xpath("./td|./th"))
+            cells: list[str] = []
+
+            for cell in cell_elements:
+                raw_text = "".join(str(t) for t in cell.itertext())
+                cell_text = " ".join(raw_text.split())
+                cells.append(cell_text)
+
+            lines.append(f"| {' | '.join(cells)} |")
+
+        return "\n".join(lines)
+
     def _parse_section(
         self,
         section_node: _Element,
@@ -406,7 +431,8 @@ class ModernRFCParser:
                 category = "Informative"
 
             ref_meta = self._extract_bibliographic_metadata(node, category)
-
+        elif tag == "table":
+            normalized_text = self._extract_table_as_markdown(node)
         else:
             raw_text = "".join(str(t) for t in node.itertext())
             if tag in ["sourcecode", "artwork"]:

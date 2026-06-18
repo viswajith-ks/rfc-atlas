@@ -63,9 +63,15 @@ def test_document_parsing_integration(parser_instance: ModernRFCParser) -> None:
     assert len(table_blocks) == 1, "Failed to extract the <table> element"
 
     # 3. Verify Back Matter boundary tracking (Ensures recursive tree lineage)
-    security_blocks = [
-        b for b in blocks if "Security Considerations" in b["hierarchy_path"]
-    ]
-    assert len(security_blocks) >= 1, "Failed to track hierarchy into the <back> matter"
-    # Ensure it appended the explicit "Back" partition to the hierarchy string
-    assert security_blocks[0]["hierarchy_path"].startswith("Back > ")
+    back_matter_blocks = [b for b in blocks if "Back > " in b["hierarchy_path"]]
+    assert len(back_matter_blocks) >= 1, (
+        "Failed to track hierarchy into the <back> matter"
+    )
+
+    # Verify the section inside <back> starts with the correct partition
+    assert back_matter_blocks[0]["hierarchy_path"].startswith("Back > ")
+
+    security_blocks = [b for b in blocks if b["block_type"] == "security"]
+    assert len(security_blocks) >= 1, (
+        "Security Considerations section should produce 'security' typed blocks"
+    )

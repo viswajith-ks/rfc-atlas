@@ -82,8 +82,12 @@ class LegacyTextParser:
         """
         self.txt_filepath = txt_filepath
 
-        with self.txt_filepath.open(encoding="utf-8", errors="ignore") as f:
-            self.raw_text = f.read()
+        try:
+            with self.txt_filepath.open(encoding="utf-8") as f:
+                self.raw_text = f.read()
+        except UnicodeDecodeError:
+            with self.txt_filepath.open(encoding="latin-1") as f:
+                self.raw_text = f.read()
 
         filename = self.txt_filepath.name
 
