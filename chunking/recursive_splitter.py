@@ -161,7 +161,7 @@ class BatchChunker:
                 - 'chunks': Total overlapping chunks generated in this batch.
         """
         with ExitStack() as stack:
-            for table_name in set(TABLE_ROUTING_MAP.values()):
+            for table_name in sorted(set(TABLE_ROUTING_MAP.values())):
                 tmp_file = self.tmp_dir / f"{table_name}_batch_{self.batch_id}.jsonl"
                 self.handles[table_name] = stack.enter_context(
                     tmp_file.open("w", encoding="utf-8")
