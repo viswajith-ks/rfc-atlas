@@ -276,7 +276,6 @@ def gather_files(
                     with worker_tmp_path.open("rb") as tmp_file:
                         shutil.copyfileobj(tmp_file, master_file)
                 else:
-
                     sys.stderr.write(
                         f"\n[WARN] Batch {batch_id} output missing for table '{table_name}' — data from this batch was lost.\n"
                     )

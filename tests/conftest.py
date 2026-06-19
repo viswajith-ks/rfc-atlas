@@ -20,9 +20,7 @@ def synthetic_txt_content() -> str:
     Returns:
         str: The raw plaintext of the synthetic document.
     """
-    raw_content = RAW_TXT_PATH.read_text(encoding="utf-8")
-    lines = raw_content.split("\n")
-    return "\n".join(lines)
+    return RAW_TXT_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture
