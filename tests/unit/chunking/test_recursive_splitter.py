@@ -113,7 +113,7 @@ def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) 
     chunker.handles["prose"] = output_file.open("w", encoding="utf-8")
 
     chunker._chunk_and_route(  # pyright: ignore[reportPrivateUsage]
-        block=fake_block, rfc_number="9999", h_path=["Test"], rfc_metadata={}
+        block=fake_block, rfc_number=9999, h_path=["Test"], rfc_metadata={}
     )
 
     chunker.handles["prose"].close()

@@ -92,7 +92,7 @@ class BatchChunker:
     def _chunk_and_route(
         self,
         block: dict[str, Any],
-        rfc_number: str,
+        rfc_number: int,
         h_path: list[str],
         rfc_metadata: dict[str, Any],
     ) -> None:
@@ -106,7 +106,7 @@ class BatchChunker:
 
         Args:
             block (dict[str, Any]): The document block payload from the normalized JSON.
-            rfc_number (str): The RFC identifier (e.g., "6716").
+            rfc_number (int): The RFC identifier (e.g., "6716").
             h_path (list[str]): The hierarchical section breadcrumb path of the block.
             rfc_metadata (dict[str, Any]): Global document-level metadata (e.g., title,
                 status) injected into every chunk to aid downstream filtering.
@@ -173,9 +173,7 @@ class BatchChunker:
                         with filepath.open(encoding="utf-8") as f:
                             doc = json.load(f)
 
-                        rfc_number: str = str(
-                            doc.get("metadata", {}).get("rfc_number", "unknown")
-                        )
+                        rfc_number: int = doc.get("metadata", {}).get("rfc_number", 0)
 
                         for block in doc.get("preface_blocks", []):
                             self._chunk_and_route(

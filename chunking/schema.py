@@ -4,7 +4,12 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from normalization.schema import BlockType, NormativeKeyword
+from normalization.schema import (
+    BlockType,
+    NormativeStatement,
+    RFCPublicationDate,
+    SourcecodeFormat,
+)
 
 LanceTableRoute = Literal[
     "prose", "security", "references", "abnf", "sourcecode", "artwork", "table"
@@ -22,32 +27,23 @@ TABLE_ROUTING_MAP: dict[str, LanceTableRoute] = {
 }
 
 
-class ChunkNormativeStatement(BaseModel):
-    """Schema for normative statements preserved inside a chunk."""
-
-    keyword: NormativeKeyword
-    statement_text: str
-    actor: str | None = None
-    referenced_rfcs: list[int] = Field(default=[])
-
-
 class ChunkRecord(BaseModel):
     """Final embedding-ready text chunk with fully denormalized relational metadata."""
 
     chunk_id: str
-    rfc_number: str
+    rfc_number: int
     rfc_title: str | None = None
     status: str | None = None
 
-    rfc_year: int | None = None
+    rfc_year: RFCPublicationDate | None = None
     stream: str | None = None
     obsoletes: list[int] = Field(default=[])
     updated_by: list[int] = Field(default=[])
 
     block_type: BlockType
-    table_route: str
+    table_route: LanceTableRoute
     hierarchy_path: str
     text_payload: str
-    sourcecode_type: str | None = None
+    sourcecode_type: SourcecodeFormat | None = None
     parsing_confidence: float = Field(ge=0.0, le=1.0)
-    normative_statements: list[ChunkNormativeStatement] = Field(default=[])
+    normative_statements: list[NormativeStatement] = Field(default=[])

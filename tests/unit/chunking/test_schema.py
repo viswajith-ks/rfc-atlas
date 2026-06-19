@@ -7,9 +7,9 @@ from pydantic import ValidationError
 
 from chunking.schema import (
     TABLE_ROUTING_MAP,
-    ChunkNormativeStatement,
     ChunkRecord,
     LanceTableRoute,
+    NormativeStatement,
 )
 from normalization.schema import BlockType
 
@@ -35,16 +35,14 @@ def test_chunk_record_validation_success() -> None:
     """Verify that a valid ChunkRecord parses correctly with strictly typed fields."""
     record = ChunkRecord(
         chunk_id="1234-sec1-01",
-        rfc_number="1234",
+        rfc_number=1234,
         block_type="paragraph",
         table_route="prose",
         hierarchy_path="1. Introduction",
         text_payload="This is a test chunk.",
         parsing_confidence=0.95,
         normative_statements=[
-            ChunkNormativeStatement(
-                keyword="MUST", statement_text="This is a test chunk."
-            )
+            NormativeStatement(keyword="MUST", statement_text="This is a test chunk.")
         ],
     )
 
@@ -57,7 +55,7 @@ def test_chunk_record_validation_failure_bad_types() -> None:
     with pytest.raises(ValidationError):
         ChunkRecord(
             chunk_id=12345,  # type: ignore
-            rfc_number="1234",
+            rfc_number=1234,
             block_type="paragraph",
             table_route="prose",
             hierarchy_path="1. Introduction",
@@ -71,7 +69,7 @@ def test_chunk_record_validation_failure_bad_confidence() -> None:
     with pytest.raises(ValidationError):
         ChunkRecord(
             chunk_id="1234-sec1-01",
-            rfc_number="1234",
+            rfc_number=1234,
             block_type="paragraph",
             table_route="prose",
             hierarchy_path="1. Introduction",
