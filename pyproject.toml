@@ -1,25 +1,53 @@
 [project]
+name = "rfc-atlas"
+version = "0.1.0"
+description = "A structured, deterministic ingestion and chunking pipeline for IETF RFCs."
 requires-python = ">=3.11"
+authors = [
+    { name = "Viswajith K S" }
+]
+dependencies = [
+    "pydantic>=2.0.0",
+    "lxml==5.1.0",
+    "lxml-stubs==0.5.1",
+    "regex>=2023.0.0",
+    "pebble>=5.0.7",
+    "pytest==8.1.1",
+    "pytest-cov==5.0.0"
+]
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+exclude = [
+    ".venv",
+    "__pycache__",
+    "data",
+]
 
 [tool.ruff.lint]
 select = [
-    "E",   # pycodestyle
+    "E",   # pycodestyle (Errors)
+    "W",   # pycodestyle (Warnings)
     "F",   # pyflakes
     "I",   # isort
-    "B",   # bugbear
+    "B",   # flake8-bugbear
     "UP",  # pyupgrade
-    "SIM", # simplify
-    "C4",  # comprehensions
-    "ANN", # annotations
+    "SIM", # flake8-simplify
+    "C4",  # flake8-comprehensions
+    "ANN", # flake8-annotations
+    "D",   # pydocstyle
+    "PT",  # flake8-pytest-style
+    "TCH", # flake8-type-checking
+    "RUF", # Ruff-specific rules
 ]
 
 ignore = [
-    "E501"
+    "E501", # Line too long
 ]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
 
 [tool.ruff.format]
 quote-style = "double"
@@ -27,18 +55,20 @@ indent-style = "space"
 
 [tool.pyright]
 typeCheckingMode = "strict"
-
 reportMissingImports = true
 reportMissingTypeStubs = false
-
 pythonVersion = "3.11"
+
+venvPath = "."
+venv = ".venv"
 
 exclude = [
     "**/__pycache__",
     ".venv",
+    "data",
 ]
 
 [tool.pytest.ini_options]
-pythonpath = [
-  "."
-]
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
