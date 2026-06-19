@@ -176,7 +176,7 @@ class CanonicalTreeBuilder:
             strict_type: BlockType = INTERMEDIATE_TO_FINAL_TYPE_MAP.get(
                 raw_type, "paragraph"
             )
-            h_path = fb.get("hierarchy_path", "Document Root")
+            h_path = fb["hierarchy_path"]
             sec_num = fb["metadata"].get("section_number")
 
             section_id, sec_token, title = self._parse_section_path(
