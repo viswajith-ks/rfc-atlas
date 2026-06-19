@@ -1,9 +1,13 @@
 """BCP-14 normative requirement extraction engine for text block enrichment."""
 
 import re
-from typing import cast, get_args
+from typing import get_args
 
-from normalization.schema import CanonicalBlockDict, NormativeKeyword
+from normalization.schema import (
+    CanonicalBlockDict,
+    ExtractedStatementDict,
+    NormativeKeyword,
+)
 
 
 class NormativeExtractor:
@@ -21,11 +25,16 @@ class NormativeExtractor:
     _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
     _NORMALIZATION_MAP: dict[str, NormativeKeyword] = {
+        "MUST": "MUST",
         "REQUIRED": "MUST",
         "SHALL": "MUST",
+        "MUST NOT": "MUST NOT",
         "SHALL NOT": "MUST NOT",
+        "SHOULD": "SHOULD",
         "RECOMMENDED": "SHOULD",
+        "SHOULD NOT": "SHOULD NOT",
         "NOT RECOMMENDED": "SHOULD NOT",
+        "MAY": "MAY",
         "OPTIONAL": "MAY",
     }
 
@@ -89,35 +98,23 @@ class NormativeExtractor:
                 block["hierarchy_path"]
             ):
                 sentences = self._SENTENCE_SPLIT_RE.split(block["normalized_text"])
-                extracted_statements: list[dict[str, str]] = []
+                extracted_statements: list[ExtractedStatementDict] = []
 
                 for sentence in sentences:
                     for match in self._KEYWORD_PATTERN.finditer(sentence):
                         kw = " ".join(match.group(0).split())
-                        normalized_kw = self._NORMALIZATION_MAP.get(
-                            kw, cast(NormativeKeyword, kw)
-                        )
 
-                        if normalized_kw in self._VALID_KEYWORDS:
-                            extracted_statements.append(
-                                {
-                                    "keyword": normalized_kw,
-                                    "statement_text": sentence.strip(),
-                                }
-                            )
+                        normalized_kw = self._NORMALIZATION_MAP.get(kw)
+
+                        if normalized_kw is not None:
+                            statement: ExtractedStatementDict = {
+                                "keyword": normalized_kw,
+                                "statement_text": sentence.strip(),
+                            }
+                            extracted_statements.append(statement)
 
                 if extracted_statements:
-                    block = cast(
-                        CanonicalBlockDict,
-                        {
-                            **block,
-                            "metadata": {
-                                **block["metadata"],
-                                "normative_statements": extracted_statements,
-                            },
-                        },
-                    )
-
+                    block["metadata"]["normative_statements"] = extracted_statements
             enriched_blocks.append(block)
 
         return enriched_blocks

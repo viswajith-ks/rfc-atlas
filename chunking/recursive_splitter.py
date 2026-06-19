@@ -9,12 +9,12 @@ import sys
 from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
 from contextlib import ExitStack
 from pathlib import Path
-from typing import Any, TextIO, cast
+from typing import TextIO
 
 from pebble import ProcessPool
 
 from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
-from normalization.schema import BlockType
+from normalization.schema import Block, RFCMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -91,10 +91,10 @@ class BatchChunker:
 
     def _chunk_and_route(
         self,
-        block: dict[str, Any],
+        block: Block,
         rfc_number: int,
         h_path: list[str],
-        rfc_metadata: dict[str, Any],
+        rfc_metadata: RFCMetadata,
     ) -> None:
         """Chunks a document block and writes it to the appropriate isolated table log.
 
@@ -105,43 +105,44 @@ class BatchChunker:
         source text, preventing semantic hallucination during vector retrieval.
 
         Args:
-            block (dict[str, Any]): The document block payload from the normalized JSON.
-            rfc_number (int): The RFC identifier (e.g., "6716").
+            block (Block): The strictly validated Pydantic block from the normalized JSON.
+            rfc_number (int): The numeric RFC identifier (e.g., 6716).
             h_path (list[str]): The hierarchical section breadcrumb path of the block.
-            rfc_metadata (dict[str, Any]): Global document-level metadata (e.g., title,
+            rfc_metadata (RFCMetadata): Global document-level metadata (e.g., title,
                 status) injected into every chunk to aid downstream filtering.
         """
-        b_type: BlockType = cast(BlockType, block.get("block_type", "paragraph"))
-        target_table: str = TABLE_ROUTING_MAP.get(b_type, "prose")
-        text_payload: str = block.get("normalized_text", "")
+        target_table: str = TABLE_ROUTING_MAP.get(block.block_type, "prose")
+        text_payload: str = block.normalized_text
 
         if not text_payload.strip():
             return
 
         text_fragments: list[str] = self.split_text_with_overlap(text_payload)
-        block_id: str = block.get("block_id", f"rfc{rfc_number}-unknown")
+        block_id: str = block.block_id
 
-        master_statements = block.get("normative_statements", [])
+        master_statements = block.normative_statements
 
         for i, fragment in enumerate(text_fragments):
             chunk_statements = [
-                stmt
-                for stmt in master_statements
-                if stmt.get("statement_text", "") in fragment
+                stmt for stmt in master_statements if stmt.statement_text in fragment
             ]
 
             chunk_obj = ChunkRecord(
                 chunk_id=f"{block_id}-chunk{i:03d}",
                 rfc_number=rfc_number,
-                block_type=b_type,
+                block_type=block.block_type,
                 table_route=target_table,
                 hierarchy_path=" > ".join(h_path),
                 text_payload=fragment,
-                sourcecode_type=block.get("sourcecode_type"),
-                parsing_confidence=float(block.get("parsing_confidence", 1.0)),
+                sourcecode_type=block.sourcecode_type,
+                parsing_confidence=block.parsing_confidence,
                 normative_statements=chunk_statements,
-                rfc_title=rfc_metadata.get("title"),
-                status=rfc_metadata.get("status"),
+                rfc_title=rfc_metadata.title,
+                status=rfc_metadata.status,
+                rfc_year=rfc_metadata.published_at,
+                stream=rfc_metadata.stream,
+                obsoletes=rfc_metadata.obsoletes,
+                updated_by=rfc_metadata.updated_by,
             )
 
             self.handles[target_table].write(chunk_obj.model_dump_json() + "\n")

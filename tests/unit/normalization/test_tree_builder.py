@@ -2,12 +2,11 @@
 
 import json
 from pathlib import Path
-from typing import cast
 
 import pytest
 
 from metadata.schema import RFCIndexEntryDict
-from normalization.schema import CanonicalBlockDict
+from normalization.schema import CanonicalBlockDict, IntermediateBlockType
 from normalization.tree_builder import CanonicalTreeBuilder
 
 
@@ -54,30 +53,27 @@ def tree_builder(mock_metadata_file: Path) -> CanonicalTreeBuilder:
 
 
 def _mock_flat_block(
-    h_path: str, b_type: str = "prose", text: str = "Sample"
+    h_path: str, b_type: IntermediateBlockType = "prose", text: str = "Sample"
 ) -> CanonicalBlockDict:
     """Helper to generate structurally compliant flat blocks for testing.
 
     Args:
         h_path (str): The mock hierarchy path (e.g., '1. Introduction').
-        b_type (str): The intermediate block type designation. Defaults to 'prose'.
+        b_type (IntermediateBlockType): The intermediate block type designation. Defaults to 'prose'.
         text (str): The mock normalized text payload. Defaults to 'Sample'.
 
     Returns:
         CanonicalBlockDict: A strictly typed dictionary mimicking parser output.
     """
-    return cast(
-        CanonicalBlockDict,
-        {
-            "rfc_id": 1234,
-            "hierarchy_path": h_path,
-            "block_type": b_type,
-            "source_type": "txt",
-            "normalized_text": text,
-            "source_fragment": text,
-            "parsing_confidence": 1.0,
-            "metadata": {"element_id": None, "normative_statements": []},
-        },
+    return CanonicalBlockDict(
+        rfc_id=1234,
+        hierarchy_path=h_path,
+        block_type=b_type,
+        source_type="txt",
+        normalized_text=text,
+        source_fragment=text,
+        parsing_confidence=1.0,
+        metadata={"element_id": None, "normative_statements": []},
     )
 
 

@@ -12,7 +12,8 @@ from typing import Any
 
 import pytest
 
-from chunking.recursive_splitter import BatchChunker
+from chunking.recursive_splitter import BatchChunker, Block
+from normalization.schema import NormativeStatement, RFCMetadata
 
 # Constants synchronized with the module configuration
 CHUNK_LIMIT: int = 2000
@@ -96,24 +97,29 @@ def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) 
     """
     long_text: str = "The system MUST log all errors. " + ("A" * 2500)
 
-    fake_block: dict[str, Any] = {
-        "block_id": "test-block-001",
-        "block_type": "paragraph",
-        "normalized_text": long_text,
-        "normative_statements": [
-            {
-                "keyword": "MUST",
-                "statement_text": "The system MUST log all errors.",
-                "referenced_rfcs": [],
-            }
+    fake_block: Block = Block(
+        block_id="test-block-001",
+        block_type="paragraph",
+        source_fragment="",
+        normalized_text=long_text,
+        parsing_confidence=1,
+        normative_statements=[
+            NormativeStatement(
+                keyword="MUST",
+                statement_text="The system MUST log all errors.",
+                referenced_rfcs=[],
+            )
         ],
-    }
+    )
 
     output_file: Path = tmp_path / "prose_batch_1.jsonl"
     chunker.handles["prose"] = output_file.open("w", encoding="utf-8")
 
     chunker._chunk_and_route(  # pyright: ignore[reportPrivateUsage]
-        block=fake_block, rfc_number=9999, h_path=["Test"], rfc_metadata={}
+        block=fake_block,
+        rfc_number=9999,
+        h_path=["Test"],
+        rfc_metadata=RFCMetadata(rfc_number=9999, title="test", source_type="xml"),
     )
 
     chunker.handles["prose"].close()

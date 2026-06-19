@@ -4,12 +4,14 @@ Validates exact word-boundary regex matches, keyword normalization (e.g., SHALL 
 sentence-boundary splitting, and strict structural exemption logic.
 """
 
-from typing import cast
-
 import pytest
 
 from normalization.normative_extractor import NormativeExtractor
-from normalization.schema import CanonicalBlockDict, NormativeKeyword
+from normalization.schema import (
+    CanonicalBlockDict,
+    IntermediateBlockType,
+    NormativeKeyword,
+)
 
 
 @pytest.fixture
@@ -19,23 +21,20 @@ def extractor() -> NormativeExtractor:
 
 
 def _mock_block(
-    block_type: str = "prose",
+    block_type: IntermediateBlockType = "prose",
     hierarchy_path: str = "Document Root > 1. Introduction",
     text: str = "",
 ) -> CanonicalBlockDict:
     """Helper to generate structurally compliant mock blocks for testing."""
-    return cast(
-        CanonicalBlockDict,
-        {
-            "rfc_id": 9999,
-            "hierarchy_path": hierarchy_path,
-            "block_type": block_type,
-            "source_type": "txt",
-            "normalized_text": text,
-            "source_fragment": text,
-            "parsing_confidence": 1.0,
-            "metadata": {"element_id": None},
-        },
+    return CanonicalBlockDict(
+        rfc_id=9999,
+        hierarchy_path=hierarchy_path,
+        block_type=block_type,
+        source_type="txt",
+        normalized_text=text,
+        source_fragment=text,
+        parsing_confidence=1.0,
+        metadata={"element_id": None},
     )
 
 

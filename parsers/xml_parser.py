@@ -2,7 +2,7 @@
 
 import logging
 from pathlib import Path
-from typing import cast, get_args
+from typing import get_args
 
 from lxml import etree
 from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
@@ -135,18 +135,19 @@ class ModernRFCParser:
             table_elem (_Element): The LXML table element from the XML tree.
         """
         lines: list[str] = []
-        rows = cast(list[_Element], table_elem.xpath(".//tr"))
+        rows = table_elem.findall(".//tr")
 
         for tr in rows:
-            cell_elements = cast(list[_Element], tr.xpath("./td|./th"))
             cells: list[str] = []
 
-            for cell in cell_elements:
-                raw_text = "".join(str(t) for t in cell.itertext())
-                cell_text = " ".join(raw_text.split())
-                cells.append(cell_text)
+            for cell in tr:
+                if get_local_name(cell) in ("td", "th"):
+                    raw_text = "".join(str(t) for t in cell.itertext())
+                    cell_text = " ".join(raw_text.split())
+                    cells.append(cell_text)
 
-            lines.append(f"| {' | '.join(cells)} |")
+            if cells:
+                lines.append(f"| {' | '.join(cells)} |")
 
         return "\n".join(lines)
 
@@ -397,9 +398,7 @@ class ModernRFCParser:
             normalized_text = "\n".join(items)
 
         elif tag == "reference":
-            title_nodes: list[_Element] = cast(
-                list[_Element], node.xpath(".//*[local-name()='title']")
-            )
+            title_nodes = [n for n in node.iter() if get_local_name(n) == "title"]
             title = "Untitled"
 
             if title_nodes:
@@ -408,9 +407,7 @@ class ModernRFCParser:
                 if cleaned_title:
                     title = cleaned_title
 
-            author_nodes: list[_Element] = cast(
-                list[_Element], node.xpath(".//*[local-name()='author']")
-            )
+            author_nodes = [n for n in node.iter() if get_local_name(n) == "author"]
             authors: list[str] = [
                 name for a in author_nodes if (name := a.get("fullname")) is not None
             ]
@@ -445,12 +442,11 @@ class ModernRFCParser:
 
         clean_lang = raw_lang.lower() if raw_lang else None
 
-        if (
-            tag == "sourcecode"
-            and clean_lang
-            and clean_lang in get_args(SourcecodeFormat)
-        ):
-            sourcecode_type = cast(SourcecodeFormat, clean_lang)
+        if tag == "sourcecode" and clean_lang:
+            for fmt in get_args(SourcecodeFormat):
+                if clean_lang == fmt:
+                    sourcecode_type = fmt
+                    break
 
         if tag == "sourcecode" and clean_lang == "abnf":
             block_type: IntermediateBlockType = "abnf"
