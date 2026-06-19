@@ -7,11 +7,14 @@ document hierarchy paths (Front/Middle/Back matter).
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from normalization.schema import CanonicalBlockDict
 from parsers.xml_parser import ModernRFCParser
+
+if TYPE_CHECKING:
+    from normalization.schema import CanonicalBlockDict
 
 
 @pytest.fixture

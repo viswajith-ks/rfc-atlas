@@ -3,12 +3,15 @@
 import json
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from metadata.schema import RFCIndexEntryDict
 from normalization.schema import CanonicalBlockDict
 from normalization.tree_builder import CanonicalTreeBuilder
+
+if TYPE_CHECKING:
+    from metadata.schema import RFCIndexEntryDict
 
 
 @pytest.fixture

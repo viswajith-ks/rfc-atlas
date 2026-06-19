@@ -7,11 +7,14 @@ for ABNF and ASCII artwork.
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
 
-from normalization.schema import CanonicalBlockDict
 from parsers.txt_parser import LegacyTextParser
+
+if TYPE_CHECKING:
+    from normalization.schema import CanonicalBlockDict
 
 
 @pytest.fixture

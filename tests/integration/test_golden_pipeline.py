@@ -3,12 +3,14 @@
 import json
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from normalization.normative_extractor import NormativeExtractor
-from normalization.schema import CanonicalBlockDict
 from normalization.tree_builder import CanonicalTreeBuilder
 from parsers.txt_parser import LegacyTextParser
+
+if TYPE_CHECKING:
+    from normalization.schema import CanonicalBlockDict
 
 
 def test_golden_tree_assembly(expected_tree: dict[str, Any], tmp_path: Path) -> None:

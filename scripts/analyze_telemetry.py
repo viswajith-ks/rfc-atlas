@@ -4,8 +4,10 @@ import argparse
 import json
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ingestion.manifest import TelemetryRecord
+if TYPE_CHECKING:
+    from ingestion.manifest import TelemetryRecord
 
 
 def analyze_telemetry(telemetry_log_path: Path) -> None:
