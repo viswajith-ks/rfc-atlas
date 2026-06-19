@@ -195,8 +195,11 @@ class BatchChunker:
             finally:
                 gc.collect()
                 for handle in self.handles.values():
-                    handle.flush()
-                    os.fsync(handle.fileno())
+                    try:
+                        handle.flush()
+                        os.fsync(handle.fileno())
+                    except Exception as e:
+                        logger.error(f"[Batch {self.batch_id}] I/O failure during flush/fsync: {e}")
 
             return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
