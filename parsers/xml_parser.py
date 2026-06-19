@@ -138,7 +138,14 @@ class ModernRFCParser:
             str: The Markdown-formatted representation of the table.
         """
         lines: list[str] = []
-        rows = table_elem.findall(".//tr")
+        rows: list[_Element] = []
+
+        for group in ("thead", "tbody", "tfoot"):
+            for sec_node in find_children_by_local_name(table_elem, group):
+                rows.extend(find_children_by_local_name(sec_node, "tr"))
+
+        if not rows:
+            rows.extend(find_children_by_local_name(table_elem, "tr"))
 
         for tr in rows:
             cells: list[str] = []

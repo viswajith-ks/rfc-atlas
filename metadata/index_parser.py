@@ -105,7 +105,7 @@ class RFCIndexParser:
                 if month_str:
                     clean_str = month_str.strip().lower()
                     for key, num in _FUZZY_MONTH_MAP.items():
-                        if key in clean_str:
+                        if clean_str.startswith(key):
                             month_val = num
                             break
 
