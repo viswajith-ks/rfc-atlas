@@ -1,7 +1,7 @@
 """BCP-14 normative requirement extraction engine for text block enrichment."""
 
 import re
-from typing import get_args
+from typing import ClassVar, get_args
 
 from normalization.schema import (
     CanonicalBlockDict,
@@ -24,7 +24,7 @@ class NormativeExtractor:
     # NLP regex to safely split block text into individual sentences
     _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
 
-    _NORMALIZATION_MAP: dict[str, NormativeKeyword] = {
+    _NORMALIZATION_MAP: ClassVar[dict[str, NormativeKeyword]] = {
         "MUST": "MUST",
         "REQUIRED": "MUST",
         "SHALL": "MUST",
