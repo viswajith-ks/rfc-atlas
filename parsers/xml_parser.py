@@ -181,7 +181,7 @@ class ModernRFCParser:
         node_tag = get_local_name(section_node)
 
         if node_tag in ["blockquote", "aside"]:
-            current_path = hierarchy_path + [node_tag.capitalize()]
+            current_path = [*hierarchy_path, node_tag.capitalize()]
             path_str = " > ".join(current_path)
             section_number = parent_section_number
         else:
@@ -202,7 +202,7 @@ class ModernRFCParser:
             else:
                 section_title = "Untitled Section"
 
-            current_path = hierarchy_path + [section_title.strip()]
+            current_path = [*hierarchy_path, section_title.strip()]
             path_str = " > ".join(current_path)
 
         for child in section_node:

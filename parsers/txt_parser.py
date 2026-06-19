@@ -445,7 +445,7 @@ class LegacyTextParser:
                 }
 
                 if in_back_matter:
-                    current_hierarchy = ["Back"] + reconstructed_hierarchy
+                    current_hierarchy = ["Back", *reconstructed_hierarchy]
                 else:
                     current_hierarchy = reconstructed_hierarchy
 
