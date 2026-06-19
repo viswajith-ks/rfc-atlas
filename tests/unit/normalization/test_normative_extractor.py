@@ -4,12 +4,12 @@ Validates exact word-boundary regex matches, keyword normalization (e.g., SHALL 
 sentence-boundary splitting, and strict structural exemption logic.
 """
 
+from collections.abc import Callable
+
 import pytest
 
-from normalization.normative_extractor import NormativeExtractor
+from normalization.normative_extractor import CanonicalBlockDict, NormativeExtractor
 from normalization.schema import (
-    CanonicalBlockDict,
-    IntermediateBlockType,
     NormativeKeyword,
 )
 
@@ -18,24 +18,6 @@ from normalization.schema import (
 def extractor() -> NormativeExtractor:
     """Provides a fresh instance of the NormativeExtractor."""
     return NormativeExtractor()
-
-
-def _mock_block(
-    block_type: IntermediateBlockType = "prose",
-    hierarchy_path: str = "Document Root > 1. Introduction",
-    text: str = "",
-) -> CanonicalBlockDict:
-    """Helper to generate structurally compliant mock blocks for testing."""
-    return CanonicalBlockDict(
-        rfc_id=9999,
-        hierarchy_path=hierarchy_path,
-        block_type=block_type,
-        source_type="txt",
-        normalized_text=text,
-        source_fragment=text,
-        parsing_confidence=1.0,
-        metadata={"element_id": None},
-    )
 
 
 @pytest.mark.parametrize(
@@ -89,10 +71,11 @@ def test_keyword_normalization(
     extractor: NormativeExtractor,
     raw_keyword: str,
     expected_normalized: NormativeKeyword,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
     """Ensure legacy BCP-14 terms map strictly to the core keyword constraints."""
     text = f"The system {raw_keyword} do the thing."
-    block = _mock_block(text=text)
+    block = mock_canonical_block(text=text)
 
     results = extractor.process_blocks([block])
 
@@ -102,7 +85,10 @@ def test_keyword_normalization(
     assert statements[0]["statement_text"] == text
 
 
-def test_sentence_boundary_isolation(extractor: NormativeExtractor) -> None:
+def test_sentence_boundary_isolation(
+    extractor: NormativeExtractor,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
+) -> None:
     """Ensure the regex splits sentences and only extracts the sentence containing the keyword."""
     text = (
         "This is the first sentence. "
@@ -110,7 +96,7 @@ def test_sentence_boundary_isolation(extractor: NormativeExtractor) -> None:
         "Does the system crash? "
         "It SHOULD NOT crash."
     )
-    block = _mock_block(text=text)
+    block = mock_canonical_block(text=text)
 
     results = extractor.process_blocks([block])
     statements = results[0]["metadata"].get("normative_statements", [])
@@ -123,10 +109,13 @@ def test_sentence_boundary_isolation(extractor: NormativeExtractor) -> None:
     assert statements[1]["statement_text"] == "It SHOULD NOT crash."
 
 
-def test_word_boundary_safety(extractor: NormativeExtractor) -> None:
+def test_word_boundary_safety(
+    extractor: NormativeExtractor,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
+) -> None:
     """Ensure partial string matches (like MUSTARD) do not trigger false positives."""
     text = "Colonel MUSTARD SHALLOT eat the OPTIONALity."
-    block = _mock_block(text=text)
+    block = mock_canonical_block(text=text)
 
     results = extractor.process_blocks([block])
     statements = results[0]["metadata"].get("normative_statements", [])
@@ -135,12 +124,15 @@ def test_word_boundary_safety(extractor: NormativeExtractor) -> None:
     assert len(statements) == 0
 
 
-def test_block_type_filtering(extractor: NormativeExtractor) -> None:
+def test_block_type_filtering(
+    extractor: NormativeExtractor,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
+) -> None:
     """Ensure syntax, code, and artwork blocks are bypassed to prevent false flags in comments."""
     code_text = "if (error) { // The system MUST log this }"
 
-    code_block = _mock_block(block_type="sourcecode", text=code_text)
-    prose_block = _mock_block(block_type="prose", text=code_text)
+    code_block = mock_canonical_block(b_type="sourcecode", text=code_text)
+    prose_block = mock_canonical_block(b_type="prose", text=code_text)
 
     results = extractor.process_blocks([code_block, prose_block])
 

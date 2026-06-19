@@ -1,12 +1,13 @@
 """Unit tests for the CanonicalTreeBuilder assembly logic."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
 
 from metadata.schema import RFCIndexEntryDict
-from normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from normalization.schema import CanonicalBlockDict
 from normalization.tree_builder import CanonicalTreeBuilder
 
 
@@ -52,31 +53,6 @@ def tree_builder(mock_metadata_file: Path) -> CanonicalTreeBuilder:
     return CanonicalTreeBuilder(metadata_lookup_path=mock_metadata_file)
 
 
-def _mock_flat_block(
-    h_path: str, b_type: IntermediateBlockType = "prose", text: str = "Sample"
-) -> CanonicalBlockDict:
-    """Helper to generate structurally compliant flat blocks for testing.
-
-    Args:
-        h_path (str): The mock hierarchy path (e.g., '1. Introduction').
-        b_type (IntermediateBlockType): The intermediate block type designation. Defaults to 'prose'.
-        text (str): The mock normalized text payload. Defaults to 'Sample'.
-
-    Returns:
-        CanonicalBlockDict: A strictly typed dictionary mimicking parser output.
-    """
-    return CanonicalBlockDict(
-        rfc_id=1234,
-        hierarchy_path=h_path,
-        block_type=b_type,
-        source_type="txt",
-        normalized_text=text,
-        source_fragment=text,
-        parsing_confidence=1.0,
-        metadata={"element_id": None, "normative_statements": []},
-    )
-
-
 def test_invalid_rfc_number_rejection(tree_builder: CanonicalTreeBuilder) -> None:
     """Verifies that the builder strictly rejects non-positive RFC numbers.
 
@@ -102,15 +78,18 @@ def test_missing_metadata_fallback(tree_builder: CanonicalTreeBuilder) -> None:
     assert tree.metadata.published_at is None
 
 
-def test_preface_routing(tree_builder: CanonicalTreeBuilder) -> None:
+def test_preface_routing(
+    tree_builder: CanonicalTreeBuilder,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
+) -> None:
     """Verifies blocks labeled as 'Document Root' or 'Preface' route to preface_blocks.
 
     Args:
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
     """
     blocks = [
-        _mock_flat_block("Document Root", text="Preface Text 1"),
-        _mock_flat_block("Preface", text="Preface Text 2"),
+        mock_canonical_block(h_path="Document Root", text="Preface Text 1"),
+        mock_canonical_block(h_path="Preface", text="Preface Text 2"),
     ]
     tree = tree_builder.build_tree(
         rfc_number=1234, flat_blocks=blocks, source_type="txt"
@@ -122,6 +101,7 @@ def test_preface_routing(tree_builder: CanonicalTreeBuilder) -> None:
 
 def test_section_block_counters_and_grouping(
     tree_builder: CanonicalTreeBuilder,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
     """Verifies that identical sections are grouped and block IDs increment sequentially.
 
@@ -129,9 +109,9 @@ def test_section_block_counters_and_grouping(
         tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
     """
     blocks = [
-        _mock_flat_block("1. Introduction", text="First paragraph"),
-        _mock_flat_block("1. Introduction", text="Second paragraph"),
-        _mock_flat_block("2. Security", text="Security paragraph"),
+        mock_canonical_block(h_path="1. Introduction", text="First paragraph"),
+        mock_canonical_block(h_path="1. Introduction", text="Second paragraph"),
+        mock_canonical_block(h_path="2. Security", text="Security paragraph"),
     ]
     tree = tree_builder.build_tree(
         rfc_number=1234, flat_blocks=blocks, source_type="txt"
@@ -152,6 +132,7 @@ def test_section_block_counters_and_grouping(
 
 def test_unknown_section_deterministic_hashing(
     tree_builder: CanonicalTreeBuilder,
+    mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
     """Verifies that unnumbered sections generate stable, deterministic ID hashes.
 
@@ -160,8 +141,8 @@ def test_unknown_section_deterministic_hashing(
     """
     # Two unnumbered blocks with the exact same path should hash to the same section token
     blocks = [
-        _mock_flat_block("Random Unnumbered Section", text="A"),
-        _mock_flat_block("Random Unnumbered Section", text="B"),
+        mock_canonical_block(h_path="Random Unnumbered Section", text="A"),
+        mock_canonical_block(h_path="Random Unnumbered Section", text="B"),
     ]
     tree = tree_builder.build_tree(
         rfc_number=1234, flat_blocks=blocks, source_type="txt"

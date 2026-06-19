@@ -1,10 +1,13 @@
 """Global test configuration and shared fixtures for the RFC Atlas test suite."""
 
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
 import pytest
+
+from normalization.schema import CanonicalBlockDict, IntermediateBlockType
 
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 RAW_TXT_PATH: Path = FIXTURES_DIR / "raw_txt" / "synthetic_rfc_9999.txt"
@@ -33,6 +36,8 @@ def synthetic_xml_content() -> str:
     return RAW_XML_PATH.read_text(encoding="utf-8")
 
 
+# TODO: Integration stage - This fixture is currently orphaned but will be
+# consumed when validating LanceDB vector insertion and embedding pipelines.
 @pytest.fixture
 def expected_chunks() -> list[dict[str, Any]]:
     """Loads the golden expected output chunks from JSONL format.
@@ -56,3 +61,27 @@ def expected_tree() -> dict[str, Any]:
         dict[str, Any]: A dictionary representing the expected hierarchical tree.
     """
     return json.loads(EXPECTED_TREE_PATH.read_text(encoding="utf-8"))
+
+
+@pytest.fixture
+def mock_canonical_block() -> Callable[..., CanonicalBlockDict]:
+    """Provides a unified factory for generating structurally compliant CanonicalBlockDicts."""
+
+    def _factory(
+        h_path: str = "Document Root > 1. Introduction",
+        b_type: IntermediateBlockType = "prose",
+        text: str = "Sample text.",
+        rfc_id: int = 9999,
+    ) -> CanonicalBlockDict:
+        return CanonicalBlockDict(
+            rfc_id=rfc_id,
+            hierarchy_path=h_path,
+            block_type=b_type,
+            source_type="txt",
+            normalized_text=text,
+            source_fragment=text,
+            parsing_confidence=1.0,
+            metadata={"element_id": None},
+        )
+
+    return _factory

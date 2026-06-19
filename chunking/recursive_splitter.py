@@ -199,7 +199,9 @@ class BatchChunker:
                         handle.flush()
                         os.fsync(handle.fileno())
                     except Exception as e:
-                        logger.error(f"[Batch {self.batch_id}] I/O failure during flush/fsync: {e}")
+                        logger.error(
+                            f"[Batch {self.batch_id}] I/O failure during flush/fsync: {e}"
+                        )
 
             return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
