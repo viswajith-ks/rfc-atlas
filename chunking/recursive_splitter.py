@@ -1,7 +1,6 @@
 """Hierarchy-aware chunking pipeline using Pebble for multi-core scatter-gather execution."""
 
 import gc
-import json
 import logging
 import os
 import shutil
@@ -14,7 +13,7 @@ from typing import TextIO
 from pebble import ProcessPool
 
 from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
-from normalization.schema import Block, RFCMetadata
+from normalization.schema import Block, NormalizedRFC, RFCMetadata
 
 logger = logging.getLogger(__name__)
 
@@ -171,21 +170,22 @@ class BatchChunker:
             try:
                 for filepath in file_paths:
                     try:
-                        with filepath.open(encoding="utf-8") as f:
-                            doc = json.load(f)
+                        raw_json_text = filepath.read_text(encoding="utf-8")
+                        doc_model = NormalizedRFC.model_validate_json(raw_json_text)
 
-                        rfc_number: int = doc.get("metadata", {}).get("rfc_number", 0)
+                        rfc_number: int = doc_model.metadata.rfc_number
+                        rfc_metadata = doc_model.metadata
 
-                        for block in doc.get("preface_blocks", []):
+                        for block in doc_model.preface_blocks:
                             self._chunk_and_route(
-                                block, rfc_number, ["Preface"], doc["metadata"]
+                                block, rfc_number, ["Preface"], rfc_metadata
                             )
 
-                        for section in doc.get("sections", []):
-                            h_path: list[str] = section.get("hierarchy_path", [])
-                            for block in section.get("blocks", []):
+                        for section in doc_model.sections:
+                            h_path: list[str] = section.hierarchy_path
+                            for block in section.blocks:
                                 self._chunk_and_route(
-                                    block, rfc_number, h_path, doc["metadata"]
+                                    block, rfc_number, h_path, rfc_metadata
                                 )
 
                     except Exception as e:
