@@ -21,7 +21,7 @@ def extractor() -> NormativeExtractor:
 
 
 @pytest.mark.parametrize(
-    "path, expected_exempt",
+    ("path", "expected_exempt"),
     [
         # Standard non-exempt paths
         ("Document Root > 1. Introduction", False),
@@ -52,7 +52,7 @@ def test_exemption_logic(
 
 
 @pytest.mark.parametrize(
-    "raw_keyword, expected_normalized",
+    ("raw_keyword", "expected_normalized"),
     [
         ("MUST", "MUST"),
         ("SHALL", "MUST"),
