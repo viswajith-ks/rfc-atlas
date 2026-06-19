@@ -144,9 +144,9 @@ class RFCMetadata(BaseModel):
     )
 
     authors: list[str] = Field(default_factory=list)
-    obsoletes: list[int] = []
-    updates: list[int] = []
-    updated_by: list[int] = []
+    obsoletes: list[int] = Field(default=[])
+    updates: list[int] = Field(default=[])
+    updated_by: list[int] = Field(default=[])
     protocol_family: str | None = Field(
         default=None,
         description=(
@@ -241,7 +241,7 @@ class NormalizedRFC(BaseModel):
     rfc_id: int
     metadata: RFCMetadata
     sections: list[Section]
-    preface_blocks: list[Block] = []
+    preface_blocks: list[Block] = Field(default=[])
 
     def save_to_disk(self, filepath: Path) -> None:
         """Serializes the canonical RFC artifact to a JSON file on disk with strict field routing.
