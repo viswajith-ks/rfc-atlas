@@ -59,6 +59,7 @@ IntermediateBlockType: TypeAlias = Literal[
     "sourcecode",
 ]
 
+# Maps parser-specific intermediate categories into strict canonical BlockTypes.
 INTERMEDIATE_TO_FINAL_TYPE_MAP: dict[IntermediateBlockType, BlockType] = {
     "prose": "paragraph",
     "artwork": "artwork",
@@ -69,8 +70,8 @@ INTERMEDIATE_TO_FINAL_TYPE_MAP: dict[IntermediateBlockType, BlockType] = {
     "security": "security",
     "references": "references",
 }
-"""Maps parser-specific intermediate categories into strict canonical BlockTypes."""
 
+# Translates valid modern xml2rfc v3 structural elements directly into parser tokens.
 XML_TAG_TO_INTERMEDIATE_TYPE_MAP: dict[str, IntermediateBlockType] = {
     "t": "prose",
     "ul": "list",
@@ -81,7 +82,6 @@ XML_TAG_TO_INTERMEDIATE_TYPE_MAP: dict[str, IntermediateBlockType] = {
     "artwork": "artwork",
     "table": "table",
 }
-"""Translates valid modern xml2rfc v3 structural elements directly into parser tokens."""
 
 
 class ReferenceMetadataDict(TypedDict):

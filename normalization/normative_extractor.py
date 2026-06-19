@@ -82,13 +82,13 @@ class NormativeExtractor:
     def process_blocks(
         self, blocks: list[CanonicalBlockDict]
     ) -> list[CanonicalBlockDict]:
-        """Iterates across intermediate blocks to append extracted keyword metadata vectors.
+        """Iterates across intermediate blocks to append extracted normative statements.
 
         Args:
             blocks (list[CanonicalBlockDict]): A list of target intermediate block maps.
 
         Returns:
-            list[CanonicalBlockDict]: Processed block collection records with added keywords.
+            list[CanonicalBlockDict]: Processed block collection records with added normative statements.
         """
         enriched_blocks: list[CanonicalBlockDict] = []
         target_block_types = ("prose", "security", "list", "table")

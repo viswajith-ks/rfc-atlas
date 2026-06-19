@@ -74,7 +74,7 @@ class RFCIndexParser:
         """Extracts standard attributes and edge relations from a single rfc-entry XML node.
 
         Args:
-            entry: The lxml etree element representing the <rfc-entry>.
+            entry (_Element): The lxml etree element representing the <rfc-entry>.
 
         Returns:
             RFCIndexEntryDict: The compiled schema-compliant dictionary, or None if invalid.

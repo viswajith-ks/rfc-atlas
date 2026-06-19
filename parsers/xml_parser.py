@@ -133,6 +133,9 @@ class ModernRFCParser:
 
         Args:
             table_elem (_Element): The LXML table element from the XML tree.
+
+        Returns:
+            str: The Markdown-formatted representation of the table.
         """
         lines: list[str] = []
         rows = table_elem.findall(".//tr")
