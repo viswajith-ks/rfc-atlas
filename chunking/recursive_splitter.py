@@ -218,6 +218,7 @@ def worker_task(batch_id: int, file_paths: list[Path], tmp_dir: Path) -> dict[st
     worker_logger = logging.getLogger(__name__)
     worker_logger.setLevel(logging.INFO)
     worker_logger.handlers.clear()
+    worker_logger.propagate = False
 
     log_path = tmp_dir / f"batch_{batch_id}_errors.log"
     fh = logging.FileHandler(log_path, mode="w", encoding="utf-8")
@@ -275,7 +276,6 @@ def gather_files(
                     with worker_tmp_path.open("rb") as tmp_file:
                         shutil.copyfileobj(tmp_file, master_file)
                 else:
-                    import sys
 
                     sys.stderr.write(
                         f"\n[WARN] Batch {batch_id} output missing for table '{table_name}' — data from this batch was lost.\n"

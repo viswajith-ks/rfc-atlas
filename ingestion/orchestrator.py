@@ -42,7 +42,7 @@ def _execute_rfc_parsing_worker(
         output_dir (Path): Destination directory for the normalized JSON output.
 
     Returns:
-        tuple[str, Literal["success", "failed"], str | None, TelemetryRecord | None]: Filename, execution status,
+        tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]: Execution status,
             error message string if failed, and telemetry metrics if successful.
     """
     filename = filepath.name
@@ -611,8 +611,8 @@ class PipelineOrchestrator:
         logger.info("Compiling Final Dataset Manifest...")
 
         successful = [r for r in self.telemetry_manifest if r["status"] == "success"]
-        total_blocks = sum(r["total_blocks"] for r in successful)
-        total_normative = sum(r["normative_rules"] for r in successful)
+        total_blocks = sum(r.get("total_blocks", 0) for r in successful)
+        total_normative = sum(r.get("normative_rules", 0) for r in successful)
 
         txt_count = sum(1 for r in successful if r["file"].endswith(".txt"))
         xml_count = sum(1 for r in successful if r["file"].endswith(".xml"))
