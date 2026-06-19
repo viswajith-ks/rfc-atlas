@@ -89,7 +89,7 @@ class RFCIndexParser:
 
         title = get_child_text_by_local_name(entry, "title") or "Unknown Title"
         status = get_child_text_by_local_name(entry, "current-status") or "UNKNOWN"
-        stream = get_child_text_by_local_name(entry, "stream") or "IETF"
+        stream = get_child_text_by_local_name(entry, "stream") or "UNKNOWN"
 
         published_at: RFCPublicationDateDict | None = None
         date_node = find_child_by_local_name(entry, "date")

@@ -144,7 +144,7 @@ class CanonicalTreeBuilder:
             title=meta_dict.get("title", f"RFC {rfc_number}"),
             published_at=parsed_date,
             status=meta_dict.get("status", "UNKNOWN"),
-            stream=meta_dict.get("stream", "IETF"),
+            stream=meta_dict.get("stream", "UNKNOWN"),
             authors=meta_dict.get("authors", []),
             obsoletes=meta_dict.get("obsoletes", []),
             updates=meta_dict.get("updates", []),
