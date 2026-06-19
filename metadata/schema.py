@@ -1,5 +1,4 @@
-"""
-Metadata Schemas for RFC Atlas.
+"""Metadata Schemas for RFC Atlas.
 
 ARCHITECTURAL NOTE (TypedDict vs Pydantic):
 We intentionally maintain dual structures for these concepts.

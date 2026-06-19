@@ -142,7 +142,6 @@ class PipelineOrchestrator:
             RuntimeError: If a second instance of the orchestrator is attempted,
                 or if initialized on a non-Linux operating system (Windows/macOS).
         """
-
         if PipelineOrchestrator._is_instantiated:
             logger.critical("Initialization aborted: Orchestrator Singleton violation.")
             raise RuntimeError(
@@ -243,7 +242,6 @@ class PipelineOrchestrator:
             FileNotFoundError: If the core rfc-index.xml file is missing from disk.
             RuntimeError: If the index parser fails to compile the metadata lookup.
         """
-
         if not raw_index_path.exists():
             logger.critical(
                 f"Foundational raw RFC Index file not found at target directory: {raw_index_path}"

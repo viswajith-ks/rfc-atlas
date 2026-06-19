@@ -88,7 +88,8 @@ def test_preface_routing(
     """Verifies blocks labeled as 'Document Root' or 'Preface' route to preface_blocks.
 
     Args:
-        tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
+        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
+        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
     """
     blocks = [
         mock_canonical_block(h_path="Document Root", text="Preface Text 1"),
@@ -109,7 +110,8 @@ def test_section_block_counters_and_grouping(
     """Verifies that identical sections are grouped and block IDs increment sequentially.
 
     Args:
-        tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
+        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
+        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
     """
     blocks = [
         mock_canonical_block(h_path="1. Introduction", text="First paragraph"),
@@ -140,7 +142,8 @@ def test_unknown_section_deterministic_hashing(
     """Verifies that unnumbered sections generate stable, deterministic ID hashes.
 
     Args:
-        tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
+        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
+        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
     """
     # Two unnumbered blocks with the exact same path should hash to the same section token
     blocks = [
