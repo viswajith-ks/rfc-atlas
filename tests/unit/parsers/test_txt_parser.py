@@ -45,9 +45,9 @@ def test_parser_initialization(parser_instance: LegacyTextParser) -> None:
 
 
 def test_pagination_stripping(parser_instance: LegacyTextParser) -> None:
-    """Validates the context-aware pagination removal heuristic.
+    r"""Validates the context-aware pagination removal heuristic.
 
-    Ensures that form-feed characters (\\x0c), running headers, and footers
+    Ensures that form-feed characters (\x0c), running headers, and footers
     are removed from the raw text stream. This tests the algorithmic "glue"
     that decides whether to stitch cross-page sentences together or split
     them apart based on indentation and header context.

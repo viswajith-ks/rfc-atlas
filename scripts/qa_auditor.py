@@ -20,8 +20,10 @@ MAX_HEALTHY_EXPANSION_RATIO: float = 1.20
 
 
 def run_audit() -> None:
-    """Executes the QA audit pipeline, compiling mass conservation metrics and
-    identifying anomalous data expansion or data loss, outputting to a log file.
+    """Executes the QA audit pipeline and outputs metrics to a log file.
+
+    Compiles mass conservation metrics and identifies anomalous data
+    expansion or data loss across the dataset.
     """
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     report_file_path: Path = LOGS_DIR / "qa_audit_report.txt"
