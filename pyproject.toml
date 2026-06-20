@@ -40,11 +40,21 @@ select = [
     "PT",  # flake8-pytest-style
     "TCH", # flake8-type-checking
     "RUF", # Ruff-specific rules
+    "C90",  # mccabe (Cyclomatic Complexity)
 ]
 
 ignore = [
     "E501", # Line too long
+    "PL",   # Pylint (Structural design limits)
 ]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.pylint]
+max-args = 5
+max-statements = 50
+max-returns = 6
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
