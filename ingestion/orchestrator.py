@@ -219,7 +219,7 @@ class PipelineOrchestrator:
         and should never be called during standard pipeline execution.
         """
         cls._is_instantiated = False
-        cls._worker_tree_builder = None
+        cls.worker_tree_builder = None
 
     @staticmethod
     def _extract_rfc_num(source: Path) -> int:
@@ -516,11 +516,11 @@ class PipelineOrchestrator:
 
         allocated_cores = self._allocate_workers()
 
-        if PipelineOrchestrator._worker_tree_builder is None:
+        if PipelineOrchestrator.worker_tree_builder is None:
             logger.info(
                 "Pre-loading canonical tree builder metadata index into memory..."
             )
-            PipelineOrchestrator._worker_tree_builder = CanonicalTreeBuilder(
+            PipelineOrchestrator.worker_tree_builder = CanonicalTreeBuilder(
                 self.metadata_path
             )
 
