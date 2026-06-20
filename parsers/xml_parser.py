@@ -350,8 +350,9 @@ class ModernRFCParser:
             if front_node is not None
             else None
         )
+
         title = (
-            "".join(map(str, title_node.itertext())).strip()
+            " ".join("".join(map(str, title_node.itertext())).split())
             if title_node is not None
             else None
         )
