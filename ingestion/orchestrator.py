@@ -159,6 +159,14 @@ class PipelineOrchestrator:
     def managed_instance(
         cls, config: PipelineConfig
     ) -> Generator["PipelineOrchestrator", None, None]:
+        """Context manager for safe test isolation and automated teardown.
+
+        Args:
+            config (PipelineConfig): The unified configuration mapping.
+
+        Yields:
+            PipelineOrchestrator: A securely isolated orchestrator instance.
+        """
         instance = cls(config)
         try:
             yield instance
