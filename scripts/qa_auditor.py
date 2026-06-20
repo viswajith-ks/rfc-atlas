@@ -19,29 +19,16 @@ MIN_CHUNK_SIZE: int = 2
 MAX_HEALTHY_EXPANSION_RATIO: float = 1.20
 
 
-def run_audit() -> None:
-    """Executes the QA audit pipeline and outputs metrics to a log file.
-
-    Compiles mass conservation metrics and identifies anomalous data
-    expansion or data loss across the dataset.
-    """
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    report_file_path: Path = LOGS_DIR / "qa_audit_report.txt"
-
-    print("====================================================")
-    print(" INITIATING PHASE 2 PIPELINE QA AUDIT")
-    print(f" Report will be saved to: {report_file_path}")
-    print("====================================================\n")
-
+def scan_chunk_tables(
+    chunks_dir: Path,
+) -> tuple[defaultdict[str, int], int, int, list[str]]:
+    """Scans LanceDB JSONL chunk tables to calculate total chunk mass and identify boundary violations."""
     chunk_mass: defaultdict[str, int] = defaultdict(int)
-    norm_mass: defaultdict[str, int] = defaultdict(int)
     anomalies: list[str] = []
-
     total_chunks: int = 0
     tables_scanned: int = 0
 
-    print("[1/3] Scanning all LanceDB JSONL Tables for Boundaries...")
-    for jsonl_path in CHUNKS_DIR.glob("*.jsonl"):
+    for jsonl_path in chunks_dir.glob("*.jsonl"):
         tables_scanned += 1
         with jsonl_path.open(encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
@@ -68,10 +55,14 @@ def run_audit() -> None:
                         f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: {e}"
                     )
 
-    print(f"      Scanned {total_chunks:,} chunks across {tables_scanned} tables.")
-    print("\n[2/3] Scanning Normalized JSON files for Initial Mass...")
+    return chunk_mass, total_chunks, tables_scanned, anomalies
 
-    normalized_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
+
+def scan_normalized_files(normalized_dir: Path) -> tuple[defaultdict[str, int], int]:
+    """Scans normalized JSON artifacts to establish the baseline conservation of mass."""
+    norm_mass: defaultdict[str, int] = defaultdict(int)
+    normalized_files: list[Path] = list(normalized_dir.glob("*.json"))
+
     for json_path in normalized_files:
         with json_path.open(encoding="utf-8") as f:
             doc: dict[str, Any] = json.load(f)
@@ -91,9 +82,15 @@ def run_audit() -> None:
 
             norm_mass[rfc_str] = size_acc
 
-    print(f"      Scanned {len(normalized_files):,} normalized files.")
-    print("\n[3/3] Executing Conservation of Mass Equations...\n")
+    return norm_mass, len(normalized_files)
 
+
+def calculate_conservation(
+    norm_mass: defaultdict[str, int],
+    chunk_mass: defaultdict[str, int],
+    anomalies: list[str],
+) -> tuple[int, int]:
+    """Compares baseline mass to chunk mass to detect data loss or overlap bloat."""
     missing_rfcs: int = 0
     bloated_rfcs: int = 0
 
@@ -123,13 +120,25 @@ def run_audit() -> None:
             )
             bloated_rfcs += 1
 
+    return missing_rfcs, bloated_rfcs
+
+
+def write_audit_report(
+    report_file_path: Path,
+    total_normalized: int,
+    total_chunks: int,
+    anomalies: list[str],
+    missing_rfcs: int,
+    bloated_rfcs: int,
+) -> None:
+    """Serializes the QA audit findings to a text report on disk."""
     print(f"Writing final report to {report_file_path.name}...")
     with report_file_path.open("w", encoding="utf-8") as report:
         report.write("====================================================\n")
         report.write(" QA AUDIT REPORT\n")
         report.write("====================================================\n\n")
 
-        report.write(f"Total Normalized Files Scanned: {len(normalized_files):,}\n")
+        report.write(f"Total Normalized Files Scanned: {total_normalized:,}\n")
         report.write(f"Total Chunks Scanned: {total_chunks:,}\n\n")
 
         if not anomalies:
@@ -143,6 +152,39 @@ def run_audit() -> None:
             report.write("\nDetailed Anomaly Log:\n")
             for anomaly in anomalies:
                 report.write(f"  > {anomaly}\n")
+
+
+def run_audit() -> None:
+    """Executes the QA audit pipeline and outputs metrics to a log file."""
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    report_file_path: Path = LOGS_DIR / "qa_audit_report.txt"
+
+    print("====================================================")
+    print(" INITIATING PHASE 2 PIPELINE QA AUDIT")
+    print(f" Report will be saved to: {report_file_path}")
+    print("====================================================\n")
+
+    print("[1/3] Scanning all LanceDB JSONL Tables for Boundaries...")
+    chunk_mass, total_chunks, tables_scanned, anomalies = scan_chunk_tables(CHUNKS_DIR)
+    print(f"      Scanned {total_chunks:,} chunks across {tables_scanned} tables.")
+
+    print("\n[2/3] Scanning Normalized JSON files for Initial Mass...")
+    norm_mass, total_normalized = scan_normalized_files(NORMALIZED_DIR)
+    print(f"      Scanned {total_normalized:,} normalized files.")
+
+    print("\n[3/3] Executing Conservation of Mass Equations...\n")
+    missing_rfcs, bloated_rfcs = calculate_conservation(
+        norm_mass, chunk_mass, anomalies
+    )
+
+    write_audit_report(
+        report_file_path,
+        total_normalized,
+        total_chunks,
+        anomalies,
+        missing_rfcs,
+        bloated_rfcs,
+    )
 
     print("[SUCCESS] Audit complete. Check the log file for details!")
 

@@ -64,32 +64,27 @@ def extract_blocks_recursive(node: JSONNode, rfc_id: str) -> list[BlockLengthRec
     return blocks
 
 
-def main() -> None:
-    """Executes the telemetry analysis and generates distribution reports."""
-    if not NORMALIZED_DIR.exists():
-        print(f"Error: Directory {NORMALIZED_DIR} not found.")
-        sys.exit(1)
+def scan_files(json_files: list[Path]) -> list[BlockLengthRecord]:
+    """Iterates over target files, parsing JSON and extracting block lengths.
 
-    LOGS_DIR.mkdir(parents=True, exist_ok=True)
-    print(f"Scanning canonical artifacts in {NORMALIZED_DIR}...")
+    Args:
+        json_files (list[Path]): A list of target JSON file paths.
 
+    Returns:
+        list[BlockLengthRecord]: A compiled list of block extraction telemetry.
+    """
     all_blocks: list[BlockLengthRecord] = []
-
-    json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
     total_files: int = len(json_files)
 
     for idx, filepath in enumerate(json_files, 1):
         try:
             with filepath.open(encoding="utf-8") as f:
-                raw_data: JSONNode = json.load(f)
-                data = raw_data
+                data: JSONNode = json.load(f)
 
                 if isinstance(data, dict):
                     metadata_node = data.get("metadata")
-
                     if isinstance(metadata_node, dict):
-                        rfc_num_node = metadata_node.get("rfc_number", filepath.stem)
-                        rfc_number = str(rfc_num_node)
+                        rfc_number = str(metadata_node.get("rfc_number", filepath.stem))
                     else:
                         rfc_number = str(filepath.stem)
 
@@ -108,39 +103,33 @@ def main() -> None:
         )
         sys.stderr.flush()
 
-    if not all_blocks:
-        print("No blocks found. Check your directory path and JSON structure.")
-        sys.exit(1)
+    return all_blocks
 
-    lengths_by_type: dict[str, list[int]] = defaultdict(list)
-    outliers: list[BlockLengthRecord] = []
-    standards: list[BlockLengthRecord] = []
 
-    for block in all_blocks:
-        lengths_by_type[block["block_type"]].append(block["length"])
-        if block["length"] > CHUNK_THRESHOLD:
-            outliers.append(block)
-        else:
-            standards.append(block)
+def write_csv_report(filepath: Path, blocks: list[BlockLengthRecord]) -> None:
+    """Serializes block telemetry records to a CSV file.
 
-    outliers.sort(key=lambda x: x["length"], reverse=True)
-    standards.sort(key=lambda x: x["length"], reverse=True)
-
-    with OUTLIERS_CSV.open("w", newline="", encoding="utf-8") as f:
+    Args:
+        filepath (Path): Target path for the CSV output.
+        blocks (list[BlockLengthRecord]): The records to serialize.
+    """
+    with filepath.open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["rfc_id", "block_type", "length"])
-        for b in outliers:
+        for b in blocks:
             writer.writerow([b["rfc_id"], b["block_type"], b["length"]])
 
-    with STANDARD_CSV.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow(["rfc_id", "block_type", "length"])
-        for b in standards:
-            writer.writerow([b["rfc_id"], b["block_type"], b["length"]])
 
-    total_blocks: int = len(all_blocks)
-    over_threshold: int = len(outliers)
+def print_distribution_report(
+    total_blocks: int, over_threshold: int, lengths_by_type: dict[str, list[int]]
+) -> None:
+    """Calculates distribution statistics and prints the final terminal report.
 
+    Args:
+        total_blocks (int): Aggregate count of all processed blocks.
+        over_threshold (int): Count of blocks exceeding the chunk limit.
+        lengths_by_type (dict[str, list[int]]): Lengths grouped by block classification.
+    """
     print("\n" + "=" * 50)
     print(" 📊 PHASE 2: BLOCK LENGTH TELEMETRY REPORT")
     print("=" * 50)
@@ -171,6 +160,44 @@ def main() -> None:
     print("\n" + "=" * 50)
     print(f"✅ Outliers saved to: {OUTLIERS_CSV}")
     print(f"✅ Standard blocks saved to: {STANDARD_CSV}")
+
+
+def main() -> None:
+    """Executes the telemetry analysis and generates distribution reports."""
+    if not NORMALIZED_DIR.exists():
+        print(f"Error: Directory {NORMALIZED_DIR} not found.")
+        sys.exit(1)
+
+    LOGS_DIR.mkdir(parents=True, exist_ok=True)
+    print(f"Scanning canonical artifacts in {NORMALIZED_DIR}...")
+
+    json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
+    all_blocks = scan_files(json_files)
+
+    if not all_blocks:
+        print("No blocks found. Check your directory path and JSON structure.")
+        sys.exit(1)
+
+    lengths_by_type: dict[str, list[int]] = defaultdict(list)
+    outliers: list[BlockLengthRecord] = []
+    standards: list[BlockLengthRecord] = []
+
+    for block in all_blocks:
+        lengths_by_type[block["block_type"]].append(block["length"])
+        if block["length"] > CHUNK_THRESHOLD:
+            outliers.append(block)
+        else:
+            standards.append(block)
+
+    outliers.sort(key=lambda x: x["length"], reverse=True)
+    standards.sort(key=lambda x: x["length"], reverse=True)
+
+    write_csv_report(OUTLIERS_CSV, outliers)
+    write_csv_report(STANDARD_CSV, standards)
+
+    total_blocks: int = len(all_blocks)
+    over_threshold: int = len(outliers)
+    print_distribution_report(total_blocks, over_threshold, lengths_by_type)
 
 
 if __name__ == "__main__":
