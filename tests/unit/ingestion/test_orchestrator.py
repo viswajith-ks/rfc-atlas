@@ -6,7 +6,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-import ingestion.orchestrator
 from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
 
 
@@ -36,7 +35,6 @@ def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
     yield orch
 
     PipelineOrchestrator.reset_state()
-    ingestion.orchestrator._worker_tree_builder = None  # pyright: ignore[reportPrivateUsage]
 
 
 def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> None:
