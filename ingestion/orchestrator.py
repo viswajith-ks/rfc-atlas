@@ -9,9 +9,10 @@ import traceback
 from collections.abc import Generator, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
 from contextlib import contextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Literal, TypeAlias
 
 from pebble import ProcessPool
 
@@ -46,7 +47,6 @@ def _execute_rfc_parsing_worker(
             error message string if failed, and telemetry metrics if successful.
     """
     filename = filepath.name
-    global _worker_tree_builder
 
     assert _worker_tree_builder is not None, (
         "FATAL: CoW global memory lost. Worker initialized improperly! "
@@ -101,99 +101,107 @@ def _execute_rfc_parsing_worker(
         return "failed", error_msg, None
 
 
+@dataclass(frozen=True)
+class PipelineConfig:
+    """Configuration container for the PipelineOrchestrator execution boundaries."""
+
+    raw_txt_dir: Path
+    raw_xml_dir: Path
+    output_dir: Path
+    manifest_dir: Path
+    raw_index_path: Path
+    metadata_path: Path
+    parser_version: str = "1.0.0"
+    chunking_version: str = "1.0.0"
+    max_workers: int | None = None
+    per_file_timeout: float = 45.0
+
+
 class PipelineOrchestrator:
     """Coordinates multi-process parsing workflows across historical and modern RFC document layers."""
 
     _POLL_INTERVAL: float = 1.0
     _is_instantiated: bool = False
 
-    def __init__(
-        self,
-        raw_txt_dir: Path,
-        raw_xml_dir: Path,
-        output_dir: Path,
-        manifest_dir: Path,
-        raw_index_path: Path,
-        metadata_path: Path,
-        parser_version: str = "1.0.0",
-        chunking_version: str = "1.0.0",
-        max_workers: int | None = None,
-        per_file_timeout: float = 45.0,
-    ) -> None:
+    def __init__(self, config: PipelineConfig) -> None:
         """Initializes pipeline paths and processing configurations in memory.
 
-        Note: This orchestrator relies heavily on Linux-native Copy-on-Write (CoW)
-        via `fork()` to share the massive metadata index across worker processes
-        with zero memory overhead. It is explicitly pinned to Linux platforms.
-
         Args:
-            raw_txt_dir (Path): Directory containing legacy plaintext RFC documents.
-            raw_xml_dir (Path): Directory containing modern XML RFC documents.
-            output_dir (Path): Target directory for saving canonical JSON records.
-            manifest_dir (Path): Target directory for manifests and execution logs.
-            raw_index_path (Path): Path to the global rfc-index.xml source file.
-            metadata_path (Path): Destination path for the compiled metadata lookup file.
-            parser_version (str): Semantic version tracking the structural parser logic.
-            chunking_version (str): Semantic version tracking the hierarchy chunking strategy.
-            max_workers (int | None): Cap on the maximum number of concurrent child processes.
-            per_file_timeout (float): Execution timeout threshold per individual file in seconds.
-
-        Raises:
-            RuntimeError: If a second instance of the orchestrator is attempted,
-                or if initialized on a non-Linux operating system (Windows/macOS).
+            config (PipelineConfig): The unified configuration mapping.
         """
         if PipelineOrchestrator._is_instantiated:
             logger.critical("Initialization aborted: Orchestrator Singleton violation.")
-            raise RuntimeError(
-                "PipelineOrchestrator is a strict Singleton. Because it utilizes Linux "
-                "Copy-on-Write (CoW) and module-level global state to share memory "
-                "across child processes, instantiating multiple orchestrators in the "
-                "same runtime will corrupt the worker pools. Only one instance is allowed."
-            )
-        PipelineOrchestrator._is_instantiated = True
+            raise RuntimeError("PipelineOrchestrator is a strict Singleton...")
 
         if sys.platform != "linux":
             logger.critical("Initialization aborted: Incompatible Host OS detected.")
-            raise RuntimeError(
-                "Unsupported Operating System. This high-throughput ingestion pipeline relies "
-                "on Linux's native `fork()` process spawning to share the metadata lookup tree "
-                "across workers via Copy-on-Write (CoW). Running this on Windows or macOS "
-                "(which default to `spawn()`) breaks memory isolation and will crash the workers. "
-                "Please run this pipeline inside a Linux environment, WSL, or a Docker container."
-            )
+            raise RuntimeError("Unsupported Operating System...")
 
-        self.raw_txt_dir = raw_txt_dir
-        self.raw_xml_dir = raw_xml_dir
-        self.output_dir = output_dir
-        self.manifest_dir = manifest_dir
-        self.raw_index_path = raw_index_path
-        self.metadata_path = metadata_path
+        PipelineOrchestrator._is_instantiated = True
+
+        self.raw_txt_dir = config.raw_txt_dir
+        self.raw_xml_dir = config.raw_xml_dir
+        self.output_dir = config.output_dir
+        self.manifest_dir = config.manifest_dir
+        self.raw_index_path = config.raw_index_path
+        self.metadata_path = config.metadata_path
+        self.parser_version = config.parser_version
+        self.chunking_version = config.chunking_version
+        self.max_workers = config.max_workers
+        self.per_file_timeout = config.per_file_timeout
 
         self.dataset_manifest_path = self.manifest_dir / "dataset_manifest.json"
         self.telemetry_log_path = self.manifest_dir / "telemetry_log.json"
         self.telemetry_manifest: list[TelemetryRecord] = []
 
-        self.parser_version = parser_version
-        self.chunking_version = chunking_version
-        self.max_workers = max_workers
-        self.per_file_timeout = per_file_timeout
-
     @classmethod
     @contextmanager
     def managed_instance(
-        cls,
-        **kwargs: Any,  # noqa: ANN401
+        cls, config: PipelineConfig
     ) -> Generator["PipelineOrchestrator", None, None]:
-        """Context manager for safe test isolation and automated teardown.
-
-        Yields:
-            PipelineOrchestrator: A securely isolated orchestrator instance.
-        """
-        instance = cls(**kwargs)
+        instance = cls(config)
         try:
             yield instance
         finally:
             cls.reset_state()
+
+    @classmethod
+    def create_and_initialize(cls, config: PipelineConfig) -> "PipelineOrchestrator":
+        """Pre-provisions directories and updates metadata indices before returning an instance.
+
+        Args:
+            config (PipelineConfig): The unified configuration mapping.
+        """
+        if not config.raw_index_path.exists():
+            logger.critical(
+                f"Foundational raw RFC Index file not found: {config.raw_index_path}"
+            )
+            raise FileNotFoundError("Missing baseline protocol schema dependency.")
+
+        config.output_dir.mkdir(parents=True, exist_ok=True)
+        config.manifest_dir.mkdir(parents=True, exist_ok=True)
+        config.metadata_path.parent.mkdir(parents=True, exist_ok=True)
+
+        if (
+            config.metadata_path.exists()
+            and config.metadata_path.stat().st_mtime
+            >= config.raw_index_path.stat().st_mtime
+        ):
+            logger.info("Metadata lookup cache is up-to-date. Skipping XML re-parsing.")
+        else:
+            logger.info(
+                "Metadata lookup cache is missing or stale. Compiling index ledger..."
+            )
+            try:
+                index_parser = RFCIndexParser(
+                    config.raw_index_path, config.metadata_path
+                )
+                index_parser.parse()
+            except Exception as e:
+                logger.critical(f"Core metadata index failed to parse: {e}")
+                raise RuntimeError(f"Metadata compilation failed: {e}") from e
+
+        return cls(config)
 
     @classmethod
     def reset_state(cls) -> None:
@@ -206,87 +214,6 @@ class PipelineOrchestrator:
 
         global _worker_tree_builder
         _worker_tree_builder = None
-
-    @classmethod
-    def create_and_initialize(
-        cls,
-        raw_txt_dir: Path,
-        raw_xml_dir: Path,
-        output_dir: Path,
-        manifest_dir: Path,
-        raw_index_path: Path,
-        metadata_path: Path,
-        parser_version: str = "1.0.0",
-        chunking_version: str = "1.0.0",
-        max_workers: int | None = None,
-        per_file_timeout: float = 45.0,
-    ) -> "PipelineOrchestrator":
-        """Pre-provisions directories and updates metadata indices before returning an orchestrator instance.
-
-        Args:
-            raw_txt_dir (Path): Directory containing legacy plaintext RFC documents.
-            raw_xml_dir (Path): Directory containing modern XML RFC documents.
-            output_dir (Path): Target directory for saving canonical JSON records.
-            manifest_dir (Path): Target directory for manifests and execution logs.
-            raw_index_path (Path): Path to the global rfc-index.xml source file.
-            metadata_path (Path): Destination path for the compiled metadata lookup file.
-            parser_version (str): Semantic version tracking the structural parser logic.
-            chunking_version (str): Semantic version tracking the hierarchy chunking strategy.
-            max_workers (int | None): Cap on the maximum number of concurrent child processes.
-            per_file_timeout (float): Execution timeout threshold per individual file in seconds.
-
-        Returns:
-            PipelineOrchestrator: An initialized orchestrator instance ready for execution loops.
-
-        Raises:
-            FileNotFoundError: If the core rfc-index.xml file is missing from disk.
-            RuntimeError: If the index parser fails to compile the metadata lookup.
-        """
-        if not raw_index_path.exists():
-            logger.critical(
-                f"Foundational raw RFC Index file not found at target directory: {raw_index_path}"
-            )
-            raise FileNotFoundError(
-                f"Missing baseline protocol schema dependency. The raw global RFC index "
-                f"file must exist at '{raw_index_path}' before running the pipeline."
-            )
-
-        output_dir.mkdir(parents=True, exist_ok=True)
-        manifest_dir.mkdir(parents=True, exist_ok=True)
-        metadata_path.parent.mkdir(parents=True, exist_ok=True)
-
-        if (
-            metadata_path.exists()
-            and metadata_path.stat().st_mtime >= raw_index_path.stat().st_mtime
-        ):
-            logger.info(
-                f"Metadata lookup cache is up-to-date at {metadata_path}. Skipping XML re-parsing."
-            )
-        else:
-            logger.info(
-                "Metadata lookup cache is missing or stale. Compiling index ledger..."
-            )
-            try:
-                index_parser = RFCIndexParser(raw_index_path, metadata_path)
-                index_parser.parse()
-            except Exception as e:
-                logger.critical(f"Core metadata index failed to parse: {e}")
-                raise RuntimeError(
-                    f"Pipeline initialization aborted. Metadata compilation failed: {e}"
-                ) from e
-
-        return cls(
-            raw_txt_dir=raw_txt_dir,
-            raw_xml_dir=raw_xml_dir,
-            output_dir=output_dir,
-            manifest_dir=manifest_dir,
-            raw_index_path=raw_index_path,
-            metadata_path=metadata_path,
-            parser_version=parser_version,
-            chunking_version=chunking_version,
-            max_workers=max_workers,
-            per_file_timeout=per_file_timeout,
-        )
 
     @staticmethod
     def _extract_rfc_num(source: Path) -> int:

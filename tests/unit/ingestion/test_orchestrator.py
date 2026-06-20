@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import ingestion.orchestrator
-from ingestion.orchestrator import PipelineOrchestrator
+from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
 
 
 @pytest.fixture
@@ -19,11 +19,10 @@ def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
     txt_dir.mkdir()
     xml_dir.mkdir()
 
-    # Create a fake metadata ledger so the CoW CanonicalTreeBuilder doesn't crash
     meta_path = tmp_path / "meta.json"
     meta_path.write_text("{}", encoding="utf-8")
 
-    orch = PipelineOrchestrator(
+    config = PipelineConfig(
         raw_txt_dir=txt_dir,
         raw_xml_dir=xml_dir,
         output_dir=tmp_path / "out",
@@ -32,25 +31,28 @@ def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
         metadata_path=meta_path,
     )
 
+    orch = PipelineOrchestrator(config)
+
     yield orch
 
-    # Teardown: Release the Singleton lock and reset the global memory cache
     PipelineOrchestrator.reset_state()
     ingestion.orchestrator._worker_tree_builder = None  # pyright: ignore[reportPrivateUsage]
 
 
 def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> None:
+    config = PipelineConfig(
+        raw_txt_dir=tmp_path,
+        raw_xml_dir=tmp_path,
+        output_dir=tmp_path,
+        manifest_dir=tmp_path,
+        raw_index_path=tmp_path,
+        metadata_path=tmp_path,
+    )
+
     with pytest.raises(
         RuntimeError, match="PipelineOrchestrator is a strict Singleton"
     ):
-        PipelineOrchestrator(
-            raw_txt_dir=tmp_path,
-            raw_xml_dir=tmp_path,
-            output_dir=tmp_path,
-            manifest_dir=tmp_path,
-            raw_index_path=tmp_path,
-            metadata_path=tmp_path,
-        )
+        PipelineOrchestrator(config)
 
 
 def test_xml_superiority_routing(orchestrator: PipelineOrchestrator) -> None:

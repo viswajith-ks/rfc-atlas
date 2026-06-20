@@ -41,11 +41,11 @@ select = [
     "TCH", # flake8-type-checking
     "RUF", # Ruff-specific rules
     "C90",  # mccabe (Cyclomatic Complexity)
+    "PL",   # Pylint (Structural design limits)
 ]
 
 ignore = [
     "E501", # Line too long
-    "PL",   # Pylint (Structural design limits)
 ]
 
 [tool.ruff.lint.mccabe]

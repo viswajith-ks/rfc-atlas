@@ -5,7 +5,7 @@ import logging
 import sys
 from pathlib import Path
 
-from ingestion.orchestrator import PipelineOrchestrator
+from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
 
 
 def main() -> None:
@@ -78,7 +78,7 @@ def main() -> None:
     args = parser.parse_args()
 
     try:
-        orchestrator = PipelineOrchestrator.create_and_initialize(
+        config = PipelineConfig(
             raw_txt_dir=args.raw_txt_dir,
             raw_xml_dir=args.raw_xml_dir,
             output_dir=args.output_dir,
@@ -89,6 +89,7 @@ def main() -> None:
             per_file_timeout=args.per_file_timeout,
         )
 
+        orchestrator = PipelineOrchestrator.create_and_initialize(config)
         orchestrator.run_legacy_text_ingestion()
         orchestrator.run_modern_xml_ingestion()
         orchestrator.save_manifest()
