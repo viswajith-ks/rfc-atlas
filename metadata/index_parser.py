@@ -70,6 +70,71 @@ class RFCIndexParser:
         match = re.search(r"RFC(\d+)", doc_id, re.IGNORECASE)
         return int(match.group(1)) if match else 0
 
+    def _extract_date(self, entry: _Element) -> RFCPublicationDateDict | None:
+        """Extracts and normalizes the publication date from an RFC entry node.
+
+        Args:
+            entry (_Element): The parent <rfc-entry> node.
+
+        Returns:
+            RFCPublicationDateDict | None: Normalized date mapping or None if unparseable.
+        """
+        date_node = find_child_by_local_name(entry, "date")
+        if date_node is None:
+            return None
+
+        year_str = get_child_text_by_local_name(date_node, "year")
+        if not year_str or not year_str.isdigit():
+            return None
+
+        year_val = int(year_str)
+        month_val = None
+        month_str = get_child_text_by_local_name(date_node, "month")
+
+        if month_str:
+            clean_str = month_str.strip().lower()
+            for key, num in _FUZZY_MONTH_MAP.items():
+                if clean_str.startswith(key):
+                    month_val = num
+                    break
+
+        return {"year": year_val, "month": month_val}
+
+    def _extract_authors(self, entry: _Element) -> list[str]:
+        """Extracts the list of author names from an RFC entry node.
+
+        Args:
+            entry (_Element): The parent <rfc-entry> node.
+
+        Returns:
+            list[str]: Collection of extracted author names.
+        """
+        authors: list[str] = []
+        for author_node in entry:
+            if get_local_name(author_node) == "author":
+                name = get_child_text_by_local_name(author_node, "name")
+                if name:
+                    authors.append(name)
+        return authors
+
+    def _extract_doc_relations(self, entry: _Element, tag_name: str) -> list[int]:
+        """Extracts a list of related document IDs for a given relational tag.
+
+        Args:
+            entry (_Element): The parent <rfc-entry> node.
+            tag_name (str): The specific XML relation tag (e.g., 'obsoletes', 'updates').
+
+        Returns:
+            list[int]: Collection of numeric RFC identifiers.
+        """
+        relations: list[int] = []
+        rel_node = find_child_by_local_name(entry, tag_name)
+        if rel_node is not None:
+            for doc in rel_node:
+                if get_local_name(doc) == "doc-id" and doc.text:
+                    relations.append(self._clean_doc_id(doc.text))
+        return relations
+
     def _parse_rfc_entry(self, entry: _Element) -> RFCIndexEntryDict | None:
         """Extracts standard attributes and edge relations from a single rfc-entry XML node.
 
@@ -91,67 +156,16 @@ class RFCIndexParser:
         status = get_child_text_by_local_name(entry, "current-status") or "UNKNOWN"
         stream = get_child_text_by_local_name(entry, "stream") or "UNKNOWN"
 
-        published_at: RFCPublicationDateDict | None = None
-        date_node = find_child_by_local_name(entry, "date")
-
-        if date_node is not None:
-            month_str = get_child_text_by_local_name(date_node, "month")
-            year_str = get_child_text_by_local_name(date_node, "year")
-
-            if year_str and year_str.isdigit():
-                year_val = int(year_str)
-                month_val = None
-
-                if month_str:
-                    clean_str = month_str.strip().lower()
-                    for key, num in _FUZZY_MONTH_MAP.items():
-                        if clean_str.startswith(key):
-                            month_val = num
-                            break
-
-                published_at = {
-                    "year": year_val,
-                    "month": month_val,
-                }
-
-        authors: list[str] = []
-        for author_node in entry:
-            if get_local_name(author_node) == "author":
-                name = get_child_text_by_local_name(author_node, "name")
-                if name:
-                    authors.append(name)
-
-        obsoletes: list[int] = []
-        obs_node = find_child_by_local_name(entry, "obsoletes")
-        if obs_node is not None:
-            for doc in obs_node:
-                if get_local_name(doc) == "doc-id" and doc.text:
-                    obsoletes.append(self._clean_doc_id(doc.text))
-
-        updates: list[int] = []
-        up_node = find_child_by_local_name(entry, "updates")
-        if up_node is not None:
-            for doc in up_node:
-                if get_local_name(doc) == "doc-id" and doc.text:
-                    updates.append(self._clean_doc_id(doc.text))
-
-        updated_by: list[int] = []
-        upb_node = find_child_by_local_name(entry, "updated-by")
-        if upb_node is not None:
-            for doc in upb_node:
-                if get_local_name(doc) == "doc-id" and doc.text:
-                    updated_by.append(self._clean_doc_id(doc.text))
-
         return {
             "rfc_number": rfc_num,
             "title": title,
-            "published_at": published_at,
+            "published_at": self._extract_date(entry),
             "status": status,
             "stream": stream,
-            "authors": authors,
-            "obsoletes": obsoletes,
-            "updates": updates,
-            "updated_by": updated_by,
+            "authors": self._extract_authors(entry),
+            "obsoletes": self._extract_doc_relations(entry, "obsoletes"),
+            "updates": self._extract_doc_relations(entry, "updates"),
+            "updated_by": self._extract_doc_relations(entry, "updated-by"),
             "protocol_family": None,
         }
 

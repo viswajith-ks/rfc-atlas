@@ -161,6 +161,87 @@ class ModernRFCParser:
 
         return "\n".join(lines)
 
+    def _resolve_node_path(
+        self,
+        section_node: _Element,
+        node_tag: str,
+        hierarchy_path: list[str],
+        parent_section_number: str | None,
+    ) -> tuple[str, list[str], str | None]:
+        """Resolves the breadcrumb path and section number for a given XML container.
+
+        Args:
+            section_node (_Element): The current XML container node.
+            node_tag (str): The local tag name of the container.
+            hierarchy_path (list[str]): Accumulated list of parent section titles.
+            parent_section_number (str | None): Tracked section number passed from parent nodes.
+
+        Returns:
+            tuple[str, list[str], str | None]: The formatted path string, updated path list, and current section number.
+        """
+        if node_tag in ["blockquote", "aside"]:
+            current_path = [*hierarchy_path, node_tag.capitalize()]
+            return " > ".join(current_path), current_path, parent_section_number
+
+        section_number = parent_section_number
+        pn = section_node.get("pn")
+
+        if pn and pn.startswith("section-"):
+            sec_num_part = pn[len("section-") :]
+            if sec_num_part.startswith("appendix-"):
+                section_number = sec_num_part[len("appendix-") :].upper()
+            else:
+                section_number = sec_num_part
+
+        name_node = find_child_by_local_name(section_node, "name")
+        if name_node is not None:
+            raw_title = "".join(str(t) for t in name_node.itertext())
+            section_title = " ".join(raw_title.split()) or "Untitled Section"
+        else:
+            section_title = "Untitled Section"
+
+        current_path = [*hierarchy_path, section_title.strip()]
+        return " > ".join(current_path), current_path, section_number
+
+    def _process_figure(
+        self,
+        figure_node: _Element,
+        path_str: str,
+        section_number: str | None,
+    ) -> list[CanonicalBlockDict]:
+        """Extracts and formats blocks nested inside a figure container.
+
+        Args:
+            figure_node (_Element): The figure XML element.
+            path_str (str): The resolved breadcrumb path string.
+            section_number (str | None): The current section number.
+
+        Returns:
+            list[CanonicalBlockDict]: A list of extracted block dictionaries from the figure.
+        """
+        blocks: list[CanonicalBlockDict] = []
+        figure_title = ""
+        figure_name_node = find_child_by_local_name(figure_node, "name")
+
+        if figure_name_node is not None:
+            raw_title = "".join(str(t) for t in figure_name_node.itertext())
+            figure_title = " ".join(raw_title.split()).strip()
+
+        for sub_child in figure_node:
+            sub_tag = get_local_name(sub_child)
+
+            if sub_tag in ["sourcecode", "artwork", "table", "t", "ul", "ol", "dl"]:
+                block = self._build_block(sub_child, sub_tag, path_str, section_number)
+
+                if figure_title:
+                    block["normalized_text"] = (
+                        f"[{figure_title}] \n{block['normalized_text']}"
+                    )
+
+                blocks.append(block)
+
+        return blocks
+
     def _parse_section(
         self,
         section_node: _Element,
@@ -180,30 +261,9 @@ class ModernRFCParser:
         blocks: list[CanonicalBlockDict] = []
         node_tag = get_local_name(section_node)
 
-        if node_tag in ["blockquote", "aside"]:
-            current_path = [*hierarchy_path, node_tag.capitalize()]
-            path_str = " > ".join(current_path)
-            section_number = parent_section_number
-        else:
-            pn = section_node.get("pn")
-            section_number = parent_section_number
-
-            if pn and pn.startswith("section-"):
-                sec_num_part = pn[len("section-") :]
-                if sec_num_part.startswith("appendix-"):
-                    section_number = sec_num_part[len("appendix-") :].upper()
-                else:
-                    section_number = sec_num_part
-
-            name_node = find_child_by_local_name(section_node, "name")
-            if name_node is not None:
-                raw_title = "".join(str(t) for t in name_node.itertext())
-                section_title = " ".join(raw_title.split()) or "Untitled Section"
-            else:
-                section_title = "Untitled Section"
-
-            current_path = [*hierarchy_path, section_title.strip()]
-            path_str = " > ".join(current_path)
+        path_str, current_path, section_number = self._resolve_node_path(
+            section_node, node_tag, hierarchy_path, parent_section_number
+        )
 
         for child in section_node:
             tag = get_local_name(child)
@@ -218,35 +278,7 @@ class ModernRFCParser:
                 blocks.append(self._build_block(child, tag, path_str, section_number))
 
             elif tag == "figure":
-                figure_title = ""
-                figure_name_node = find_child_by_local_name(child, "name")
-
-                if figure_name_node is not None:
-                    raw_title = "".join(str(t) for t in figure_name_node.itertext())
-                    figure_title = " ".join(raw_title.split()).strip()
-
-                for sub_child in child:
-                    sub_tag = get_local_name(sub_child)
-
-                    if sub_tag in [
-                        "sourcecode",
-                        "artwork",
-                        "table",
-                        "t",
-                        "ul",
-                        "ol",
-                        "dl",
-                    ]:
-                        block = self._build_block(
-                            sub_child, sub_tag, path_str, section_number
-                        )
-
-                        if figure_title:
-                            block["normalized_text"] = (
-                                f"[{figure_title}] \n{block['normalized_text']}"
-                            )
-
-                        blocks.append(block)
+                blocks.extend(self._process_figure(child, path_str, section_number))
 
         return blocks
 
@@ -358,6 +390,107 @@ class ModernRFCParser:
 
         return ref_data
 
+    def _build_list_text(self, node: _Element) -> str:
+        """Formats XML lists into normalized plaintext representations.
+
+        Args:
+            node (_Element): The XML list container node (ul, ol, dl).
+
+        Returns:
+            str: The normalized Markdown-style list text.
+        """
+        items: list[str] = []
+        for child in node:
+            child_tag = get_local_name(child)
+            item_text = self._normalize_inline_element(child)
+            if not item_text:
+                continue
+
+            if child_tag == "li":
+                items.append(f"* {item_text}")
+            elif child_tag == "dt":
+                items.append(f"; {item_text}")
+            elif child_tag == "dd":
+                items.append(f": {item_text}")
+
+        return "\n".join(items)
+
+    def _build_reference_data(
+        self, node: _Element, path_lower: str
+    ) -> tuple[str, ReferenceMetadataDict | None]:
+        """Formats reference nodes and extracts bibliographic metadata.
+
+        Args:
+            node (_Element): The target <reference> node.
+            path_lower (str): The pre-lowercased hierarchy breadcrumb path.
+
+        Returns:
+            tuple[str, ReferenceMetadataDict | None]: The formatted citation text
+                and its corresponding extracted metadata.
+        """
+        title_nodes = [n for n in node.iter() if get_local_name(n) == "title"]
+        title = "Untitled"
+        if title_nodes:
+            raw_title = "".join(str(t) for t in title_nodes[0].itertext())
+            if cleaned := raw_title.strip():
+                title = cleaned
+
+        author_nodes = [n for n in node.iter() if get_local_name(n) == "author"]
+        authors = [
+            name for a in author_nodes if (name := a.get("fullname")) is not None
+        ]
+        authors_str = ", ".join(authors) if authors else "Unknown Authors"
+
+        normalized_text = (
+            f"Citations Target [{node.get('anchor', 'REF')}]: {title} by {authors_str}."
+        )
+        normalized_text = " ".join(normalized_text.split())
+
+        parent_node = node.getparent()
+        parent_anchor = (
+            parent_node.get("anchor", "").lower() if parent_node is not None else ""
+        )
+        context_string = f"{path_lower} {parent_anchor}"
+
+        if any(tok in context_string for tok in self._NORMATIVE_TOKENS):
+            category: ReferenceCategory = "Normative"
+        else:
+            category: ReferenceCategory = "Informative"
+
+        ref_meta = self._extract_bibliographic_metadata(node, category)
+        return normalized_text, ref_meta
+
+    def _resolve_block_type_and_format(
+        self, tag: str, raw_lang: str | None, path_lower: str
+    ) -> tuple[IntermediateBlockType, SourcecodeFormat | None]:
+        """Resolves the intermediate block type and specific sourcecode format.
+
+        Args:
+            tag (str): Local XML tag name.
+            raw_lang (str | None): Raw language type attribute from the XML.
+            path_lower (str): The pre-lowercased hierarchy breadcrumb path.
+
+        Returns:
+            tuple[IntermediateBlockType, SourcecodeFormat | None]: The resolved
+                semantic block type and the sourcecode format if applicable.
+        """
+        sourcecode_type = None
+        clean_lang = raw_lang.lower() if raw_lang else None
+
+        if tag == "sourcecode" and clean_lang:
+            for fmt in get_args(SourcecodeFormat):
+                if clean_lang == fmt:
+                    sourcecode_type = fmt
+                    break
+
+        if tag == "sourcecode" and clean_lang == "abnf":
+            base_type: IntermediateBlockType = "abnf"
+        else:
+            base_type = XML_TAG_TO_INTERMEDIATE_TYPE_MAP.get(tag, "prose")
+
+        refined_type = refine_block_type(base_type, path_lower)
+        return refined_type, sourcecode_type
+
     def _build_block(
         self,
         node: _Element,
@@ -380,64 +513,15 @@ class ModernRFCParser:
             node, encoding="unicode", pretty_print=False
         ).strip()
 
-        ref_meta = None
-
         path_lower = hierarchy_path.lower()
+        ref_meta = None
 
         if tag == "t":
             normalized_text = self._normalize_inline_element(node)
-
         elif tag in ["ul", "ol", "dl"]:
-            items: list[str] = []
-
-            for child in node:
-                child_tag = get_local_name(child)
-                if child_tag == "li":
-                    item_text = self._normalize_inline_element(child)
-                    if item_text:
-                        items.append(f"* {item_text}")
-                elif child_tag == "dt":
-                    item_text = self._normalize_inline_element(child)
-                    if item_text:
-                        items.append(f"; {item_text}")
-                elif child_tag == "dd":
-                    item_text = self._normalize_inline_element(child)
-                    if item_text:
-                        items.append(f": {item_text}")
-
-            normalized_text = "\n".join(items)
-
+            normalized_text = self._build_list_text(node)
         elif tag == "reference":
-            title_nodes = [n for n in node.iter() if get_local_name(n) == "title"]
-            title = "Untitled"
-
-            if title_nodes:
-                raw_title = "".join(str(t) for t in title_nodes[0].itertext())
-                cleaned_title = raw_title.strip()
-                if cleaned_title:
-                    title = cleaned_title
-
-            author_nodes = [n for n in node.iter() if get_local_name(n) == "author"]
-            authors: list[str] = [
-                name for a in author_nodes if (name := a.get("fullname")) is not None
-            ]
-            authors_str = ", ".join(authors) if authors else "Unknown Authors"
-
-            normalized_text = f"Citations Target [{node.get('anchor', 'REF')}]: {title} by {authors_str}."
-            normalized_text = " ".join(normalized_text.split())
-
-            parent_node = node.getparent()
-            parent_anchor = (
-                parent_node.get("anchor", "").lower() if parent_node is not None else ""
-            )
-            context_string = f"{path_lower} {parent_anchor}"
-
-            if any(tok in context_string for tok in self._NORMATIVE_TOKENS):
-                category = "Normative"
-            else:
-                category = "Informative"
-
-            ref_meta = self._extract_bibliographic_metadata(node, category)
+            normalized_text, ref_meta = self._build_reference_data(node, path_lower)
         elif tag == "table":
             normalized_text = self._extract_table_as_markdown(node)
         else:
@@ -447,28 +531,12 @@ class ModernRFCParser:
             else:
                 normalized_text = " ".join(raw_text.split())
 
-        raw_lang = node.get("type")
-        sourcecode_type = None
-
-        clean_lang = raw_lang.lower() if raw_lang else None
-
-        if tag == "sourcecode" and clean_lang:
-            for fmt in get_args(SourcecodeFormat):
-                if clean_lang == fmt:
-                    sourcecode_type = fmt
-                    break
-
-        if tag == "sourcecode" and clean_lang == "abnf":
-            block_type: IntermediateBlockType = "abnf"
-        else:
-            block_type = XML_TAG_TO_INTERMEDIATE_TYPE_MAP.get(tag, "prose")
-
-        block_type = refine_block_type(block_type, path_lower)
-
-        element_id = node.get("anchor") or node.get("pn")
+        block_type, sourcecode_type = self._resolve_block_type_and_format(
+            tag, node.get("type"), path_lower
+        )
 
         metadata_data: BlockMetadataDict = {
-            "element_id": element_id,
+            "element_id": node.get("anchor") or node.get("pn")
         }
 
         if section_number is not None:
