@@ -25,7 +25,6 @@ from parsers.xml_parser import ModernRFCParser
 
 logger = logging.getLogger(__name__)
 
-_worker_tree_builder: CanonicalTreeBuilder | None = None
 WorkerFuture: TypeAlias = Future[
     tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]
 ]
@@ -48,7 +47,7 @@ def _execute_rfc_parsing_worker(
     """
     filename = filepath.name
 
-    assert _worker_tree_builder is not None, (
+    assert PipelineOrchestrator.worker_tree_builder is not None, (
         "FATAL: CoW global memory lost. Worker initialized improperly! "
         "Ensure your OS supports 'fork' multiprocessing contexts."
     )
@@ -64,7 +63,7 @@ def _execute_rfc_parsing_worker(
         enriched_blocks = extractor.process_blocks(canonical_blocks)
         valid_blocks = [b for b in enriched_blocks if b["normalized_text"].strip()]
 
-        canonical_tree = _worker_tree_builder.build_tree(
+        canonical_tree = PipelineOrchestrator.worker_tree_builder.build_tree(
             rfc_number=rfc_num,
             flat_blocks=valid_blocks,
             source_type=source_type,
@@ -122,6 +121,7 @@ class PipelineOrchestrator:
 
     _POLL_INTERVAL: float = 1.0
     _is_instantiated: bool = False
+    worker_tree_builder: CanonicalTreeBuilder | None = None
 
     def __init__(self, config: PipelineConfig) -> None:
         """Initializes pipeline paths and processing configurations in memory.
@@ -211,9 +211,7 @@ class PipelineOrchestrator:
         and should never be called during standard pipeline execution.
         """
         cls._is_instantiated = False
-
-        global _worker_tree_builder
-        _worker_tree_builder = None
+        cls._worker_tree_builder = None
 
     @staticmethod
     def _extract_rfc_num(source: Path) -> int:
@@ -510,12 +508,13 @@ class PipelineOrchestrator:
 
         allocated_cores = self._allocate_workers()
 
-        global _worker_tree_builder
-        if _worker_tree_builder is None:
+        if PipelineOrchestrator._worker_tree_builder is None:
             logger.info(
                 "Pre-loading canonical tree builder metadata index into memory..."
             )
-            _worker_tree_builder = CanonicalTreeBuilder(self.metadata_path)
+            PipelineOrchestrator._worker_tree_builder = CanonicalTreeBuilder(
+                self.metadata_path
+            )
 
         calculated_max_tasks = max(1, round(0.25 * total_files / allocated_cores))
         success_count, failure_count = 0, 0
