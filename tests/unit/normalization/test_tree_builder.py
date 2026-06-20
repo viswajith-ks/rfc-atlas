@@ -1,5 +1,3 @@
-"""Unit tests for the CanonicalTreeBuilder assembly logic."""
-
 import json
 from collections.abc import Callable
 from pathlib import Path
@@ -16,14 +14,6 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def mock_metadata_file(tmp_path: Path) -> Path:
-    """Provides a temporary metadata lookup JSON file.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-
-    Returns:
-        Path: The absolute path to the generated mock metadata JSON file.
-    """
     meta_path: Path = tmp_path / "mock_meta.json"
     mock_data: dict[str, RFCIndexEntryDict] = {
         "1234": {
@@ -45,33 +35,15 @@ def mock_metadata_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def tree_builder(mock_metadata_file: Path) -> CanonicalTreeBuilder:
-    """Provides an instantiated CanonicalTreeBuilder.
-
-    Args:
-        mock_metadata_file (Path): The path fixture pointing to the mock metadata JSON.
-
-    Returns:
-        CanonicalTreeBuilder: An initialized builder ready for test execution.
-    """
     return CanonicalTreeBuilder(metadata_lookup_path=mock_metadata_file)
 
 
 def test_invalid_rfc_number_rejection(tree_builder: CanonicalTreeBuilder) -> None:
-    """Verifies that the builder strictly rejects non-positive RFC numbers.
-
-    Args:
-        tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-    """
     with pytest.raises(ValueError, match="Cannot build canonical tree"):
         tree_builder.build_tree(rfc_number=0, flat_blocks=[], source_type="txt")
 
 
 def test_missing_metadata_fallback(tree_builder: CanonicalTreeBuilder) -> None:
-    """Verifies that an unknown RFC gracefully falls back to placeholder metadata.
-
-    Args:
-        tree_builder (CanonicalTreeBuilder): The instantiated test fixture.
-    """
     # RFC 9999 is NOT in our mock_metadata_file
     tree = tree_builder.build_tree(rfc_number=9999, flat_blocks=[], source_type="txt")
 
@@ -85,12 +57,6 @@ def test_preface_routing(
     tree_builder: CanonicalTreeBuilder,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Verifies blocks labeled as 'Document Root' or 'Preface' route to preface_blocks.
-
-    Args:
-        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
-        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
-    """
     blocks = [
         mock_canonical_block(h_path="Document Root", text="Preface Text 1"),
         mock_canonical_block(h_path="Preface", text="Preface Text 2"),
@@ -107,12 +73,6 @@ def test_section_block_counters_and_grouping(
     tree_builder: CanonicalTreeBuilder,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Verifies that identical sections are grouped and block IDs increment sequentially.
-
-    Args:
-        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
-        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
-    """
     blocks = [
         mock_canonical_block(h_path="1. Introduction", text="First paragraph"),
         mock_canonical_block(h_path="1. Introduction", text="Second paragraph"),
@@ -139,12 +99,6 @@ def test_unknown_section_deterministic_hashing(
     tree_builder: CanonicalTreeBuilder,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Verifies that unnumbered sections generate stable, deterministic ID hashes.
-
-    Args:
-        tree_builder (CanonicalTreeBuilder): The injected tree builder instance.
-        mock_canonical_block (Callable[..., CanonicalBlockDict]): Factory fixture for generating synthetic blocks.
-    """
     # Two unnumbered blocks with the exact same path should hash to the same section token
     blocks = [
         mock_canonical_block(h_path="Random Unnumbered Section", text="A"),

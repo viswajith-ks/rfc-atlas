@@ -1,10 +1,3 @@
-"""Unit tests for the multi-core Pipeline Orchestrator.
-
-This suite validates the protective Singleton lock, the era-based XML
-superiority routing logic, and the Pebble multiprocessing crash handlers
-(simulating hard exceptions and timeouts) without requiring actual heavy I/O.
-"""
-
 from collections.abc import Generator
 from concurrent.futures import Future, TimeoutError
 from pathlib import Path
@@ -19,20 +12,6 @@ from ingestion.orchestrator import PipelineOrchestrator
 
 @pytest.fixture
 def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
-    """Provides a fresh, isolated PipelineOrchestrator instance securely locked per test.
-
-    This fixture creates the required directory structures and a mock metadata
-    ledger to satisfy the CanonicalTreeBuilder initialization constraints. It safely
-    yields the orchestrator instance and guarantees that both the Singleton lock
-    and the global Copy-on-Write memory cache are purged during teardown, preventing
-    cross-test contamination.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-
-    Yields:
-        Generator[PipelineOrchestrator, None, None]: An initialized orchestrator instance.
-    """
     PipelineOrchestrator.reset_state()
 
     txt_dir = tmp_path / "txt"
@@ -61,14 +40,6 @@ def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
 
 
 def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> None:
-    """Verifies that the orchestrator enforces strict Singleton instantiation.
-
-    Because the ingestion pipeline relies heavily on Linux-native Copy-on-Write
-    via `fork()` to share the massive metadata index across worker processes,
-    instantiating multiple orchestrators in the same runtime will corrupt the
-    worker pools. This test proves that the system aggressively aborts if
-    a duplicate instantiation is attempted.
-    """
     with pytest.raises(
         RuntimeError, match="PipelineOrchestrator is a strict Singleton"
     ):
@@ -83,13 +54,6 @@ def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> N
 
 
 def test_xml_superiority_routing(orchestrator: PipelineOrchestrator) -> None:
-    """Verifies the dynamic era routing logic for legacy backports.
-
-    Ensures that if an RFC possesses both a legacy TXT source file and a
-    modern high-fidelity XML counterpart, the orchestrator successfully
-    identifies the XML overlap and explicitly excludes the TXT version from
-    the legacy ingestion queue to prevent duplicate extraction boundaries.
-    """
     (orchestrator.raw_txt_dir / "rfc1000.txt").touch()
     (orchestrator.raw_txt_dir / "rfc1001.txt").touch()
     (orchestrator.raw_xml_dir / "rfc1000.xml").touch()
@@ -109,14 +73,6 @@ def test_orchestrator_crash_handlers_and_telemetry(
     mock_pool_class: MagicMock,
     orchestrator: PipelineOrchestrator,
 ) -> None:
-    """Validates multiprocessing crash recovery and telemetry ledger fidelity.
-
-    This test uses Python `unittest.mock` components to hijack the Pebble worker
-    pool and inject artificial chaos (a standard runtime exception and a hard
-    process timeout). It verifies that the orchestrator catches the failures,
-    prevents pipeline halting, and accurately records the anomalies into the
-    compiled telemetry manifest.
-    """
     f_success = MagicMock()
     f_success.result.return_value = (
         "success",

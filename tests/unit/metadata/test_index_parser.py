@@ -1,5 +1,3 @@
-"""Unit tests for the RFCIndexParser XML extraction and metadata compilation logic."""
-
 import json
 from pathlib import Path
 
@@ -36,14 +34,6 @@ SYNTHETIC_INDEX_XML = """<?xml version="1.0" encoding="UTF-8"?>
 
 @pytest.fixture
 def parser_workspace(tmp_path: Path) -> tuple[Path, Path]:
-    """Provides a temporary workspace with a mock XML index and an output target.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-
-    Returns:
-        tuple[Path, Path]: A tuple containing the (xml_source_path, json_output_path).
-    """
     xml_path = tmp_path / "rfc-index.xml"
     json_path = tmp_path / "rfc_metadata_lookup.json"
 
@@ -55,11 +45,6 @@ def parser_workspace(tmp_path: Path) -> tuple[Path, Path]:
 def test_successful_parsing_and_relationships(
     parser_workspace: tuple[Path, Path],
 ) -> None:
-    """Verifies standard extraction, relationship mapping, and atomic JSON serialization.
-
-    Args:
-        parser_workspace (tuple[Path, Path]): The mock XML and JSON paths.
-    """
     xml_path, json_path = parser_workspace
     parser = RFCIndexParser(xml_path=xml_path, output_path=json_path)
 
@@ -90,11 +75,6 @@ def test_successful_parsing_and_relationships(
 
 
 def test_fuzzy_month_resolution(parser_workspace: tuple[Path, Path]) -> None:
-    """Verifies that non-standard IETF date strings (e.g., 'Spring') resolve correctly.
-
-    Args:
-        parser_workspace (tuple[Path, Path]): The mock XML and JSON paths.
-    """
     xml_path, json_path = parser_workspace
     parser = RFCIndexParser(xml_path=xml_path, output_path=json_path)
     parser.parse()
@@ -113,11 +93,6 @@ def test_fuzzy_month_resolution(parser_workspace: tuple[Path, Path]) -> None:
 
 
 def test_missing_xml_file_handling(tmp_path: Path) -> None:
-    """Verifies that the parser safely aborts if the foundational XML is missing.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-    """
     missing_xml = tmp_path / "does_not_exist.xml"
     out_json = tmp_path / "out.json"
 
@@ -128,11 +103,6 @@ def test_missing_xml_file_handling(tmp_path: Path) -> None:
 
 
 def test_malformed_xml_handling(tmp_path: Path) -> None:
-    """Verifies that the parser catches and surfaces structural XML corruption.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-    """
     corrupt_xml = tmp_path / "corrupt.xml"
     out_json = tmp_path / "out.json"
 

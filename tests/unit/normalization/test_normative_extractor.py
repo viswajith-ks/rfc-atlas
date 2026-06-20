@@ -1,9 +1,3 @@
-"""Unit tests for the BCP-14 Normative Requirement Extractor.
-
-Validates exact word-boundary regex matches, keyword normalization (e.g., SHALL -> MUST),
-sentence-boundary splitting, and strict structural exemption logic.
-"""
-
 from collections.abc import Callable
 
 import pytest
@@ -16,7 +10,6 @@ from normalization.schema import (
 
 @pytest.fixture
 def extractor() -> NormativeExtractor:
-    """Provides a fresh instance of the NormativeExtractor."""
     return NormativeExtractor()
 
 
@@ -46,7 +39,6 @@ def extractor() -> NormativeExtractor:
 def test_exemption_logic(
     extractor: NormativeExtractor, path: str, expected_exempt: bool
 ) -> None:
-    """Ensure structural paths correctly trigger extraction bypasses."""
     # pylint/pyright bypass for testing private methods
     assert extractor._is_exempt(path) == expected_exempt  # pyright: ignore[reportPrivateUsage]
 
@@ -73,7 +65,6 @@ def test_keyword_normalization(
     expected_normalized: NormativeKeyword,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Ensure legacy BCP-14 terms map strictly to the core keyword constraints."""
     text = f"The system {raw_keyword} do the thing."
     block = mock_canonical_block(text=text)
 
@@ -89,7 +80,6 @@ def test_sentence_boundary_isolation(
     extractor: NormativeExtractor,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Ensure the regex splits sentences and only extracts the sentence containing the keyword."""
     text = (
         "This is the first sentence. "
         "The system MUST log all critical errors! "
@@ -113,7 +103,6 @@ def test_word_boundary_safety(
     extractor: NormativeExtractor,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Ensure partial string matches (like MUSTARD) do not trigger false positives."""
     text = "Colonel MUSTARD SHALLOT eat the OPTIONALity."
     block = mock_canonical_block(text=text)
 
@@ -128,7 +117,6 @@ def test_block_type_filtering(
     extractor: NormativeExtractor,
     mock_canonical_block: Callable[..., CanonicalBlockDict],
 ) -> None:
-    """Ensure syntax, code, and artwork blocks are bypassed to prevent false flags in comments."""
     code_text = "if (error) { // The system MUST log this }"
 
     code_block = mock_canonical_block(b_type="sourcecode", text=code_text)

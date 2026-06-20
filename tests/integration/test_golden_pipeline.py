@@ -1,5 +1,3 @@
-"""Integration tests validating the end-to-end pipeline against locked Golden outputs."""
-
 import json
 import shutil
 from pathlib import Path
@@ -14,15 +12,6 @@ if TYPE_CHECKING:
 
 
 def test_golden_tree_assembly(expected_tree: dict[str, Any], tmp_path: Path) -> None:
-    """Validates that parsing + extraction + assembly produces the exact Golden JSON tree.
-
-    This acts as a strict regression test for Phase 1 and Phase 2. If any regex,
-    spacing, or structural hash logic changes in the codebase, this test will fail.
-
-    Args:
-        expected_tree (dict[str, Any]): The loaded Golden Snapshot dictionary fixture.
-        tmp_path (Path): Pytest-provided temporary directory path for safe file manipulation.
-    """
     # 1. Setup paths based on standard project structure
     project_root = Path(__file__).resolve().parent.parent.parent
     synthetic_txt = (

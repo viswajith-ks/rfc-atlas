@@ -18,21 +18,11 @@ EXPECTED_TREE_PATH: Path = FIXTURES_DIR / "golden_outputs" / "expected_tree.json
 
 @pytest.fixture
 def synthetic_txt_content() -> str:
-    """Loads the raw string content of the synthetic TXT RFC.
-
-    Returns:
-        str: The raw plaintext of the synthetic document.
-    """
     return RAW_TXT_PATH.read_text(encoding="utf-8")
 
 
 @pytest.fixture
 def synthetic_xml_content() -> str:
-    """Loads the raw string content of the synthetic XML RFC.
-
-    Returns:
-        str: The raw XML markup of the synthetic document.
-    """
     return RAW_XML_PATH.read_text(encoding="utf-8")
 
 
@@ -40,11 +30,6 @@ def synthetic_xml_content() -> str:
 # consumed when validating LanceDB vector insertion and embedding pipelines.
 @pytest.fixture
 def expected_chunks() -> list[dict[str, Any]]:
-    """Loads the golden expected output chunks from JSONL format.
-
-    Returns:
-        list[dict[str, Any]]: A list containing the validated expected chunk schemas.
-    """
     chunks: list[dict[str, Any]] = []
     with open(EXPECTED_CHUNKS_PATH, encoding="utf-8") as f:
         for line in f:
@@ -55,17 +40,11 @@ def expected_chunks() -> list[dict[str, Any]]:
 
 @pytest.fixture
 def expected_tree() -> dict[str, Any]:
-    """Loads the golden expected CanonicalTree output.
-
-    Returns:
-        dict[str, Any]: A dictionary representing the expected hierarchical tree.
-    """
     return json.loads(EXPECTED_TREE_PATH.read_text(encoding="utf-8"))
 
 
 @pytest.fixture
 def mock_canonical_block() -> Callable[..., CanonicalBlockDict]:
-    """Provides a unified factory for generating structurally compliant CanonicalBlockDicts."""
 
     def _factory(
         h_path: str = "Document Root > 1. Introduction",

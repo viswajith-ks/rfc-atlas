@@ -1,11 +1,3 @@
-"""Unit tests for the recursive sliding-window chunking physics.
-
-This module validates the geometric text-splitting logic and the metadata
-conservation integrity of the LanceDB vector chunking pipeline. It ensures
-that token windows overlap correctly, snap safely to structural boundaries,
-and prevent semantic hallucination by binding metadata only to applicable fragments.
-"""
-
 import json
 from pathlib import Path
 from typing import Any
@@ -22,23 +14,10 @@ OVERLAP: int = 250
 
 @pytest.fixture
 def chunker(tmp_path: Path) -> BatchChunker:
-    """Provides an isolated BatchChunker instance with a temporary workspace.
-
-    Args:
-        tmp_path (Path): Pytest-provided temporary directory path.
-
-    Returns:
-        BatchChunker: An initialized chunker mapped to batch ID 1.
-    """
     return BatchChunker(batch_id=1, tmp_dir=tmp_path)
 
 
 def test_pass_through_physics(chunker: BatchChunker) -> None:
-    """Verifies that blocks under the token limit pass through unharmed.
-
-    Ensures that semantic density is preserved for standard paragraphs
-    by skipping unnecessary sliding window computations.
-    """
     short_text: str = "This is a short normative paragraph. It MUST NOT be split."
     chunks: list[str] = chunker.split_text_with_overlap(short_text)
 
@@ -47,12 +26,6 @@ def test_pass_through_physics(chunker: BatchChunker) -> None:
 
 
 def test_sliding_window_overlap_physics(chunker: BatchChunker) -> None:
-    """Verifies the mathematical precision of the overlap window algorithm.
-
-    Tests a continuous, spaceless string to strictly enforce boundary
-    mathematics, ensuring exactly 250 characters are preserved across
-    successive slice horizons.
-    """
     massive_text: str = "A" * 5000
     chunks: list[str] = chunker.split_text_with_overlap(massive_text)
 
@@ -71,12 +44,6 @@ def test_sliding_window_overlap_physics(chunker: BatchChunker) -> None:
 
 
 def test_safe_boundary_snapping(chunker: BatchChunker) -> None:
-    """Verifies safe token snapping to prevent word truncation.
-
-    Ensures the chunker prioritizes natural breaks (newlines, spaces)
-    found within the overlap margin rather than executing a hard string
-    slice that would destroy word semantics.
-    """
     text: str = ("A" * 1900) + "\n" + ("B" * 49) + " " + ("C" * 150)
 
     chunks: list[str] = chunker.split_text_with_overlap(text)
@@ -89,12 +56,6 @@ def test_safe_boundary_snapping(chunker: BatchChunker) -> None:
 
 
 def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) -> None:
-    """Verifies highly localized metadata containment logic.
-
-    Ensures that normative requirements mapped to a parent block are
-    only broadcast to the sub-chunks that explicitly contain the
-    requirement's string payload, preventing RAG hallucination loops.
-    """
     long_text: str = "The system MUST log all errors. " + ("A" * 2500)
 
     fake_block: Block = Block(

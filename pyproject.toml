@@ -72,3 +72,8 @@ exclude = [
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers"
+
+[tool.ruff.lint.per-file-ignores]
+# S101: Allows python's standard 'assert' statements in tests
+# D: Completely ignores all pydocstyle (documentation) rules inside the tests directory
+"tests/**/*.py" = ["S101", "D"]

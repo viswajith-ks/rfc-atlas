@@ -1,11 +1,3 @@
-"""Unit tests for the LegacyTextParser heuristic engine.
-
-This test suite validates the extraction and classification logic for plaintext
-IETF RFC documents (RFC 1 - 8649). It ensures that the parser correctly handles
-legacy pagination, structural breadcrumbs, and exact indentation requirements
-for ABNF and ASCII artwork.
-"""
-
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,39 +11,17 @@ if TYPE_CHECKING:
 
 @pytest.fixture
 def parser_instance(tmp_path: Path, synthetic_txt_content: str) -> LegacyTextParser:
-    """Initializes a LegacyTextParser against a synthetic IETF plaintext fixture.
-
-    Args:
-        tmp_path (Path): Pytest fixture for generating temporary directories.
-        synthetic_txt_content (str): The raw string content of the mock RFC.
-
-    Returns:
-        LegacyTextParser: An instantiated parser loaded with the mock document.
-    """
     mock_file = tmp_path / "rfc9999.txt"
     mock_file.write_text(synthetic_txt_content, encoding="utf-8")
     return LegacyTextParser(mock_file)
 
 
 def test_parser_initialization(parser_instance: LegacyTextParser) -> None:
-    """Verifies standard parser bootstrapping and metadata extraction.
-
-    Ensures that the parser safely extracts the numeric RFC ID from the filename
-    and applies the correct parsing confidence threshold based on the RFC era
-    (modern vs. early).
-    """
     assert parser_instance.rfc_id == 9999
     assert parser_instance.base_confidence == 0.8
 
 
 def test_pagination_stripping(parser_instance: LegacyTextParser) -> None:
-    r"""Validates the context-aware pagination removal heuristic.
-
-    Ensures that form-feed characters (\x0c), running headers, and footers
-    are removed from the raw text stream. This tests the algorithmic "glue"
-    that decides whether to stitch cross-page sentences together or split
-    them apart based on indentation and header context.
-    """
     clean_text = parser_instance._strip_pagination(parser_instance.raw_text)  # pyright: ignore[reportPrivateUsage]
     assert "\x0c" not in clean_text
     assert (
@@ -61,15 +31,6 @@ def test_pagination_stripping(parser_instance: LegacyTextParser) -> None:
 
 
 def test_document_parsing_integration(parser_instance: LegacyTextParser) -> None:
-    """Validates the complete end-to-end extraction and routing pipeline.
-
-    This test triggers the two-pass block evaluation engine to ensure:
-    1. ABNF code blocks are detected via keyword/syntax scoring.
-    2. ASCII tables are preserved via strict 4-space indentation matching
-       (immune to invisible control-character corruption).
-    3. Hierarchical lineage (breadcrumbs) correctly updates when navigating
-       into specific sections (e.g., 'Security Considerations').
-    """
     blocks: list[CanonicalBlockDict] = parser_instance.parse_document()
 
     # 1. Verify ABNF Classification (Tests regex scoring heuristic)
