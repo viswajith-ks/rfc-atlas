@@ -6,6 +6,7 @@ between normalized JSON artifacts and generated LanceDB JSONL chunks.
 
 import json
 from collections import defaultdict
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,17 @@ LOGS_DIR: Path = PROJECT_ROOT / "data" / "logs"
 MAX_CHUNK_SIZE: int = 2000
 MIN_CHUNK_SIZE: int = 2
 MAX_HEALTHY_EXPANSION_RATIO: float = 1.20
+
+
+@dataclass(frozen=True)
+class AuditMetrics:
+    """Immutable data transfer object for tracking QA pipeline validation results."""
+
+    total_normalized: int
+    total_chunks: int
+    missing_rfcs: int
+    bloated_rfcs: int
+    anomalies: list[str] = field(default=[])
 
 
 def scan_chunk_tables(
@@ -123,34 +135,34 @@ def calculate_conservation(
     return missing_rfcs, bloated_rfcs
 
 
-def write_audit_report(
-    report_file_path: Path,
-    total_normalized: int,
-    total_chunks: int,
-    anomalies: list[str],
-    missing_rfcs: int,
-    bloated_rfcs: int,
-) -> None:
-    """Serializes the QA audit findings to a text report on disk."""
+def write_audit_report(report_file_path: Path, metrics: AuditMetrics) -> None:
+    """Serializes the QA audit findings to a text report on disk.
+
+    Args:
+        report_file_path (Path): Destination path for the log output.
+        metrics (AuditMetrics): Bundled statistics and anomaly tracking data.
+    """
     print(f"Writing final report to {report_file_path.name}...")
     with report_file_path.open("w", encoding="utf-8") as report:
         report.write("====================================================\n")
         report.write(" QA AUDIT REPORT\n")
         report.write("====================================================\n\n")
 
-        report.write(f"Total Normalized Files Scanned: {total_normalized:,}\n")
-        report.write(f"Total Chunks Scanned: {total_chunks:,}\n\n")
+        report.write(f"Total Normalized Files Scanned: {metrics.total_normalized:,}\n")
+        report.write(f"Total Chunks Scanned: {metrics.total_chunks:,}\n\n")
 
-        if not anomalies:
+        if not metrics.anomalies:
             report.write(
                 "✅ PERFECT PASS. Zero boundary violations. Zero missing data.\n"
             )
         else:
-            report.write(f"❌ FOUND {len(anomalies)} ANOMALIES.\n")
-            report.write(f"   - Data Loss / Timeouts: {missing_rfcs} files\n")
-            report.write(f"   - Overlap Bloat (Infinite Loops): {bloated_rfcs} files\n")
+            report.write(f"❌ FOUND {len(metrics.anomalies)} ANOMALIES.\n")
+            report.write(f"   - Data Loss / Timeouts: {metrics.missing_rfcs} files\n")
+            report.write(
+                f"   - Overlap Bloat (Infinite Loops): {metrics.bloated_rfcs} files\n"
+            )
             report.write("\nDetailed Anomaly Log:\n")
-            for anomaly in anomalies:
+            for anomaly in metrics.anomalies:
                 report.write(f"  > {anomaly}\n")
 
 
@@ -177,14 +189,15 @@ def run_audit() -> None:
         norm_mass, chunk_mass, anomalies
     )
 
-    write_audit_report(
-        report_file_path,
-        total_normalized,
-        total_chunks,
-        anomalies,
-        missing_rfcs,
-        bloated_rfcs,
+    metrics = AuditMetrics(
+        total_normalized=total_normalized,
+        total_chunks=total_chunks,
+        missing_rfcs=missing_rfcs,
+        bloated_rfcs=bloated_rfcs,
+        anomalies=anomalies,
     )
+
+    write_audit_report(report_file_path, metrics)
 
     print("[SUCCESS] Audit complete. Check the log file for details!")
 
