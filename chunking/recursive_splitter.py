@@ -311,24 +311,15 @@ def gather_files(
     )
 
 
-def run_chunking_pipeline(
-    normalized_dir: Path,
-    chunks_dir: Path,
-    logs_dir: Path,
-    tmp_dir: Path,
-) -> None:
-    """Coordinates the full multi-core scatter-gather chunking pipeline using a bounded queue.
+def _setup_orchestrator_logger(tmp_dir: Path) -> logging.Logger:
+    """Configures the isolated orchestrator logger for the pipeline.
 
     Args:
-        normalized_dir (Path): Directory containing the canonical JSON input files.
-        chunks_dir (Path): Target directory for the generated LanceDB JSONL chunk tables.
-        logs_dir (Path): Target directory for the final execution logs.
-        tmp_dir (Path): Intermediate workspace for isolated worker file descriptors.
-    """
-    logs_dir.mkdir(parents=True, exist_ok=True)
-    chunks_dir.mkdir(parents=True, exist_ok=True)
-    tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_dir (Path): The temporary directory for worker logs.
 
+    Returns:
+        logging.Logger: The configured orchestrator logger instance.
+    """
     orch_logger = logging.getLogger(f"{__name__}.orchestrator_loop")
     orch_logger.setLevel(logging.INFO)
     orch_logger.handlers.clear()
@@ -341,30 +332,30 @@ def run_chunking_pipeline(
         logging.Formatter("%(asctime)s [ORCHESTRATOR] %(message)s", datefmt="%H:%M:%S")
     )
     orch_logger.addHandler(orch_fh)
+    return orch_logger
 
-    json_files: list[Path] = list(normalized_dir.glob("*.json"))
-    total_files = len(json_files)
 
-    if total_files == 0:
-        print("[WARN] No normalized JSON files found. Exiting.")
-        return
+def _execute_scatter_phase(
+    batches: list[list[Path]],
+    tmp_dir: Path,
+    optimal_workers: int,
+    orch_logger: logging.Logger,
+) -> tuple[int, int]:
+    """Manages the multiprocessing pool for the scatter phase execution.
 
-    batches = [
-        json_files[i : i + BATCH_SIZE] for i in range(0, total_files, BATCH_SIZE)
-    ]
-    total_batches = len(batches)
-    optimal_workers = get_optimal_workers()
+    Args:
+        batches (list[list[Path]]): Partitioned list of file batches.
+        tmp_dir (Path): The designated directory for the worker outputs.
+        optimal_workers (int): Number of concurrent processes to spawn.
+        orch_logger (logging.Logger): Logger for tracking execution state.
 
-    print("====================================================")
-    print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
-    print(
-        f"       Files: {total_files:,} | Worker Processes: {optimal_workers} | Batches: {total_batches}"
-    )
-    print("====================================================\n")
-
+    Returns:
+        tuple[int, int]: A tuple containing the total processed blocks and chunks.
+    """
     global_blocks = 0
     global_chunks = 0
     completed_batches = 0
+    total_batches = len(batches)
 
     with ProcessPool(max_workers=optimal_workers) as pool:
         future_map: dict[Future[dict[str, int]], int] = {}
@@ -433,11 +424,61 @@ def run_chunking_pipeline(
 
                 del future_map[future]
 
+    return global_blocks, global_chunks
+
+
+def run_chunking_pipeline(
+    normalized_dir: Path,
+    chunks_dir: Path,
+    logs_dir: Path,
+    tmp_dir: Path,
+) -> None:
+    """Coordinates the full multi-core scatter-gather chunking pipeline using a bounded queue.
+
+    Args:
+        normalized_dir (Path): Directory containing the canonical JSON input files.
+        chunks_dir (Path): Target directory for the generated LanceDB JSONL chunk tables.
+        logs_dir (Path): Target directory for the final execution logs.
+        tmp_dir (Path): Intermediate workspace for isolated worker file descriptors.
+    """
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    chunks_dir.mkdir(parents=True, exist_ok=True)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    orch_logger = _setup_orchestrator_logger(tmp_dir)
+
+    json_files: list[Path] = list(normalized_dir.glob("*.json"))
+    total_files = len(json_files)
+
+    if total_files == 0:
+        print("[WARN] No normalized JSON files found. Exiting.")
+        return
+
+    batches = [
+        json_files[i : i + BATCH_SIZE] for i in range(0, total_files, BATCH_SIZE)
+    ]
+    total_batches = len(batches)
+    optimal_workers = get_optimal_workers()
+
+    print("====================================================")
+    print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
+    print(
+        f"       Files: {total_files:,} | Worker Processes: {optimal_workers} | Batches: {total_batches}"
+    )
+    print("====================================================\n")
+
+    global_blocks, global_chunks = _execute_scatter_phase(
+        batches, tmp_dir, optimal_workers, orch_logger
+    )
+
     print("\n\n[SUCCESS] Scatter phase complete.")
     gather_files(total_batches, chunks_dir, tmp_dir, logs_dir)
 
     print("\n====================================================")
-    print(f"[SUCCESS] PIPELINE COMPLETE: {global_chunks:,} chunks generated safely!")
+    print(
+        f"[SUCCESS] PIPELINE COMPLETE: {global_blocks:,} blocks processed into "
+        f"{global_chunks:,} chunks safely!"
+    )
     print("====================================================")
 
 
