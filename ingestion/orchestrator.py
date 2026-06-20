@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import traceback
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
 from contextlib import contextmanager
 from datetime import UTC, datetime
@@ -403,6 +403,161 @@ class PipelineOrchestrator:
                 f"[{log_prefix}] {processed:,}/{total:,} files processed (Success: {success}, Failed: {failed})"
             )
 
+    def _allocate_workers(self) -> int:
+        """Determines the optimal number of worker cores to allocate for parallel execution.
+
+        Returns:
+            int: The calculated number of CPU cores to assign to the process pool.
+        """
+        if self.max_workers is not None:
+            allocated = max(1, self.max_workers)
+            logger.info(
+                f"Spawning concurrent environment with user-configured "
+                f"cap: {allocated} CPU cores."
+            )
+            return allocated
+
+        detected_cores = os.cpu_count() or 2
+        allocated = min(max(1, detected_cores - 1), 8)
+        logger.info(
+            f"Spawning concurrent environment utilizing safety "
+            f"fallback: {allocated} CPU cores."
+        )
+        return allocated
+
+    def _process_worker_result(self, future: WorkerFuture, filename: str) -> bool:
+        """Evaluates a completed worker process, records telemetry, and returns success state.
+
+        Args:
+            future (WorkerFuture): The resolved Pebble process future containing results.
+            filename (str): Name of the processed RFC document.
+
+        Returns:
+            bool: True if the document was successfully extracted, False otherwise.
+        """
+        try:
+            status, error_msg, telemetry = future.result()
+
+            if (
+                status == "success"
+                and telemetry
+                and telemetry.get("status") == "success"
+            ):
+                if telemetry.get("total_blocks") == 0:
+                    logger.warning(
+                        f"File {filename} processed successfully but produced 0 blocks."
+                    )
+                self._record_telemetry(filename, "success", None, telemetry)
+                return True
+
+            self._record_telemetry(filename, "failed", error_msg, None)
+            return False
+
+        except TimeoutError:
+            timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
+            logger.warning(
+                f"Worker process for {filename} exceeded runtime limits and was terminated."
+            )
+            self._record_telemetry(filename, "failed", timeout_err, None)
+            return False
+
+        except Exception as exc:
+            error_msg = f"Task execution error or abrupt process cancellation: {exc}"
+            self._record_telemetry(filename, "failed", error_msg, None)
+            return False
+
+    def _schedule_next_task(
+        self,
+        pool: ProcessPool,
+        file_iterator: Iterator[Path],
+        source_type: Literal["txt", "xml"],
+    ) -> tuple[WorkerFuture, Path] | None:
+        """Attempts to pull the next file from the iterator and schedule it on the pool.
+
+        Args:
+            pool (ProcessPool): The active Pebble process pool.
+            file_iterator (Iterator[Path]): The remaining queue of document file paths.
+            source_type (Literal["txt", "xml"]): Format type of the source documents.
+
+        Returns:
+            tuple[WorkerFuture, Path] | None: A tuple containing the scheduled future
+                and its target path, or None if the iterator is exhausted.
+        """
+        try:
+            filepath = next(file_iterator)
+            rfc_num = self._extract_rfc_num(filepath)
+            future = pool.schedule(  # type: ignore
+                _execute_rfc_parsing_worker,
+                args=[filepath, rfc_num, source_type, self.output_dir],
+                timeout=self.per_file_timeout,
+            )
+            return future, filepath
+        except StopIteration:
+            return None
+
+    def _drain_file_iterator(
+        self,
+        pool: ProcessPool,
+        target_files: list[Path],
+        source_type: Literal["txt", "xml"],
+        log_prefix: str,
+        allocated_cores: int,
+    ) -> tuple[int, int]:
+        """Iterates through target files, managing concurrent task state and updates.
+
+        Args:
+            pool (ProcessPool): The active Pebble process pool.
+            target_files (list[Path]): The collection of files to process.
+            source_type (Literal["txt", "xml"]): Format type of the source documents.
+            log_prefix (str): Label prefix for progress tracking outputs.
+            allocated_cores (int): Number of cores to calculate pre-fill buffering.
+
+        Returns:
+            tuple[int, int]: The final success and failure counts.
+        """
+        success_count = 0
+        failure_count = 0
+        total_files = len(target_files)
+        file_iterator = iter(target_files)
+        future_to_rfc: dict[WorkerFuture, Path] = {}
+
+        for _ in range(allocated_cores * 2):
+            task = self._schedule_next_task(pool, file_iterator, source_type)
+            if task:
+                future_to_rfc[task[0]] = task[1]
+            else:
+                break
+
+        pending_futures: set[WorkerFuture] = set(future_to_rfc.keys())
+
+        while pending_futures:
+            done_batch, pending_futures = wait(
+                pending_futures,
+                timeout=self._POLL_INTERVAL,
+                return_when=FIRST_COMPLETED,
+            )
+
+            for future in done_batch:
+                filepath = future_to_rfc[future]
+
+                if self._process_worker_result(future, filepath.name):
+                    success_count += 1
+                else:
+                    failure_count += 1
+
+                self._print_progress_ticker(
+                    log_prefix, filepath.name, success_count, failure_count, total_files
+                )
+
+                next_task = self._schedule_next_task(pool, file_iterator, source_type)
+                if next_task:
+                    future_to_rfc[next_task[0]] = next_task[1]
+                    pending_futures.add(next_task[0])
+
+                del future_to_rfc[future]
+
+        return success_count, failure_count
+
     def _run_parallel_ingestion_pool(
         self,
         target_files: list[Path],
@@ -419,136 +574,36 @@ class PipelineOrchestrator:
         Returns:
             tuple[int, int]: Accumulated success count and task failure count across the run.
         """
-        success_count = 0
-        failure_count = 0
         total_files = len(target_files)
-
         if total_files == 0:
             logger.warning(
                 f"No targeting elements identified for {log_prefix} Ingestion."
             )
             return 0, 0
 
-        if self.max_workers is not None:
-            allocated_cores = max(1, self.max_workers)
-            logger.info(
-                f"Spawning concurrent environment with user-configured cap: {allocated_cores} CPU cores."
-            )
-        else:
-            detected_cores = os.cpu_count() or 2
-            allocated_cores = min(max(1, detected_cores - 1), 8)
-            logger.info(
-                f"Spawning concurrent environment utilizing safety fallback: {allocated_cores} CPU cores."
-            )
+        allocated_cores = self._allocate_workers()
 
         global _worker_tree_builder
         if _worker_tree_builder is None:
             logger.info(
-                "Pre-loading canonical tree builder metadata index into parent memory..."
+                "Pre-loading canonical tree builder metadata index into memory..."
             )
             _worker_tree_builder = CanonicalTreeBuilder(self.metadata_path)
 
-        # Target workers to recycle after processing roughly 25% of their total expected workload share.
         calculated_max_tasks = max(1, round(0.25 * total_files / allocated_cores))
+        success_count, failure_count = 0, 0
 
         try:
             with ProcessPool(
-                max_workers=allocated_cores,
-                max_tasks=calculated_max_tasks,
+                max_workers=allocated_cores, max_tasks=calculated_max_tasks
             ) as pool:
-                file_iterator = iter(target_files)
-                future_to_rfc: dict[WorkerFuture, Path] = {}
-                initial_buffer_size = allocated_cores * 2
-
-                for _ in range(initial_buffer_size):
-                    try:
-                        filepath = next(file_iterator)
-                        rfc_num = self._extract_rfc_num(filepath)
-                        future = pool.schedule(  # type: ignore
-                            _execute_rfc_parsing_worker,
-                            args=[filepath, rfc_num, source_type, self.output_dir],
-                            timeout=self.per_file_timeout,
-                        )
-                        future_to_rfc[future] = filepath
-                    except StopIteration:
-                        break
-
-                pending_futures: set[WorkerFuture] = set(future_to_rfc.keys())
-
-                while pending_futures:
-                    done_batch, pending_futures = wait(
-                        pending_futures,
-                        timeout=self._POLL_INTERVAL,
-                        return_when=FIRST_COMPLETED,
-                    )
-
-                    for future in done_batch:
-                        filepath = future_to_rfc[future]
-                        filename = filepath.name
-
-                        try:
-                            status, error_msg, telemetry = future.result()
-
-                            if (
-                                status == "success"
-                                and telemetry is not None
-                                and telemetry["status"] == "success"
-                            ):
-                                if telemetry["total_blocks"] == 0:
-                                    logger.warning(
-                                        f"File {filename} processed successfully but produced 0 semantic blocks."
-                                    )
-                                self._record_telemetry(
-                                    filename, "success", None, telemetry
-                                )
-                                success_count += 1
-                            else:
-                                self._record_telemetry(
-                                    filename, "failed", error_msg, None
-                                )
-                                failure_count += 1
-
-                        except TimeoutError:
-                            timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
-                            logger.warning(
-                                f"Worker process for {filename} exceeded runtime limits and was terminated."
-                            )
-                            self._record_telemetry(
-                                filename, "failed", timeout_err, None
-                            )
-                            failure_count += 1
-
-                        except Exception as exc:
-                            error_msg = f"Task execution error or abrupt process cancellation: {exc}"
-                            self._record_telemetry(filename, "failed", error_msg, None)
-                            failure_count += 1
-
-                        self._print_progress_ticker(
-                            log_prefix,
-                            filename,
-                            success_count,
-                            failure_count,
-                            total_files,
-                        )
-
-                        try:
-                            filepath = next(file_iterator)
-                            rfc_num = self._extract_rfc_num(filepath)
-                            new_future = pool.schedule(  # type: ignore
-                                _execute_rfc_parsing_worker,
-                                args=[filepath, rfc_num, source_type, self.output_dir],
-                                timeout=self.per_file_timeout,
-                            )
-                            future_to_rfc[new_future] = filepath
-                            pending_futures.add(new_future)
-                        except StopIteration:
-                            pass
-
-                        del future_to_rfc[future]
+                success_count, failure_count = self._drain_file_iterator(
+                    pool, target_files, source_type, log_prefix, allocated_cores
+                )
         finally:
             if sys.stderr.isatty():
                 sys.stderr.write(
-                    f"\r\033[K[{log_prefix}] Parallel processing pool complete. (Total: {total_files:,})\n"
+                    f"\r\033[K[{log_prefix}] Parallel pool complete. (Total: {total_files:,})\n"
                 )
                 sys.stderr.flush()
 
