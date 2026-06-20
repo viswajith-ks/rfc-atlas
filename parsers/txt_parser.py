@@ -2,10 +2,22 @@
 
 import re
 from collections import deque
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from normalization.schema import CanonicalBlockDict, IntermediateBlockType
 from parsers.base import refine_block_type
+
+
+@dataclass
+class HierarchyState:
+    """Mutable state tracker for hierarchical breadcrumb resolution."""
+
+    prefix_to_title: dict[str, str] = field(default_factory=dict[str, str])
+    last_known_at_depth: dict[int, str] = field(
+        default_factory=lambda: {0: "Document Root"}
+    )
+    in_back_matter: bool = False
 
 
 class LegacyTextParser:
@@ -391,8 +403,7 @@ class LegacyTextParser:
         first_line: str,
         clean_title: str,
         depth: int,
-        prefix_to_title: dict[str, str],
-        last_known_at_depth: dict[int, str],
+        state: HierarchyState,
     ) -> list[str]:
         """Constructs the breadcrumb array based on numeric or appendix patterns.
 
@@ -400,8 +411,7 @@ class LegacyTextParser:
             first_line (str): First line of the evaluated header block.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
-            prefix_to_title (dict[str, str]): Live map of numeric prefixes to titles.
-            last_known_at_depth (dict[int, str]): Live map of depth indices to titles.
+            state (HierarchyState): Mutable state tracker containing current prefix maps and depths.
 
         Returns:
             list[str]: The reconstructed list of hierarchical breadcrumbs.
@@ -410,28 +420,30 @@ class LegacyTextParser:
 
         if numeric_match := self._NUMERIC_HEADER_RE.match(first_line):
             num_part = numeric_match.group(1)
-            prefix_to_title[num_part] = clean_title
+            state.prefix_to_title[num_part] = clean_title
             parts = num_part.split(".")
             for i in range(1, len(parts) + 1):
                 sub_prefix = ".".join(parts[:i])
-                fallback = last_known_at_depth.get(i, f"Untitled Level {i}")
-                reconstructed.append(prefix_to_title.get(sub_prefix, fallback))
+                fallback = state.last_known_at_depth.get(i, f"Untitled Level {i}")
+                reconstructed.append(state.prefix_to_title.get(sub_prefix, fallback))
             return reconstructed
 
         if appendix_match := self._APPENDIX_HEADER_RE.match(first_line):
             app_part = appendix_match.group(1)
-            prefix_to_title[app_part.lower()] = clean_title
+            state.prefix_to_title[app_part.lower()] = clean_title
             cleaned_app = re.sub(r"^Appendix\s+", "", app_part, flags=re.IGNORECASE)
             parts = cleaned_app.split(".")
             for i in range(1, len(parts) + 1):
                 sub_parts = ".".join(parts[:i])
                 sub_prefix = f"appendix {sub_parts}".lower()
-                fallback = last_known_at_depth.get(i, f"Untitled Level {i}")
-                reconstructed.append(prefix_to_title.get(sub_prefix, fallback))
+                fallback = state.last_known_at_depth.get(i, f"Untitled Level {i}")
+                reconstructed.append(state.prefix_to_title.get(sub_prefix, fallback))
             return reconstructed
 
         for d in range(1, depth):
-            reconstructed.append(last_known_at_depth.get(d, f"Untitled Level {d}"))
+            reconstructed.append(
+                state.last_known_at_depth.get(d, f"Untitled Level {d}")
+            )
         reconstructed.append(clean_title)
 
         return reconstructed
@@ -441,45 +453,39 @@ class LegacyTextParser:
         first_line: str,
         clean_title: str,
         depth: int,
-        prefix_to_title: dict[str, str],
-        last_known_at_depth: dict[int, str],
-        in_back_matter: bool,
-    ) -> tuple[list[str], bool]:
-        """Resolves the document hierarchy path and mutates tracking dictionaries.
+        state: HierarchyState,
+    ) -> list[str]:
+        """Resolves the document hierarchy path and mutates tracking state in place.
 
         Args:
             first_line (str): First line of the evaluated header block.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
-            prefix_to_title (dict[str, str]): Live map of numeric prefixes to titles.
-            last_known_at_depth (dict[int, str]): Live map of depth indices to titles.
-            in_back_matter (bool): Current state tracking if inside references/appendices.
+            state (HierarchyState): Mutable state tracker for hierarchical breadcrumb resolution.
 
         Returns:
-            tuple[list[str], bool]: The newly reconstructed path array and updated back_matter state.
+            list[str]: The newly reconstructed path array.
         """
-        reconstructed = self._build_path_array(
-            first_line, clean_title, depth, prefix_to_title, last_known_at_depth
-        )
+        reconstructed = self._build_path_array(first_line, clean_title, depth, state)
 
         normalized_line = first_line.lower().rstrip(".:- ")
         appendix_match = bool(self._APPENDIX_HEADER_RE.match(first_line))
 
         if appendix_match or normalized_line in self._BACK_MATTER_TITLES:
-            in_back_matter = True
-        elif in_back_matter and re.match(r"^\d+\.", normalized_line):
-            in_back_matter = False
+            state.in_back_matter = True
+        elif state.in_back_matter and re.match(r"^\d+\.", normalized_line):
+            state.in_back_matter = False
 
         for idx, level_title in enumerate(reconstructed, start=1):
-            last_known_at_depth[idx] = level_title
+            state.last_known_at_depth[idx] = level_title
 
-        stale_keys = [k for k in last_known_at_depth if k > len(reconstructed)]
+        stale_keys = [k for k in state.last_known_at_depth if k > len(reconstructed)]
         for k in stale_keys:
-            del last_known_at_depth[k]
+            del state.last_known_at_depth[k]
 
-        if in_back_matter:
-            return ["Back", *reconstructed], True
-        return reconstructed, False
+        if state.in_back_matter:
+            return ["Back", *reconstructed]
+        return reconstructed
 
     def _build_content_block(
         self, block: str, current_hierarchy: list[str]
@@ -533,9 +539,7 @@ class LegacyTextParser:
         current_hierarchy = ["Document Root"]
         block_queue = deque(merged_blocks)
 
-        prefix_to_title: dict[str, str] = {}
-        last_known_at_depth: dict[int, str] = {0: "Document Root"}
-        in_back_matter = False
+        state = HierarchyState()
 
         while block_queue:
             block = block_queue.popleft().strip("\n")
@@ -550,13 +554,11 @@ class LegacyTextParser:
                 )
                 first_line = block.split("\n")[0].strip()
 
-                current_hierarchy, in_back_matter = self._resolve_hierarchy_path(
+                current_hierarchy = self._resolve_hierarchy_path(
                     first_line,
                     clean_title,
                     depth,
-                    prefix_to_title,
-                    last_known_at_depth,
-                    in_back_matter,
+                    state,
                 )
 
                 if prose_remainder and prose_remainder.strip():
