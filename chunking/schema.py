@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 from normalization.schema import (
     BlockType,
     NormativeStatement,
-    RFCPublicationDate,
     SourcecodeFormat,
 )
 
@@ -35,7 +34,12 @@ class ChunkRecord(BaseModel):
     rfc_title: str | None = None
     status: str | None = None
 
-    rfc_year: RFCPublicationDate | None = None
+    rfc_year: int | None = Field(
+        default=None, description="Flattened publication year for vector filtering."
+    )
+    rfc_month: int | None = Field(
+        default=None, description="Flattened publication month."
+    )
     stream: str | None = None
     obsoletes: list[int] = Field(default=[])
     updated_by: list[int] = Field(default=[])

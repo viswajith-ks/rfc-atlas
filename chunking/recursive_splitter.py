@@ -120,6 +120,7 @@ class BatchChunker:
         block_id: str = block.block_id
 
         master_statements = block.normative_statements
+        pub_date = rfc_metadata.published_at
 
         for i, fragment in enumerate(text_fragments):
             chunk_statements = [
@@ -138,7 +139,8 @@ class BatchChunker:
                 normative_statements=chunk_statements,
                 rfc_title=rfc_metadata.title,
                 status=rfc_metadata.status,
-                rfc_year=rfc_metadata.published_at,
+                rfc_year=pub_date.year if pub_date else None,
+                rfc_month=pub_date.month if pub_date else None,
                 stream=rfc_metadata.stream,
                 obsoletes=rfc_metadata.obsoletes,
                 updated_by=rfc_metadata.updated_by,
@@ -192,6 +194,10 @@ class BatchChunker:
                         logger.error(
                             f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
                         )
+
+                marker_file = self.tmp_dir / f"batch_{self.batch_id}.success"
+                marker_file.touch()
+
             finally:
                 gc.collect()
                 for handle in self.handles.values():
@@ -239,14 +245,14 @@ def worker_task(batch_id: int, file_paths: list[Path], tmp_dir: Path) -> dict[st
 def get_optimal_workers() -> int:
     """Calculates the optimal core count for the multiprocessing pool.
 
-    Reserves one core for the OS and the main Python orchestrator thread
-    to prevent UI lockup and system thrashing during heavy I/O workloads.
+    Reserves one core for the OS and the main Python orchestrator thread.
+    Caps at 16 workers to prevent catastrophic disk thrashing during fsync operations.
 
     Returns:
         int: The safely calculated number of worker processes to spawn.
     """
     cpu_count = os.cpu_count() or 4
-    return max(1, cpu_count - 1)
+    return min(max(1, cpu_count - 1), 16)
 
 
 def gather_files(
@@ -276,13 +282,14 @@ def gather_files(
         with tmp_master_path.open("wb") as master_file:
             for batch_id in range(total_batches):
                 worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
+                marker_path = tmp_dir / f"batch_{batch_id}.success"
 
-                if worker_tmp_path.exists():
+                if worker_tmp_path.exists() and marker_path.exists():
                     with worker_tmp_path.open("rb") as tmp_file:
                         shutil.copyfileobj(tmp_file, master_file)
                 else:
                     sys.stderr.write(
-                        f"\n[WARN] Batch {batch_id} output missing for table '{table_name}' — data from this batch was lost.\n"
+                        f"\n[WARN] Batch {batch_id} truncated or failed for table '{table_name}' — skipping corrupted fragment.\n"
                     )
                     sys.stderr.flush()
 
