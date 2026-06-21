@@ -1,6 +1,5 @@
 """Data schemas for tracking dataset pipeline validation manifests and system telemetry logs."""
 
-import os
 from datetime import datetime
 from pathlib import Path
 from typing import Literal, TypedDict
@@ -31,7 +30,7 @@ class DatasetManifest(BaseModel):
         filepath.parent.mkdir(parents=True, exist_ok=True)
         tmp_filepath = filepath.with_suffix(".json.tmp")
         tmp_filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
-        os.replace(tmp_filepath, filepath)
+        Path(tmp_filepath).replace(filepath)
 
 
 class SuccessRecord(TypedDict):

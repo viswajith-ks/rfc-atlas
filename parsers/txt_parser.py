@@ -69,15 +69,13 @@ class LegacyTextParser:
         re.IGNORECASE,
     )
 
-    _BACK_MATTER_TITLES = frozenset(
-        {
-            "references",
-            "author's address",
-            "authors' addresses",
-            "acknowledgments",
-            "acknowledgements",
-        }
-    )
+    _BACK_MATTER_TITLES = frozenset({
+        "references",
+        "author's address",
+        "authors' addresses",
+        "acknowledgments",
+        "acknowledgements",
+    })
 
     _CONFIDENCE_MODERN: float = 0.8
     _CONFIDENCE_EARLY: float = 0.6

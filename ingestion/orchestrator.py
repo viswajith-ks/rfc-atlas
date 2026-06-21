@@ -73,7 +73,7 @@ def _execute_rfc_parsing_worker(
         tmp_output_path = output_dir / f"rfc{rfc_num}_normalized.tmp"
 
         canonical_tree.save_to_disk(tmp_output_path)
-        os.replace(tmp_output_path, output_path)
+        Path(tmp_output_path).replace(output_path)
 
         all_instantiated_blocks = canonical_tree.preface_blocks + [
             block for section in canonical_tree.sections for block in section.blocks
@@ -206,7 +206,7 @@ class PipelineOrchestrator:
                 )
                 index_parser.parse()
             except Exception as e:
-                logger.critical(f"Core metadata index failed to parse: {e}")
+                logger.critical("Core metadata index failed to parse: %s", e)
                 raise RuntimeError(f"Metadata compilation failed: {e}") from e
 
         return cls(config)
@@ -298,7 +298,7 @@ class PipelineOrchestrator:
                 (f, n) for f, n in file_num_pairs if n > 0 and n not in xml_covered
             )
 
-        logger.info(f"Starting {era_label} Ingestion...")
+        logger.info("Starting %s Ingestion...", era_label)
         logger.info("-" * 50)
 
         sorted_files = [f for f, _ in sorted(valid_pairs, key=lambda x: x[1])]
@@ -345,16 +345,16 @@ class PipelineOrchestrator:
         if self.max_workers is not None:
             allocated = max(1, self.max_workers)
             logger.info(
-                f"Spawning concurrent environment with user-configured "
-                f"cap: {allocated} CPU cores."
+                "Spawning concurrent environment with user-configured cap: %s CPU cores.",
+                allocated,
             )
             return allocated
 
         detected_cores = os.cpu_count() or 2
         allocated = min(max(1, detected_cores - 1), 8)
         logger.info(
-            f"Spawning concurrent environment utilizing safety "
-            f"fallback: {allocated} CPU cores."
+            "Spawning concurrent environment utilizing safety fallback: %s CPU cores.",
+            allocated,
         )
         return allocated
 
@@ -378,7 +378,8 @@ class PipelineOrchestrator:
             ):
                 if telemetry.get("total_blocks") == 0:
                     logger.warning(
-                        f"File {filename} processed successfully but produced 0 blocks."
+                        "File %s processed successfully but produced 0 blocks.",
+                        filename,
                     )
                 self._record_telemetry(filename, "success", None, telemetry)
                 return True
@@ -389,7 +390,8 @@ class PipelineOrchestrator:
         except TimeoutError:
             timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
             logger.warning(
-                f"Worker process for {filename} exceeded runtime limits and was terminated."
+                "Worker process for %s exceeded runtime limits and was terminated.",
+                filename,
             )
             self._record_telemetry(filename, "failed", timeout_err, None)
             return False
@@ -510,7 +512,7 @@ class PipelineOrchestrator:
         total_files = len(target_files)
         if total_files == 0:
             logger.warning(
-                f"No targeting elements identified for {log_prefix} Ingestion."
+                "No targeting elements identified for %s Ingestion.", log_prefix
             )
             return 0, 0
 
@@ -586,9 +588,11 @@ class PipelineOrchestrator:
                 if error_msg is not None
                 else "Unknown internal processing failure."
             )
-            self.telemetry_manifest.append(
-                {"file": filename, "status": "failed", "error": clean_error}
-            )
+            self.telemetry_manifest.append({
+                "file": filename,
+                "status": "failed",
+                "error": clean_error,
+            })
 
     def save_manifest(self) -> None:
         """Aggregates telemetry records to generate the final deployment contract and audit logs on disk."""

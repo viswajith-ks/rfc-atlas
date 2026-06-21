@@ -293,7 +293,7 @@ def gather_files(
                     )
                     sys.stderr.flush()
 
-        os.replace(tmp_master_path, master_path)
+        Path(tmp_master_path).replace(master_path)
 
     master_log_path = logs_dir / "chunking_pipeline.log"
     tmp_log_path = logs_dir / "chunking_pipeline.log.tmp"
@@ -310,7 +310,7 @@ def gather_files(
                 with worker_tmp_log.open("rb") as f:
                     shutil.copyfileobj(f, master_log)
 
-    os.replace(tmp_log_path, master_log_path)
+    Path(tmp_log_path).replace(master_log_path)
 
     shutil.rmtree(tmp_dir)
     print(
@@ -404,7 +404,7 @@ def _execute_scatter_phase(
 
                 except TimeoutError:
                     orch_logger.error(
-                        f"Batch {batch_id} timed out after {WORKER_TIMEOUT}s!"
+                        "Batch %s timed out after %ss!", batch_id, WORKER_TIMEOUT
                     )
                     sys.stderr.write(
                         f"\n[ERROR] Batch {batch_id} Timed Out. See Logs.\n"
@@ -412,7 +412,7 @@ def _execute_scatter_phase(
                     sys.stderr.flush()
                 except Exception as error:
                     orch_logger.error(
-                        f"Batch {batch_id} raised a FATAL exception: {error}"
+                        "Batch %s raised a FATAL exception: %s", batch_id, error
                     )
                     sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
                     sys.stderr.flush()

@@ -124,8 +124,8 @@ class CanonicalTreeBuilder:
 
         if str(rfc_number) not in self.metadata_lookup:
             logger.warning(
-                f"No metadata entry discovered for RFC {rfc_number} inside the lookup ledger. "
-                f"Generating placeholder structural fallbacks."
+                "No metadata entry discovered for RFC %s inside the lookup ledger. Generating placeholder structural fallbacks.",
+                rfc_number,
             )
 
         meta_dict = self.metadata_lookup.get(str(rfc_number), fallback_entry)

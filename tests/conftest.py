@@ -31,7 +31,7 @@ def synthetic_xml_content() -> str:
 @pytest.fixture
 def expected_chunks() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
-    with open(EXPECTED_CHUNKS_PATH, encoding="utf-8") as f:
+    with Path(EXPECTED_CHUNKS_PATH).open(encoding="utf-8") as f:
         for line in f:
             if line.strip():
                 chunks.append(json.loads(line))

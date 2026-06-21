@@ -49,13 +49,11 @@ def extract_blocks_recursive(node: JSONNode, rfc_id: str) -> list[BlockLengthRec
     elif isinstance(node, dict):
         if "block_type" in node and "normalized_text" in node:
             text_payload: str = str(node.get("normalized_text") or "")
-            blocks.append(
-                {
-                    "rfc_id": rfc_id,
-                    "block_type": str(node["block_type"]),
-                    "length": len(text_payload),
-                }
-            )
+            blocks.append({
+                "rfc_id": rfc_id,
+                "block_type": str(node["block_type"]),
+                "length": len(text_payload),
+            })
 
         for value in node.values():
             if isinstance(value, (dict, list)):

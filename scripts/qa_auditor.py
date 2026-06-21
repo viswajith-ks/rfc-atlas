@@ -28,7 +28,7 @@ class AuditMetrics:
     total_chunks: int
     missing_rfcs: int
     bloated_rfcs: int
-    anomalies: list[str] = field(default_factory=lambda: [])
+    anomalies: list[str] = field(default_factory=list)
 
 
 def scan_chunk_tables(

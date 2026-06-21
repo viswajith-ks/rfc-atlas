@@ -38,19 +38,17 @@ class NormativeExtractor:
         "OPTIONAL": "MAY",
     }
 
-    _EXEMPT_SECTIONS: frozenset[str] = frozenset(
-        {
-            "abstract",
-            "acknowledgments",
-            "acknowledgements",
-            "status of this memo",
-            "table of contents",
-            "author's address",
-            "authors' addresses",
-            "copyright notice",
-            "references",
-        }
-    )
+    _EXEMPT_SECTIONS: frozenset[str] = frozenset({
+        "abstract",
+        "acknowledgments",
+        "acknowledgements",
+        "status of this memo",
+        "table of contents",
+        "author's address",
+        "authors' addresses",
+        "copyright notice",
+        "references",
+    })
 
     def _is_exempt(self, hierarchy_path: str) -> bool:
         """Evaluates a section trajectory path to identify structural exclusions.
@@ -70,7 +68,8 @@ class NormativeExtractor:
         clean_section = (
             # Matches hierarchy paths starting with "appendix" followed by a space, alphanumeric characters/dots,
             # and trailing spaces. Used to cleanly strip appendix prefixes for section evaluations.
-            re.sub(
+            re
+            .sub(
                 r"^(appendix\s+[a-z0-9.]+\s*)", "", current_section, flags=re.IGNORECASE
             )
             .strip()

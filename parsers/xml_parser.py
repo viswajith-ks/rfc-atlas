@@ -29,31 +29,34 @@ logger = logging.getLogger(__name__)
 class ModernRFCParser:
     """Structural parser for xml2rfc v3 compliant RFC documents (RFC 8650+)."""
 
-    _TARGET_TAGS = frozenset(
-        ["t", "sourcecode", "artwork", "table", "reference", "ul", "ol", "dl"]
-    )
+    _TARGET_TAGS = frozenset([
+        "t",
+        "sourcecode",
+        "artwork",
+        "table",
+        "reference",
+        "ul",
+        "ol",
+        "dl",
+    ])
 
-    _INFORMATIVE_TOKENS = frozenset(
-        {
-            "informative",
-            "bibliography",
-            "non-normative",
-            "other",
-            "background",
-            "reading",
-        }
-    )
-    _NORMATIVE_TOKENS = frozenset(
-        {
-            "normative",
-            "core",
-            "required",
-            "requirement",
-            "standards",
-            "specifications",
-            "mandatory",
-        }
-    )
+    _INFORMATIVE_TOKENS = frozenset({
+        "informative",
+        "bibliography",
+        "non-normative",
+        "other",
+        "background",
+        "reading",
+    })
+    _NORMATIVE_TOKENS = frozenset({
+        "normative",
+        "core",
+        "required",
+        "requirement",
+        "standards",
+        "specifications",
+        "mandatory",
+    })
 
     def __init__(self, xml_filepath: Path) -> None:
         """Initializes the parser and loads the XML document into memory.

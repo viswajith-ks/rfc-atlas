@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 import re
 from pathlib import Path
 
@@ -217,4 +216,4 @@ class RFCIndexParser:
         with tmp_path.open("w", encoding="utf-8") as f:
             json.dump(self.metadata_dict, f, indent=2)
 
-        os.replace(tmp_path, self.output_path)
+        Path(tmp_path).replace(self.output_path)
