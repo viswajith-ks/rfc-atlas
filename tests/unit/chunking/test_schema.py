@@ -48,12 +48,12 @@ def test_chunk_record_validation_success() -> None:
 def test_chunk_record_validation_failure_bad_types() -> None:
     with pytest.raises(ValidationError):
         ChunkRecord(
-            chunk_id=12345,  # type: ignore
+            chunk_id=12345,  # pyright: ignore[reportArgumentType]
             rfc_number=1234,
             block_type="paragraph",
             table_route="prose",
             hierarchy_path="1. Introduction",
-            text_payload=["Not", "a", "string"],  # type: ignore
+            text_payload=["Not", "a", "string"],  # pyright: ignore[reportArgumentType]
             parsing_confidence=0.95,
         )
 

@@ -370,7 +370,7 @@ def _execute_scatter_phase(
         for _ in range(initial_buffer_size):
             try:
                 batch_id, batch_files = next(batch_iterator)
-                future: Future[dict[str, int]] = pool.schedule(  # type: ignore
+                future: Future[dict[str, int]] = pool.schedule(  # pyright: ignore[reportUnknownMemberType]
                     worker_task,
                     args=[batch_id, batch_files, tmp_dir],
                     timeout=WORKER_TIMEOUT,
@@ -416,7 +416,7 @@ def _execute_scatter_phase(
 
                 try:
                     next_batch_id, next_batch_files = next(batch_iterator)
-                    new_future: Future[dict[str, int]] = pool.schedule(  # type: ignore
+                    new_future: Future[dict[str, int]] = pool.schedule(  # pyright: ignore[reportUnknownMemberType]
                         worker_task,
                         args=[next_batch_id, next_batch_files, tmp_dir],
                         timeout=WORKER_TIMEOUT,

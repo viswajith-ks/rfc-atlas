@@ -432,7 +432,7 @@ class PipelineOrchestrator:
         try:
             filepath = next(file_iterator)
             rfc_num = self._extract_rfc_num(filepath)
-            future = pool.schedule(  # type: ignore
+            future = pool.schedule(  # pyright: ignore[reportUnknownMemberType]
                 _execute_rfc_parsing_worker,
                 args=[filepath, rfc_num, source_type, self.output_dir],
                 timeout=self.per_file_timeout,
