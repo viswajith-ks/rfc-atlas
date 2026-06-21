@@ -63,6 +63,14 @@ ignore = [
 
     # Redundant or Unsafe Pylint Rules: keep the safer Flake8 equivalents
     "PLR1711",
+
+    # Wave 2 Diplomatic Immunities (Dogmatic rules that harm domain modeling)
+    "PLR6301", # no-self-use: Forcing @staticmethod degrades class inheritance
+    "G004",    # logging-f-string: Modern Python 3.11+ f-strings are preferred
+    "FIX",     # flake8-fixme: Allow TODO comments for Phase 3 roadmap tracking
+    "TD",      # flake8-todos: Aesthetically overly restrictive TODO formatting
+
+    # Docstring constraints
     "D417", # Redundant Docstring Check: The new DOC suite does this better
     "D203", # Ignored in favor of D211 (no blank lines before class docstring)
     "D213"  # Ignored in favor of D212 (summary on the first line)
@@ -74,9 +82,13 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 runtime-evaluated-decorators = ["pydantic.validate_call"]
 
 [tool.ruff.lint.per-file-ignores]
-### S101: Allows python's standard 'assert' statements in tests
-### D: Completely ignores all pydocstyle (documentation) rules inside the tests directory
+# S101: Allows Python's standard 'assert' statements in tests
+# D: Completely ignores all pydocstyle rules inside the tests directory
 "tests/**/*.py" = ["S101", "D"]
+
+# T201: Allow explicit print() statements in CLI execution scripts
+# INP001: Exclude loose CLI execution directories from requiring __init__.py
+"scripts/**/*.py" = ["T201", "INP001"]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
