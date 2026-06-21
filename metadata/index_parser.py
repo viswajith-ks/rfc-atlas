@@ -9,6 +9,7 @@ from lxml import etree
 from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
 
 from metadata.schema import RFCIndexEntryDict, RFCPublicationDateDict
+from utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
 from utils.xml_utils import (
     find_child_by_local_name,
     get_child_text_by_local_name,
@@ -176,11 +177,11 @@ class RFCIndexParser:
         """Parses the global RFC index XML and compiles the metadata ledger.
 
         Raises:
-            FileNotFoundError: If the source XML file does not exist on disk.
-            etree.ParseError: If the XML source text is structurally malformed.
+            CorpusDependencyError: If the source XML file does not exist on disk.
+            MalformedIndexXMLError: If the XML source text is structurally malformed.
         """
         if not self.xml_path.exists():
-            raise FileNotFoundError(f"Missing RFC index at {self.xml_path}")
+            raise CorpusDependencyError(self.xml_path, "RFC Index XML")
 
         logger.info(f"Parsing RFC Index XML from {self.xml_path}...")
 
@@ -201,10 +202,10 @@ class RFCIndexParser:
                     while elem.getprevious() is not None:
                         del elem.getparent()[0]
         except etree.ParseError as e:
-            logger.error(
-                f"RFC index XML is structurally malformed: {self.xml_path}. Error: {e}"
+            logger.exception(
+                "RFC index XML is structurally malformed: %s", self.xml_path
             )
-            raise
+            raise MalformedIndexXMLError(self.xml_path, e) from e
 
         self._save()
 

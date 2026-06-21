@@ -23,6 +23,12 @@ from normalization.normative_extractor import NormativeExtractor
 from normalization.tree_builder import CanonicalTreeBuilder
 from parsers.txt_parser import LegacyTextParser
 from parsers.xml_parser import ModernRFCParser
+from utils.exceptions import (
+    CorpusDependencyError,
+    MetadataIndexCompilationError,
+    SingletonViolationError,
+    UnsupportedHostOSError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -132,11 +138,11 @@ class PipelineOrchestrator:
         """
         if PipelineOrchestrator._is_instantiated:
             logger.critical("Initialization aborted: Orchestrator Singleton violation.")
-            raise RuntimeError("PipelineOrchestrator is a strict Singleton...")
+            raise SingletonViolationError(self.__class__.__name__)
 
         if sys.platform != "linux":
             logger.critical("Initialization aborted: Incompatible Host OS detected.")
-            raise RuntimeError("Unsupported Operating System...")
+            raise UnsupportedHostOSError(sys.platform)
 
         PipelineOrchestrator._is_instantiated = True
 
@@ -185,7 +191,7 @@ class PipelineOrchestrator:
             logger.critical(
                 f"Foundational raw RFC Index file not found: {config.raw_index_path}"
             )
-            raise FileNotFoundError("Missing baseline protocol schema dependency.")
+            raise CorpusDependencyError(config.raw_index_path, "RFC Index XML")
 
         config.output_dir.mkdir(parents=True, exist_ok=True)
         config.manifest_dir.mkdir(parents=True, exist_ok=True)
@@ -208,7 +214,7 @@ class PipelineOrchestrator:
                 index_parser.parse()
             except Exception as e:
                 logger.critical("Core metadata index failed to parse: %s", e)
-                raise RuntimeError(f"Metadata compilation failed: {e}") from e
+                raise MetadataIndexCompilationError(e) from e
 
         return cls(config)
 

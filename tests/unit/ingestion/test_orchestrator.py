@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
+from utils.exceptions import SingletonViolationError
 
 
 @pytest.fixture
@@ -48,7 +49,7 @@ def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> N
     )
 
     with pytest.raises(
-        RuntimeError, match="PipelineOrchestrator is a strict Singleton"
+        SingletonViolationError, match="Illegal secondary instantiation"
     ):
         PipelineOrchestrator(config)
 

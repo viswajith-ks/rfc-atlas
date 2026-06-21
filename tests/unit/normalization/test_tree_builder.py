@@ -7,6 +7,7 @@ import pytest
 
 from normalization.schema import CanonicalBlockDict
 from normalization.tree_builder import CanonicalTreeBuilder
+from utils.exceptions import InvalidRFCNumberError
 
 if TYPE_CHECKING:
     from metadata.schema import RFCIndexEntryDict
@@ -39,7 +40,7 @@ def tree_builder(mock_metadata_file: Path) -> CanonicalTreeBuilder:
 
 
 def test_invalid_rfc_number_rejection(tree_builder: CanonicalTreeBuilder) -> None:
-    with pytest.raises(ValueError, match="Cannot build canonical tree"):
+    with pytest.raises(InvalidRFCNumberError, match="Invalid RFC identifier"):
         tree_builder.build_tree(rfc_number=0, flat_blocks=[], source_type="txt")
 
 

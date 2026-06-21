@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 
 import pytest
-from lxml import etree
 
 from metadata.index_parser import RFCIndexParser
+from utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
 
 # A minimal, valid XML snippet matching the official IETF rfc-index schema
 SYNTHETIC_INDEX_XML = """<?xml version="1.0" encoding="UTF-8"?>
@@ -98,7 +98,7 @@ def test_missing_xml_file_handling(tmp_path: Path) -> None:
 
     parser = RFCIndexParser(xml_path=missing_xml, output_path=out_json)
 
-    with pytest.raises(FileNotFoundError, match="Missing RFC index"):
+    with pytest.raises(CorpusDependencyError, match="Required corpus dependency"):
         parser.parse()
 
 
@@ -113,5 +113,5 @@ def test_malformed_xml_handling(tmp_path: Path) -> None:
 
     parser = RFCIndexParser(xml_path=corrupt_xml, output_path=out_json)
 
-    with pytest.raises(etree.ParseError):
+    with pytest.raises(MalformedIndexXMLError, match="structurally malformed"):
         parser.parse()

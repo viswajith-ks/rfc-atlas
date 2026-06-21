@@ -7,6 +7,7 @@ from pathlib import Path
 
 from normalization.schema import CanonicalBlockDict, IntermediateBlockType
 from parsers.base import refine_block_type
+from utils.exceptions import MalformedFilenameError
 
 
 @dataclass
@@ -106,7 +107,7 @@ class LegacyTextParser:
         match = re.search(r"rfc(\d+)\.txt", filename, re.IGNORECASE)
 
         if not match:
-            raise ValueError(f"Cannot extract numeric RFC ID from filename: {filename}")
+            raise MalformedFilenameError(filename)
 
         self.rfc_id = int(match.group(1))
 

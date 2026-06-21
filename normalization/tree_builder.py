@@ -19,6 +19,7 @@ from normalization.schema import (
     Section,
     SourceType,
 )
+from utils.exceptions import CorpusDependencyError, InvalidRFCNumberError
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,7 @@ class CanonicalTreeBuilder:
         """
         lookup_path = metadata_lookup_path
         if not lookup_path.exists():
-            raise FileNotFoundError(f"Missing metadata index at {lookup_path}")
+            raise CorpusDependencyError(lookup_path, "Compiled Metadata Index")
 
         with lookup_path.open(encoding="utf-8") as f:
             self.metadata_lookup: dict[str, RFCIndexEntryDict] = json.load(f)
@@ -104,10 +105,7 @@ class CanonicalTreeBuilder:
             ValueError: If the provided RFC numeric identifier is zero or negative.
         """
         if rfc_number <= 0:
-            raise ValueError(
-                f"Cannot build canonical tree. The provided rfc_number '{rfc_number}' "
-                f"is invalid. Check file naming or parser extraction logic."
-            )
+            raise InvalidRFCNumberError(rfc_number)
 
         fallback_entry: RFCIndexEntryDict = {
             "rfc_number": rfc_number,

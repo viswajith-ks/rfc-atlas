@@ -6,6 +6,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from utils.exceptions import MissingTelemetryLogError
+
 if TYPE_CHECKING:
     from ingestion.manifest import TelemetryRecord
 
@@ -20,10 +22,7 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
         FileNotFoundError: If the target log file cannot be found on disk.
     """
     if not telemetry_log_path.exists():
-        raise FileNotFoundError(
-            f"Error: Target log file '{telemetry_log_path}' could not be discovered. "
-            f"Verify that you successfully ran the ingestion pipeline framework first."
-        )
+        raise MissingTelemetryLogError(telemetry_log_path)
 
     with telemetry_log_path.open(encoding="utf-8") as f:
         data: list[TelemetryRecord] = json.load(f)

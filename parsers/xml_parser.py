@@ -17,6 +17,7 @@ from normalization.schema import (
     SourcecodeFormat,
 )
 from parsers.base import refine_block_type
+from utils.exceptions import MalformedXMLRootError
 from utils.xml_utils import (
     find_child_by_local_name,
     find_children_by_local_name,
@@ -81,9 +82,7 @@ class ModernRFCParser:
 
         raw_id = self.root.get("number")
         if not raw_id or not raw_id.isdigit():
-            raise ValueError(
-                f"Missing or invalid numeric RFC ID in XML root: {xml_filepath}"
-            )
+            raise MalformedXMLRootError(xml_filepath)
 
         self.rfc_id = int(raw_id)
 
