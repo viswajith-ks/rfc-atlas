@@ -21,7 +21,7 @@
       "section_depth": 1,
       "blocks": [
         {
-          "block_id": "rfc9999-secunknown-622bca87-blk1",
+          "block_id": "rfc9999-secunknown-d985927a-blk1",
           "block_type": "paragraph",
           "source_fragment": "   This is a synthetic document designed to test ingestion pipelines. It\n   contains weird line breaks, normative keywords, and ASCII boundaries.",
           "normalized_text": "This is a synthetic document designed to test ingestion pipelines. It contains weird line breaks, normative keywords, and ASCII boundaries.",
@@ -39,7 +39,7 @@
       "section_depth": 1,
       "blocks": [
         {
-          "block_id": "rfc9999-secunknown-81177439-blk1",
+          "block_id": "rfc9999-secunknown-cc586fef-blk1",
           "block_type": "paragraph",
           "source_fragment": "   The parser MUST extract this sentence and flag it as normative.\n   However, it SHOULD NOT crash when encountering strange formatting.",
           "normalized_text": "The parser MUST extract this sentence and flag it as normative. However, it SHOULD NOT crash when encountering strange formatting.",
@@ -58,7 +58,7 @@
           ]
         },
         {
-          "block_id": "rfc9999-secunknown-81177439-blk2",
+          "block_id": "rfc9999-secunknown-cc586fef-blk2",
           "block_type": "paragraph",
           "source_fragment": "   This paragraph spans\n   multiple lines with awkward\n   returns to test your prose stitching logic.",
           "normalized_text": "This paragraph spans multiple lines with awkward returns to test your prose stitching logic.",
@@ -76,7 +76,7 @@
       "section_depth": 1,
       "blocks": [
         {
-          "block_id": "rfc9999-secunknown-264154b4-blk1",
+          "block_id": "rfc9999-secunknown-34011629-blk1",
           "block_type": "paragraph",
           "source_fragment": "   Here is an ASCII table representing state transitions. The parser\n   must not interpret this as prose:",
           "normalized_text": "Here is an ASCII table representing state transitions. The parser must not interpret this as prose:",
@@ -84,7 +84,7 @@
           "normative_statements": []
         },
         {
-          "block_id": "rfc9999-secunknown-264154b4-blk2",
+          "block_id": "rfc9999-secunknown-34011629-blk2",
           "block_type": "artwork",
           "source_fragment": "    +-------+--------+-------+\n    | State | Metric | Notes |\n    +-------+--------+-------+\n    | IDLE  | 0      | N/A   |\n    | RUN   | 100    | Hot   |\n    +-------+--------+-------+",
           "normalized_text": "    +-------+--------+-------+\n    | State | Metric | Notes |\n    +-------+--------+-------+\n    | IDLE  | 0      | N/A   |\n    | RUN   | 100    | Hot   |\n    +-------+--------+-------+",
@@ -102,7 +102,7 @@
       "section_depth": 1,
       "blocks": [
         {
-          "block_id": "rfc9999-secunknown-2d9306c1-blk1",
+          "block_id": "rfc9999-secunknown-c165c56a-blk1",
           "block_type": "paragraph",
           "source_fragment": "   The syntax is strictly defined using ABNF below:",
           "normalized_text": "The syntax is strictly defined using ABNF below:",
@@ -110,7 +110,7 @@
           "normative_statements": []
         },
         {
-          "block_id": "rfc9999-secunknown-2d9306c1-blk2",
+          "block_id": "rfc9999-secunknown-c165c56a-blk2",
           "block_type": "abnf",
           "source_fragment": "    protocol = \"SEP\" SP 1*DIGIT\n    status   = \"OK\" / \"FAIL\"",
           "normalized_text": "    protocol = \"SEP\" SP 1*DIGIT\n    status   = \"OK\" / \"FAIL\"",
@@ -128,7 +128,7 @@
       "section_depth": 1,
       "blocks": [
         {
-          "block_id": "rfc9999-secunknown-2d64dd6a-blk1",
+          "block_id": "rfc9999-secunknown-e4537431-blk1",
           "block_type": "security",
           "source_fragment": "   Implementations MUST NOT expose the internal state map to unauthenticated\n   callers over the network.",
           "normalized_text": "Implementations MUST NOT expose the internal state map to unauthenticated callers over the network.",

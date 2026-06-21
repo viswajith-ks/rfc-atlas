@@ -37,7 +37,7 @@ def refine_block_type(
         IntermediateBlockType: The refined semantic block type. Returns the original block_type
                                if no hierarchical refinement is applicable.
     """
-    if not hierarchy_path or block_type not in ("prose", "paragraph"):
+    if not hierarchy_path or block_type not in {"prose", "paragraph"}:
         return block_type
 
     if "security considerations" in hierarchy_path:

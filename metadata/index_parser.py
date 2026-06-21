@@ -129,13 +129,13 @@ class RFCIndexParser:
         relations: list[int] = []
         rel_node = find_child_by_local_name(entry, tag_name)
         if rel_node is not None:
-            for doc in rel_node:
-                if (
-                    get_local_name(doc) == "doc-id"
-                    and doc.text
-                    and (rfc_id := self._clean_doc_id(doc.text))
-                ):
-                    relations.append(rfc_id)
+            relations.extend(
+                rfc_id
+                for doc in rel_node
+                if get_local_name(doc) == "doc-id"
+                and doc.text
+                and (rfc_id := self._clean_doc_id(doc.text))
+            )
         return relations
 
     def _parse_rfc_entry(self, entry: _Element) -> RFCIndexEntryDict | None:

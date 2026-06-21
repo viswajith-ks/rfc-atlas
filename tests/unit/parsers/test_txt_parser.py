@@ -46,7 +46,7 @@ def test_document_parsing_integration(parser_instance: LegacyTextParser) -> None
         None,
     )
     assert table_block is not None, "Table text was completely lost during parsing."
-    assert table_block["block_type"] in ["artwork", "table"], (
+    assert table_block["block_type"] in {"artwork", "table"}, (
         f"Table was misclassified as {table_block['block_type']}. "
         "Ensure the table lines in your synthetic_rfc_9999.txt start with exactly 4 spaces!"
     )

@@ -438,10 +438,10 @@ class LegacyTextParser:
                 reconstructed.append(state.prefix_to_title.get(sub_prefix, fallback))
             return reconstructed
 
-        for d in range(1, depth):
-            reconstructed.append(
-                state.last_known_at_depth.get(d, f"Untitled Level {d}")
-            )
+        reconstructed.extend(
+            state.last_known_at_depth.get(d, f"Untitled Level {d}")
+            for d in range(1, depth)
+        )
         reconstructed.append(clean_title)
 
         return reconstructed

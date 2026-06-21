@@ -62,7 +62,7 @@ class CanonicalTreeBuilder:
                 - A block-safe section token (e.g., "sec1.1" or "secunknown-<hash>").
                 - The cleaned section title (e.g., "Introduction").
         """
-        if h_path.lower() in ("document root", "preface"):
+        if h_path.lower() in {"document root", "preface"}:
             return "preface", "preface", h_path
 
         path_parts = h_path.split(" > ")
@@ -81,7 +81,7 @@ class CanonicalTreeBuilder:
             title = id_split[1]
             return section_id, sec_token, title.strip()
 
-        stable_hash = hashlib.md5(f"{rfc_number}:{h_path}".encode()).hexdigest()[:8]
+        stable_hash = hashlib.sha256(f"{rfc_number}:{h_path}".encode()).hexdigest()[:8]
         return "unknown", f"secunknown-{stable_hash}", last_part.strip()
 
     def build_tree(
@@ -197,7 +197,7 @@ class CanonicalTreeBuilder:
                 normative_statements=normative_stmts,
             )
 
-            if h_path.lower() in ("document root", "preface"):
+            if h_path.lower() in {"document root", "preface"}:
                 preface_blocks.append(block)
             else:
                 if h_path not in h_path_to_section:

@@ -32,9 +32,7 @@ def synthetic_xml_content() -> str:
 def expected_chunks() -> list[dict[str, Any]]:
     chunks: list[dict[str, Any]] = []
     with Path(EXPECTED_CHUNKS_PATH).open(encoding="utf-8") as f:
-        for line in f:
-            if line.strip():
-                chunks.append(json.loads(line))
+        chunks.extend(json.loads(line) for line in f if line.strip())
     return chunks
 
 

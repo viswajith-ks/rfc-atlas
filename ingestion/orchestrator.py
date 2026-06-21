@@ -2,6 +2,7 @@
 
 import json
 import logging
+import operator
 import os
 import re
 import sys
@@ -301,7 +302,7 @@ class PipelineOrchestrator:
         logger.info("Starting %s Ingestion...", era_label)
         logger.info("-" * 50)
 
-        sorted_files = [f for f, _ in sorted(valid_pairs, key=lambda x: x[1])]
+        sorted_files = [f for f, _ in sorted(valid_pairs, key=operator.itemgetter(1))]
 
         success, failed = self._run_parallel_ingestion_pool(
             sorted_files, source_type, log_prefix

@@ -2,6 +2,7 @@
 
 import csv
 import json
+import operator
 import statistics
 import sys
 from collections import defaultdict
@@ -187,8 +188,8 @@ def main() -> None:
         else:
             standards.append(block)
 
-    outliers.sort(key=lambda x: x["length"], reverse=True)
-    standards.sort(key=lambda x: x["length"], reverse=True)
+    outliers.sort(key=operator.itemgetter("length"), reverse=True)
+    standards.sort(key=operator.itemgetter("length"), reverse=True)
 
     write_csv_report(OUTLIERS_CSV, outliers)
     write_csv_report(STANDARD_CSV, standards)

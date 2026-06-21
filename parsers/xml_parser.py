@@ -154,7 +154,7 @@ class ModernRFCParser:
             cells: list[str] = []
 
             for cell in tr:
-                if get_local_name(cell) in ("td", "th"):
+                if get_local_name(cell) in {"td", "th"}:
                     raw_text = "".join(str(t) for t in cell.itertext())
                     cell_text = " ".join(raw_text.split())
                     cells.append(cell_text)
@@ -182,7 +182,7 @@ class ModernRFCParser:
         Returns:
             tuple[str, list[str], str | None]: The formatted path string, updated path list, and current section number.
         """
-        if node_tag in ["blockquote", "aside"]:
+        if node_tag in {"blockquote", "aside"}:
             current_path = [*hierarchy_path, node_tag.capitalize()]
             return " > ".join(current_path), current_path, parent_section_number
 
@@ -233,7 +233,7 @@ class ModernRFCParser:
         for sub_child in figure_node:
             sub_tag = get_local_name(sub_child)
 
-            if sub_tag in ["sourcecode", "artwork", "table", "t", "ul", "ol", "dl"]:
+            if sub_tag in {"sourcecode", "artwork", "table", "t", "ul", "ol", "dl"}:
                 block = self._build_block(sub_child, sub_tag, path_str, section_number)
 
                 if figure_title:
@@ -274,7 +274,7 @@ class ModernRFCParser:
             if tag == "name":
                 continue
 
-            if tag in ["section", "references", "blockquote", "aside"]:
+            if tag in {"section", "references", "blockquote", "aside"}:
                 blocks.extend(self._parse_section(child, current_path, section_number))
 
             elif tag in self._TARGET_TAGS:
@@ -304,7 +304,7 @@ class ModernRFCParser:
             child_tag = get_local_name(child)
             child_content = self._extract_inline_text(child)
 
-            if child_tag in ("xref", "eref"):
+            if child_tag in {"xref", "eref"}:
                 default_target = "UNKNOWN" if child_tag == "xref" else "LINK"
                 target = child.get("target", default_target)
 
@@ -370,7 +370,7 @@ class ModernRFCParser:
 
             if name.upper() == "DOI":
                 doi = value
-            elif name.upper() in ("RFC", "INTERNET-DRAFT", "BCP", "STD", "FYI"):
+            elif name.upper() in {"RFC", "INTERNET-DRAFT", "BCP", "STD", "FYI"}:
                 series_name = name
                 series_value = value
 
@@ -522,7 +522,7 @@ class ModernRFCParser:
 
         if tag == "t":
             normalized_text = self._normalize_inline_element(node)
-        elif tag in ["ul", "ol", "dl"]:
+        elif tag in {"ul", "ol", "dl"}:
             normalized_text = self._build_list_text(node)
         elif tag == "reference":
             normalized_text, ref_meta = self._build_reference_data(node, path_lower)
@@ -530,7 +530,7 @@ class ModernRFCParser:
             normalized_text = self._extract_table_as_markdown(node)
         else:
             raw_text = "".join(str(t) for t in node.itertext())
-            if tag in ["sourcecode", "artwork"]:
+            if tag in {"sourcecode", "artwork"}:
                 normalized_text = raw_text.strip("\n")
             else:
                 normalized_text = " ".join(raw_text.split())
