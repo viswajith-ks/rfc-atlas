@@ -103,6 +103,9 @@ def _execute_rfc_parsing_worker(
         return "success", None, telemetry_record
 
     except Exception:
+        logger.exception(
+            "Fatal crash during parsing worker execution for: %s", filepath.name
+        )
         error_msg = traceback.format_exc().replace("\n", " | ")
         return "failed", error_msg, None
 
@@ -405,6 +408,7 @@ class PipelineOrchestrator:
 
         except Exception as exc:
             error_msg = f"Task execution error or abrupt process cancellation: {exc}"
+            logger.exception("Task execution failed for: %s", filename)
             self._record_telemetry(filename, "failed", error_msg, None)
             return False
 

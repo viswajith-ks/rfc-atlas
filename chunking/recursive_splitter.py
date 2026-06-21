@@ -190,9 +190,9 @@ class BatchChunker:
                                     block, rfc_number, h_path, rfc_metadata
                                 )
 
-                    except Exception as e:
-                        logger.error(
-                            f"[Batch {self.batch_id}] Failed on {filepath.name}: {e}"
+                    except Exception:
+                        logger.exception(
+                            f"[Batch {self.batch_id}] Failed on {filepath.name}"
                         )
 
                 marker_file = self.tmp_dir / f"batch_{self.batch_id}.success"
@@ -204,9 +204,9 @@ class BatchChunker:
                     try:
                         handle.flush()
                         os.fsync(handle.fileno())
-                    except Exception as e:
-                        logger.error(
-                            f"[Batch {self.batch_id}] I/O failure during flush/fsync: {e}"
+                    except Exception:
+                        logger.exception(
+                            f"[Batch {self.batch_id}] I/O failure during flush/fsync"
                         )
 
             return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
@@ -403,17 +403,16 @@ def _execute_scatter_phase(
                         sys.stderr.flush()
 
                 except TimeoutError:
-                    orch_logger.error(
+                    orch_logger.exception(
                         "Batch %s timed out after %ss!", batch_id, WORKER_TIMEOUT
                     )
                     sys.stderr.write(
                         f"\n[ERROR] Batch {batch_id} Timed Out. See Logs.\n"
                     )
                     sys.stderr.flush()
-                except Exception as error:
-                    orch_logger.error(
-                        "Batch %s raised a FATAL exception: %s", batch_id, error
-                    )
+
+                except Exception:
+                    orch_logger.exception("Batch %s raised a FATAL exception", batch_id)
                     sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
                     sys.stderr.flush()
 

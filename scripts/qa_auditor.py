@@ -62,7 +62,7 @@ def scan_chunk_tables(
                             f"[BOUNDARY WARN] {rfc} in {jsonl_path.name} line {line_num} has only {size} chars: {text!r}"
                         )
 
-                except Exception as e:
+                except (ValueError, KeyError) as e:
                     anomalies.append(
                         f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: {e}"
                     )

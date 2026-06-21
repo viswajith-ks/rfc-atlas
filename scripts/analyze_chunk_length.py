@@ -89,7 +89,7 @@ def scan_files(json_files: list[Path]) -> list[BlockLengthRecord]:
 
                     all_blocks.extend(extract_blocks_recursive(data, rfc_number))
 
-        except Exception as e:
+        except (OSError, ValueError, KeyError) as e:
             print(f"Failed to parse {filepath.name}: {e}")
 
         if sys.stderr.isatty() and idx % 100 == 0:

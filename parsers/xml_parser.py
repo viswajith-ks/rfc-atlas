@@ -74,9 +74,9 @@ class ModernRFCParser:
         try:
             self.tree = etree.parse(self.xml_filepath)
             self.root = self.tree.getroot()
-        except etree.ParseError as e:
-            logger.error(
-                f"CRITICAL ERROR: Modern XML Ingestion Parsing Failed for document: {self.xml_filepath}. Error: {e}"
+        except etree.ParseError:
+            logger.exception(
+                f"CRITICAL ERROR: Modern XML Ingestion Parsing Failed for document: {self.xml_filepath}."
             )
             raise
 
