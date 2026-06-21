@@ -138,6 +138,10 @@ class PipelineOrchestrator:
 
         Args:
             config (PipelineConfig): The unified configuration mapping.
+
+        Raises:
+            SingletonViolationError: If an attempt is made to instantiate a strict Singleton twice.
+            UnsupportedHostOSError: If the underlying operating system kernel is not Linux.
         """
         if PipelineOrchestrator._is_instantiated:
             logger.critical("Initialization aborted: Orchestrator Singleton violation.")
@@ -189,6 +193,13 @@ class PipelineOrchestrator:
 
         Args:
             config (PipelineConfig): The unified configuration mapping.
+
+        Returns:
+            PipelineOrchestrator: A fully instantiated and initialized orchestrator singleton instance.
+
+        Raises:
+            CorpusDependencyError: If foundational raw index schema files are missing on disk.
+            MetadataIndexCompilationError: If the core metadata lookup ledger fails to parse or compile.
         """
         if not config.raw_index_path.exists():
             logger.critical(

@@ -89,7 +89,7 @@ class LegacyTextParser:
             txt_filepath (Path): Path to the target RFC plaintext file.
 
         Raises:
-            ValueError: If a valid numeric RFC ID cannot be extracted from the filename.
+            MalformedFilenameError: If a valid numeric RFC ID cannot be extracted from the filename.
         """
         self.txt_filepath = txt_filepath
 

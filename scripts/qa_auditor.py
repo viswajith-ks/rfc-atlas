@@ -34,7 +34,14 @@ class AuditMetrics:
 def scan_chunk_tables(
     chunks_dir: Path,
 ) -> tuple[defaultdict[str, int], int, int, list[str]]:
-    """Scans LanceDB JSONL chunk tables to calculate total chunk mass and identify boundary violations."""
+    """Scans LanceDB JSONL chunk tables to calculate total chunk mass and identify boundary violations.
+
+    Args:
+        chunks_dir (Path): Path to the target LanceDB chunk JSONL output directory.
+
+    Returns:
+        tuple[defaultdict[str, int], int, int, list[str]]: A tuple containing the chunk mass dictionary, total chunk count, boundary warning count, and anomaly log list.
+    """
     chunk_mass: defaultdict[str, int] = defaultdict(int)
     anomalies: list[str] = []
     total_chunks: int = 0
@@ -71,7 +78,14 @@ def scan_chunk_tables(
 
 
 def scan_normalized_files(normalized_dir: Path) -> tuple[defaultdict[str, int], int]:
-    """Scans normalized JSON artifacts to establish the baseline conservation of mass."""
+    """Scans normalized JSON artifacts to establish the baseline conservation of mass.
+
+    Args:
+        normalized_dir (Path): Path to the normalized JSON document directory.
+
+    Returns:
+        tuple[defaultdict[str, int], int]: A tuple containing the baseline document character mass dictionary and total document count.
+    """
     norm_mass: defaultdict[str, int] = defaultdict(int)
     normalized_files: list[Path] = list(normalized_dir.glob("*.json"))
 
@@ -102,7 +116,16 @@ def calculate_conservation(
     chunk_mass: defaultdict[str, int],
     anomalies: list[str],
 ) -> tuple[int, int]:
-    """Compares baseline mass to chunk mass to detect data loss or overlap bloat."""
+    """Compares baseline mass to chunk mass to detect data loss or overlap bloat.
+
+    Args:
+        norm_mass (defaultdict[str, int]): The source baseline character counts per RFC.
+        chunk_mass (defaultdict[str, int]): The downstream chunked character counts per RFC.
+        anomalies (list[str]): The active anomaly tracking list.
+
+    Returns:
+        tuple[int, int]: A tuple containing the missing RFC count and bloated RFC count.
+    """
     missing_rfcs: int = 0
     bloated_rfcs: int = 0
 

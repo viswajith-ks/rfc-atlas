@@ -66,7 +66,7 @@ class ModernRFCParser:
             xml_filepath (Path): Path to the target RFC XML file.
 
         Raises:
-            ValueError: If a valid numeric RFC ID cannot be extracted from the root element.
+            MalformedXMLRootError: If a valid numeric RFC ID cannot be extracted from the root element.
             etree.ParseError: If the target XML stream is structurally malformed.
         """
         self.xml_filepath = xml_filepath

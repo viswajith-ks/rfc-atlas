@@ -19,7 +19,7 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
         telemetry_log_path (Path): Path to the JSON telemetry log file.
 
     Raises:
-        FileNotFoundError: If the target log file cannot be found on disk.
+        MissingTelemetryLogError: If the target log file cannot be found on disk.
     """
     if not telemetry_log_path.exists():
         raise MissingTelemetryLogError(telemetry_log_path)

@@ -35,7 +35,7 @@ class CanonicalTreeBuilder:
             metadata_lookup_path (Path): Path to the compiled metadata JSON file.
 
         Raises:
-            FileNotFoundError: If the metadata lookup path does not exist on disk.
+            CorpusDependencyError: If the metadata lookup path does not exist on disk.
         """
         lookup_path = metadata_lookup_path
         if not lookup_path.exists():
@@ -89,7 +89,15 @@ class CanonicalTreeBuilder:
     def _compile_metadata(
         self, rfc_number: int, source_type: SourceType
     ) -> RFCMetadata:
-        """Extracts and validates global publication metadata for a target protocol."""
+        """Extracts and validates global publication metadata for a target protocol.
+
+        Args:
+            rfc_number (int): Numeric identifier of the target RFC.
+            source_type (SourceType): Structural parser format type specifier string.
+
+        Returns:
+            RFCMetadata: Populated and validated publication metadata model artifact.
+        """
         fallback_entry: RFCIndexEntryDict = {
             "rfc_number": rfc_number,
             "title": f"RFC {rfc_number}",
@@ -136,7 +144,14 @@ class CanonicalTreeBuilder:
     def _build_normative_list(
         self, raw_statements: list[ExtractedStatementDict]
     ) -> list[NormativeStatement]:
-        """Filters and maps raw keyword dictionaries into validated Pydantic models."""
+        """Filters and maps raw keyword dictionaries into validated Pydantic models.
+
+        Args:
+            raw_statements (list[ExtractedStatementDict]): Raw extracted statement dictionaries.
+
+        Returns:
+            list[NormativeStatement]: Validated normative statement Pydantic model objects.
+        """
         normative_stmts: list[NormativeStatement] = []
         for stmt in raw_statements:
             kw = stmt["keyword"]
@@ -165,7 +180,7 @@ class CanonicalTreeBuilder:
             NormalizedRFC: Populated and validated root canonical Pydantic model artifact.
 
         Raises:
-            ValueError: If the provided RFC numeric identifier is zero or negative.
+            InvalidRFCNumberError: If the provided RFC numeric identifier is zero or negative.
         """
         if rfc_number <= 0:
             raise InvalidRFCNumberError(rfc_number)
