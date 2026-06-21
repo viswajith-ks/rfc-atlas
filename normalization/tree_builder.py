@@ -12,6 +12,7 @@ from normalization.schema import (
     Block,
     BlockType,
     CanonicalBlockDict,
+    ExtractedStatementDict,
     NormalizedRFC,
     NormativeKeyword,
     NormativeStatement,
@@ -85,28 +86,10 @@ class CanonicalTreeBuilder:
         stable_hash = hashlib.sha256(f"{rfc_number}:{h_path}".encode()).hexdigest()[:8]
         return "unknown", f"secunknown-{stable_hash}", last_part.strip()
 
-    def build_tree(
-        self,
-        rfc_number: int,
-        flat_blocks: list[CanonicalBlockDict],
-        source_type: SourceType,
-    ) -> NormalizedRFC:
-        """Aggregates a flat collection of intermediate blocks into a validated document DOM structure.
-
-        Args:
-            rfc_number (int): Numeric identifier of the target RFC.
-            flat_blocks (list[CanonicalBlockDict]): Flat list of extracted intermediate blocks.
-            source_type (SourceType): Structural parser format type specifier string.
-
-        Returns:
-            NormalizedRFC: Populated and validated root canonical Pydantic model artifact.
-
-        Raises:
-            ValueError: If the provided RFC numeric identifier is zero or negative.
-        """
-        if rfc_number <= 0:
-            raise InvalidRFCNumberError(rfc_number)
-
+    def _compile_metadata(
+        self, rfc_number: int, source_type: SourceType
+    ) -> RFCMetadata:
+        """Extracts and validates global publication metadata for a target protocol."""
         fallback_entry: RFCIndexEntryDict = {
             "rfc_number": rfc_number,
             "title": f"RFC {rfc_number}",
@@ -136,7 +119,7 @@ class CanonicalTreeBuilder:
                 month=pub_date_dict["month"],
             )
 
-        metadata = RFCMetadata(
+        return RFCMetadata(
             rfc_number=rfc_number,
             source_type=source_type,
             title=meta_dict.get("title", f"RFC {rfc_number}"),
@@ -150,43 +133,68 @@ class CanonicalTreeBuilder:
             protocol_family=meta_dict.get("protocol_family"),
         )
 
+    def _build_normative_list(
+        self, raw_statements: list[ExtractedStatementDict]
+    ) -> list[NormativeStatement]:
+        """Filters and maps raw keyword dictionaries into validated Pydantic models."""
+        normative_stmts: list[NormativeStatement] = []
+        for stmt in raw_statements:
+            kw = stmt["keyword"]
+            if kw in self.valid_keywords:
+                normative_stmts.append(
+                    NormativeStatement(
+                        keyword=kw, statement_text=stmt["statement_text"]
+                    )
+                )
+        return normative_stmts
+
+    def build_tree(
+        self,
+        rfc_number: int,
+        flat_blocks: list[CanonicalBlockDict],
+        source_type: SourceType,
+    ) -> NormalizedRFC:
+        """Aggregates a flat collection of intermediate blocks into a validated document DOM structure.
+
+        Args:
+            rfc_number (int): Numeric identifier of the target RFC.
+            flat_blocks (list[CanonicalBlockDict]): Flat list of extracted intermediate blocks.
+            source_type (SourceType): Structural parser format type specifier string.
+
+        Returns:
+            NormalizedRFC: Populated and validated root canonical Pydantic model artifact.
+
+        Raises:
+            ValueError: If the provided RFC numeric identifier is zero or negative.
+        """
+        if rfc_number <= 0:
+            raise InvalidRFCNumberError(rfc_number)
+
+        metadata = self._compile_metadata(rfc_number, source_type)
+
         preface_blocks: list[Block] = []
         sections_list: list[Section] = []
         h_path_to_section: dict[str, Section] = {}
         section_block_counters: dict[str, int] = {}
 
         for fb in flat_blocks:
-            normative_stmts: list[NormativeStatement] = []
-
-            extracted_statements = fb["metadata"].get("normative_statements", [])
-
-            for stmt in extracted_statements:
-                kw = stmt["keyword"]
-                if kw in self.valid_keywords:
-                    normative_stmts.append(
-                        NormativeStatement(
-                            keyword=kw,
-                            statement_text=stmt["statement_text"],
-                        )
-                    )
-
-            raw_type = fb["block_type"]
+            normative_stmts = self._build_normative_list(
+                fb["metadata"].get("normative_statements", [])
+            )
             strict_type: BlockType = INTERMEDIATE_TO_FINAL_TYPE_MAP.get(
-                raw_type, "paragraph"
+                fb["block_type"], "paragraph"
             )
             h_path = fb["hierarchy_path"]
-            sec_num = fb["metadata"].get("section_number")
 
             section_id, sec_token, title = self._parse_section_path(
-                h_path, sec_num, rfc_number
+                h_path, fb["metadata"].get("section_number"), rfc_number
             )
             section_block_counters[sec_token] = (
                 section_block_counters.get(sec_token, 0) + 1
             )
-            blk_index = section_block_counters[sec_token]
 
             block = Block(
-                block_id=f"rfc{rfc_number}-{sec_token}-blk{blk_index}",
+                block_id=f"rfc{rfc_number}-{sec_token}-blk{section_block_counters[sec_token]}",
                 block_type=strict_type,
                 sourcecode_type=fb.get("sourcecode_type"),
                 source_fragment=fb["source_fragment"],
@@ -199,12 +207,11 @@ class CanonicalTreeBuilder:
                 preface_blocks.append(block)
             else:
                 if h_path not in h_path_to_section:
-                    path_parts = h_path.split(" > ")
                     new_section = Section(
                         section_id=section_id,
                         title=title,
-                        hierarchy_path=path_parts,
-                        section_depth=len(path_parts),
+                        hierarchy_path=h_path.split(" > "),
+                        section_depth=len(h_path.split(" > ")),
                         blocks=[],
                     )
                     sections_list.append(new_section)

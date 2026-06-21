@@ -88,6 +88,26 @@ class BatchChunker:
 
         return chunks
 
+    def _process_single_document(self, filepath: Path) -> None:
+        """Parses, validates, and chunks a single canonical RFC document artifact."""
+        try:
+            raw_json_text = filepath.read_text(encoding="utf-8")
+            doc_model = NormalizedRFC.model_validate_json(raw_json_text)
+
+            rfc_number: int = doc_model.metadata.rfc_number
+            rfc_metadata = doc_model.metadata
+
+            for block in doc_model.preface_blocks:
+                self._chunk_and_route(block, rfc_number, ["Preface"], rfc_metadata)
+
+            for section in doc_model.sections:
+                h_path: list[str] = section.hierarchy_path
+                for block in section.blocks:
+                    self._chunk_and_route(block, rfc_number, h_path, rfc_metadata)
+
+        except (OSError, ValueError, KeyError):
+            logger.exception("[Batch %s] Failed on %s", self.batch_id, filepath.name)
+
     def _chunk_and_route(
         self,
         block: Block,
@@ -171,29 +191,7 @@ class BatchChunker:
 
             try:
                 for filepath in file_paths:
-                    try:
-                        raw_json_text = filepath.read_text(encoding="utf-8")
-                        doc_model = NormalizedRFC.model_validate_json(raw_json_text)
-
-                        rfc_number: int = doc_model.metadata.rfc_number
-                        rfc_metadata = doc_model.metadata
-
-                        for block in doc_model.preface_blocks:
-                            self._chunk_and_route(
-                                block, rfc_number, ["Preface"], rfc_metadata
-                            )
-
-                        for section in doc_model.sections:
-                            h_path: list[str] = section.hierarchy_path
-                            for block in section.blocks:
-                                self._chunk_and_route(
-                                    block, rfc_number, h_path, rfc_metadata
-                                )
-
-                    except Exception:
-                        logger.exception(
-                            f"[Batch {self.batch_id}] Failed on {filepath.name}"
-                        )
+                    self._process_single_document(filepath)
 
                 marker_file = self.tmp_dir / f"batch_{self.batch_id}.success"
                 marker_file.touch()
@@ -204,12 +202,12 @@ class BatchChunker:
                     try:
                         handle.flush()
                         os.fsync(handle.fileno())
-                    except Exception:
+                    except OSError:
                         logger.exception(
-                            f"[Batch {self.batch_id}] I/O failure during flush/fsync"
+                            "[Batch %s] I/O failure during flush/fsync", self.batch_id
                         )
 
-            return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
+        return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
 
 def worker_task(batch_id: int, file_paths: list[Path], tmp_dir: Path) -> dict[str, int]:
