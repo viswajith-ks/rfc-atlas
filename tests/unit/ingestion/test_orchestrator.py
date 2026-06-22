@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from concurrent.futures import Future, TimeoutError
+from concurrent.futures import Future
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
@@ -31,14 +31,13 @@ def orchestrator(tmp_path: Path) -> Generator[PipelineOrchestrator, None, None]:
         metadata_path=meta_path,
     )
 
-    orch = PipelineOrchestrator(config)
-
-    yield orch
+    yield PipelineOrchestrator(config)
 
     PipelineOrchestrator.reset_state()
 
 
-def test_singleton_lock(tmp_path: Path, orchestrator: PipelineOrchestrator) -> None:
+@pytest.mark.usefixtures("orchestrator")
+def test_singleton_lock(tmp_path: Path) -> None:
     config = PipelineConfig(
         raw_txt_dir=tmp_path,
         raw_xml_dir=tmp_path,

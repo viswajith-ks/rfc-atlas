@@ -7,13 +7,11 @@ from pathlib import Path
 
 from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
 
+logger = logging.getLogger(__name__)
+
 
 def main() -> None:
-    """Parses command-line arguments and coordinates parallel execution of the RFC ingestion pipeline.
-
-    Raises:
-        SystemExit: If a critical pipeline processing exception is caught.
-    """
+    """Parses command-line arguments and coordinates parallel execution of the RFC ingestion pipeline."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -95,7 +93,7 @@ def main() -> None:
         orchestrator.save_manifest()
 
     except Exception:
-        logging.exception(
+        logger.exception(
             "CRITICAL FAILURE: Ingestion pipeline processing aborted abnormally."
         )
         sys.exit(1)

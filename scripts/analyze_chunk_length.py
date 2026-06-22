@@ -79,18 +79,17 @@ def scan_files(json_files: list[Path]) -> list[BlockLengthRecord]:
         try:
             with filepath.open(encoding="utf-8") as f:
                 data: JSONNode = json.load(f)
-
-                if isinstance(data, dict):
-                    metadata_node = data.get("metadata")
-                    if isinstance(metadata_node, dict):
-                        rfc_number = str(metadata_node.get("rfc_number", filepath.stem))
-                    else:
-                        rfc_number = str(filepath.stem)
-
-                    all_blocks.extend(extract_blocks_recursive(data, rfc_number))
-
         except (OSError, ValueError, KeyError) as e:
             print(f"Failed to parse {filepath.name}: {e}")
+        else:
+            if isinstance(data, dict):
+                metadata_node = data.get("metadata")
+                if isinstance(metadata_node, dict):
+                    rfc_number = str(metadata_node.get("rfc_number", filepath.stem))
+                else:
+                    rfc_number = str(filepath.stem)
+
+                all_blocks.extend(extract_blocks_recursive(data, rfc_number))
 
         if sys.stderr.isatty() and idx % 100 == 0:
             sys.stderr.write(f"\r\033[K[Scanning] Files processed: {idx}/{total_files}")

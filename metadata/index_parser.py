@@ -173,6 +173,21 @@ class RFCIndexParser:
             "protocol_family": None,
         }
 
+    def _process_element(self, elem: _Element) -> None:
+        """Processes a single XML node and aggressively frees memory."""
+        tag = elem.tag.split("}")[-1] if "}" in str(elem.tag) else str(elem.tag)
+
+        if tag == "rfc-entry":
+            entry_data = self._parse_rfc_entry(elem)
+            if entry_data is not None:
+                self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
+
+            elem.clear()
+            parent = elem.getparent()
+            if parent is not None:
+                while elem.getprevious() is not None:
+                    del parent[0]
+
     def parse(self) -> None:
         """Parses the global RFC index XML and compiles the metadata ledger.
 
@@ -191,16 +206,8 @@ class RFCIndexParser:
                 events=("end",),
                 huge_tree=True,
             )
-
             for _, elem in context:
-                if get_local_name(elem) == "rfc-entry":
-                    entry_data = self._parse_rfc_entry(elem)
-                    if entry_data is not None:
-                        self.metadata_dict[str(entry_data["rfc_number"])] = entry_data
-
-                    elem.clear()
-                    while elem.getprevious() is not None:
-                        del elem.getparent()[0]
+                self._process_element(elem)
         except etree.ParseError as e:
             logger.exception(
                 "RFC index XML is structurally malformed: %s", self.xml_path

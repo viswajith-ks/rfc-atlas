@@ -1,3 +1,4 @@
+import math
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,7 @@ def parser_instance(tmp_path: Path, synthetic_txt_content: str) -> LegacyTextPar
 
 def test_parser_initialization(parser_instance: LegacyTextParser) -> None:
     assert parser_instance.rfc_id == 9999
-    assert parser_instance.base_confidence == 0.8
+    assert math.isclose(parser_instance.base_confidence, 0.8)
 
 
 def test_pagination_stripping(parser_instance: LegacyTextParser) -> None:

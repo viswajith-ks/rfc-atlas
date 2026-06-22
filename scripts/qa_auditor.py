@@ -8,7 +8,10 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeAlias
+
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
 
 PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
 NORMALIZED_DIR: Path = PROJECT_ROOT / "data" / "normalized"
@@ -20,6 +23,15 @@ MIN_CHUNK_SIZE: int = 2
 MAX_HEALTHY_EXPANSION_RATIO: float = 1.20
 
 
+def empty_string_list() -> list[str]:
+    """Creates and returns an empty list of strings.
+
+    Returns:
+        list[str]: An empty list intended to store string elements.
+    """
+    return []
+
+
 @dataclass(frozen=True)
 class AuditMetrics:
     """Immutable data transfer object for tracking QA pipeline validation results."""
@@ -28,7 +40,7 @@ class AuditMetrics:
     total_chunks: int
     missing_rfcs: int
     bloated_rfcs: int
-    anomalies: list[str] = field(default_factory=list)
+    anomalies: list[str] = field(default_factory=empty_string_list)
 
 
 def scan_chunk_tables(
@@ -52,9 +64,29 @@ def scan_chunk_tables(
         with jsonl_path.open(encoding="utf-8") as f:
             for line_num, line in enumerate(f, 1):
                 try:
-                    chunk: dict[str, Any] = json.loads(line)
+                    # 1. Load into our strictly typed recursive JSON boundary
+                    raw_chunk: JSONNode = json.loads(line)
+                except (ValueError, KeyError) as e:
+                    anomalies.append(
+                        f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: {e}"
+                    )
+                else:
+                    # 2. Perform the honest runtime check
+                    if not isinstance(raw_chunk, dict):
+                        anomalies.append(
+                            f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: Expected dict, got {type(raw_chunk).__name__}"
+                        )
+                        continue
+
+                    # 3. Pyright dynamically narrows raw_chunk to dict[str, JSONNode] here!
+                    # We drop `Any` completely.
+                    chunk = raw_chunk
+
                     rfc: str = str(chunk.get("rfc_number", "unknown"))
-                    text: str = chunk.get("text_payload", "")
+
+                    # 4. Safely extract and cast the text payload
+                    payload_node = chunk.get("text_payload", "")
+                    text: str = str(payload_node) if payload_node else ""
                     size: int = len(text)
                     total_chunks += 1
 
@@ -68,11 +100,6 @@ def scan_chunk_tables(
                         anomalies.append(
                             f"[BOUNDARY WARN] {rfc} in {jsonl_path.name} line {line_num} has only {size} chars: {text!r}"
                         )
-
-                except (ValueError, KeyError) as e:
-                    anomalies.append(
-                        f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: {e}"
-                    )
 
     return chunk_mass, total_chunks, tables_scanned, anomalies
 

@@ -85,7 +85,8 @@ runtime-evaluated-decorators = ["pydantic.validate_call"]
 # S101: Allows Python's standard 'assert' statements in tests
 # D: Completely ignores all pydocstyle rules inside the tests directory
 # SLF001: Allow unit tests to inspect and assert internal private helper methods
-"tests/**/*.py" = ["S101", "D", "SLF001"]
+# INP001: Allow loose test files without requiring __init__.py package markers
+"tests/**/*.py" = ["S101", "D", "SLF001", "INP001"]
 
 # T201: Allow explicit print() statements in CLI execution scripts
 # INP001: Exclude loose CLI execution directories from requiring __init__.py

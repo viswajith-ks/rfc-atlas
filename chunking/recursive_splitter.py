@@ -5,7 +5,7 @@ import logging
 import os
 import shutil
 import sys
-from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
+from concurrent.futures import FIRST_COMPLETED, Future, wait
 from contextlib import ExitStack
 from pathlib import Path
 from typing import TextIO
@@ -93,10 +93,11 @@ class BatchChunker:
         try:
             raw_json_text = filepath.read_text(encoding="utf-8")
             doc_model = NormalizedRFC.model_validate_json(raw_json_text)
-
             rfc_number: int = doc_model.metadata.rfc_number
             rfc_metadata = doc_model.metadata
-
+        except (OSError, ValueError, KeyError):
+            logger.exception("[Batch %s] Failed on %s", self.batch_id, filepath.name)
+        else:
             for block in doc_model.preface_blocks:
                 self._chunk_and_route(block, rfc_number, ["Preface"], rfc_metadata)
 
@@ -104,9 +105,6 @@ class BatchChunker:
                 h_path: list[str] = section.hierarchy_path
                 for block in section.blocks:
                     self._chunk_and_route(block, rfc_number, h_path, rfc_metadata)
-
-        except (OSError, ValueError, KeyError):
-            logger.exception("[Batch %s] Failed on %s", self.batch_id, filepath.name)
 
     def _chunk_and_route(
         self,
@@ -267,8 +265,8 @@ def gather_files(
         tmp_dir (Path): The directory containing the isolated worker output files to be gathered.
         logs_dir (Path): The directory to save the final concatenated pipeline execution log.
     """
-    print(
-        "\n[PHASE] Gather Phase: Concatenating worker chunks and logs into master files..."
+    logger.info(
+        "Gather Phase: Concatenating worker chunks and logs into master files..."
     )
 
     unique_tables = set(TABLE_ROUTING_MAP.values())
@@ -311,8 +309,8 @@ def gather_files(
     Path(tmp_log_path).replace(master_log_path)
 
     shutil.rmtree(tmp_dir)
-    print(
-        "[SUCCESS] Gather complete. Temporary files wiped. Master tables locked atomically."
+    logger.info(
+        "Gather complete. Temporary files wiped. Master tables locked atomically."
     )
 
 
@@ -390,16 +388,6 @@ def _execute_scatter_phase(
                 batch_id = future_map[future]
                 try:
                     result = future.result()
-                    global_blocks += result["blocks"]
-                    global_chunks += result["chunks"]
-                    completed_batches += 1
-
-                    if sys.stderr.isatty():
-                        sys.stderr.write(
-                            f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} ..."
-                        )
-                        sys.stderr.flush()
-
                 except TimeoutError:
                     orch_logger.exception(
                         "Batch %s timed out after %ss!", batch_id, WORKER_TIMEOUT
@@ -413,6 +401,16 @@ def _execute_scatter_phase(
                     orch_logger.exception("Batch %s raised a FATAL exception", batch_id)
                     sys.stderr.write(f"\n[ERROR] Batch {batch_id} Failed. See Logs.\n")
                     sys.stderr.flush()
+                else:
+                    global_blocks += result["blocks"]
+                    global_chunks += result["chunks"]
+                    completed_batches += 1
+
+                    if sys.stderr.isatty():
+                        sys.stderr.write(
+                            f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} ..."
+                        )
+                        sys.stderr.flush()
 
                 try:
                     next_batch_id, next_batch_files = next(batch_iterator)
@@ -455,7 +453,7 @@ def run_chunking_pipeline(
     total_files = len(json_files)
 
     if total_files == 0:
-        print("[WARN] No normalized JSON files found. Exiting.")
+        logger.warning("No normalized JSON files found. Exiting.")
         return
 
     batches = [
@@ -464,26 +462,30 @@ def run_chunking_pipeline(
     total_batches = len(batches)
     optimal_workers = get_optimal_workers()
 
-    print("====================================================")
-    print("[INIT] INITIATING PEBBLE SCATTER-GATHER PIPELINE")
-    print(
-        f"       Files: {total_files:,} | Worker Processes: {optimal_workers} | Batches: {total_batches}"
+    logger.info("====================================================")
+    logger.info("INITIATING PEBBLE SCATTER-GATHER PIPELINE")
+    logger.info(
+        "Files: %s | Worker Processes: %s | Batches: %s",
+        total_files,
+        optimal_workers,
+        total_batches,
     )
-    print("====================================================\n")
+    logger.info("====================================================")
 
     global_blocks, global_chunks = _execute_scatter_phase(
         batches, tmp_dir, optimal_workers, orch_logger
     )
 
-    print("\n\n[SUCCESS] Scatter phase complete.")
+    logger.info("Scatter phase complete.")
     gather_files(total_batches, chunks_dir, tmp_dir, logs_dir)
 
-    print("\n====================================================")
-    print(
-        f"[SUCCESS] PIPELINE COMPLETE: {global_blocks:,} blocks processed into "
-        f"{global_chunks:,} chunks safely!"
+    logger.info("====================================================")
+    logger.info(
+        "PIPELINE COMPLETE: %s blocks processed into %s chunks safely!",
+        global_blocks,
+        global_chunks,
     )
-    print("====================================================")
+    logger.info("====================================================")
 
 
 if __name__ == "__main__":

@@ -143,7 +143,7 @@ class RFCMetadata(BaseModel):
         description="Publishing stream context (e.g., IETF, IAB, IRTF).",
     )
 
-    authors: list[str] = Field(default_factory=list)
+    authors: list[str] = Field(default=[])
     obsoletes: list[int] = Field(default=[])
     updates: list[int] = Field(default=[])
     updated_by: list[int] = Field(default=[])

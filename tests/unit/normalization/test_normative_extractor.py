@@ -37,7 +37,7 @@ def extractor() -> NormativeExtractor:
     ],
 )
 def test_exemption_logic(
-    extractor: NormativeExtractor, path: str, expected_exempt: bool
+    extractor: NormativeExtractor, path: str, *, expected_exempt: bool
 ) -> None:
     # pylint/pyright bypass for testing private methods
     assert extractor._is_exempt(path) == expected_exempt  # pyright: ignore[reportPrivateUsage]

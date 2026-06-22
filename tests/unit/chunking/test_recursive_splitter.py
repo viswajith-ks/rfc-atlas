@@ -86,7 +86,8 @@ def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) 
     chunker.handles["prose"].close()
 
     results: list[dict[str, Any]] = [
-        json.loads(line) for line in output_file.read_text().splitlines()
+        json.loads(line)
+        for line in output_file.read_text(encoding="utf-8").splitlines()
     ]
 
     assert len(results) >= 2

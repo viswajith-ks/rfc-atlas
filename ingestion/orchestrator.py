@@ -8,7 +8,7 @@ import re
 import sys
 import traceback
 from collections.abc import Generator, Iterator
-from concurrent.futures import FIRST_COMPLETED, Future, TimeoutError, wait
+from concurrent.futures import FIRST_COMPLETED, Future, wait
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -37,6 +37,62 @@ WorkerFuture: TypeAlias = Future[
 ]
 
 
+def _run_worker_logic(
+    filepath: Path, rfc_num: int, source_type: Literal["txt", "xml"], output_dir: Path
+) -> TelemetryRecord:
+    """Executes the raw parsing and normalization pipeline for a single document.
+
+    Returns:
+        TelemetryRecord: The final dictionary containing processing metrics and status.
+    """
+    builder = PipelineOrchestrator.worker_tree_builder
+    if builder is None:
+        logger.info("Worker-side lazy-initialization of CanonicalTreeBuilder...")
+        metadata_path = output_dir.parent / "metadata" / "rfc_metadata_lookup.json"
+        builder = CanonicalTreeBuilder(metadata_path)
+        PipelineOrchestrator.worker_tree_builder = builder
+
+    if source_type == "txt":
+        parser = LegacyTextParser(filepath)
+    else:
+        parser = ModernRFCParser(filepath)
+
+    canonical_blocks = parser.parse_document()
+    extractor = NormativeExtractor()
+    enriched_blocks = extractor.process_blocks(canonical_blocks)
+    valid_blocks = [b for b in enriched_blocks if b["normalized_text"].strip()]
+
+    canonical_tree = builder.build_tree(
+        rfc_number=rfc_num,
+        flat_blocks=valid_blocks,
+        source_type=source_type,
+    )
+
+    output_path = output_dir / f"rfc{rfc_num}_normalized.json"
+    tmp_output_path = output_dir / f"rfc{rfc_num}_normalized.tmp"
+
+    canonical_tree.save_to_disk(tmp_output_path)
+    Path(tmp_output_path).replace(output_path)
+
+    all_instantiated_blocks = canonical_tree.preface_blocks + [
+        block for section in canonical_tree.sections for block in section.blocks
+    ]
+
+    lengths = [len(b.normalized_text) for b in all_instantiated_blocks]
+
+    return {
+        "file": filepath.name,
+        "status": "success",
+        "total_blocks": len(all_instantiated_blocks),
+        "normative_rules": sum(
+            len(b.normative_statements) for b in all_instantiated_blocks
+        ),
+        "total_chars": sum(lengths),
+        "max_block_chars": max(lengths, default=0),
+        "min_block_chars": min(lengths, default=0),
+    }
+
+
 def _execute_rfc_parsing_worker(
     filepath: Path, rfc_num: int, source_type: Literal["txt", "xml"], output_dir: Path
 ) -> tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]:
@@ -51,63 +107,27 @@ def _execute_rfc_parsing_worker(
     Returns:
         tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]: Execution status,
             error message string if failed, and telemetry metrics if successful.
-    """
-    filename = filepath.name
 
-    assert PipelineOrchestrator.worker_tree_builder is not None, (
-        "FATAL: CoW global memory lost. Worker initialized improperly! "
-        "Ensure your OS supports 'fork' multiprocessing contexts."
-    )
+    Raises:
+        RuntimeError: If the worker process loses access to the global initialized state.
+    """
+    if PipelineOrchestrator.worker_tree_builder is None:
+        msg = (
+            "FATAL: CoW global memory lost. Worker initialized improperly! "
+            "Ensure your OS supports 'fork' multiprocessing contexts."
+        )
+        raise RuntimeError(msg)
 
     try:
-        if source_type == "txt":
-            parser = LegacyTextParser(filepath)
-        else:
-            parser = ModernRFCParser(filepath)
-
-        canonical_blocks = parser.parse_document()
-        extractor = NormativeExtractor()
-        enriched_blocks = extractor.process_blocks(canonical_blocks)
-        valid_blocks = [b for b in enriched_blocks if b["normalized_text"].strip()]
-
-        canonical_tree = PipelineOrchestrator.worker_tree_builder.build_tree(
-            rfc_number=rfc_num,
-            flat_blocks=valid_blocks,
-            source_type=source_type,
-        )
-
-        output_path = output_dir / f"rfc{rfc_num}_normalized.json"
-        tmp_output_path = output_dir / f"rfc{rfc_num}_normalized.tmp"
-
-        canonical_tree.save_to_disk(tmp_output_path)
-        Path(tmp_output_path).replace(output_path)
-
-        all_instantiated_blocks = canonical_tree.preface_blocks + [
-            block for section in canonical_tree.sections for block in section.blocks
-        ]
-
-        lengths = [len(b.normalized_text) for b in all_instantiated_blocks]
-
-        telemetry_record: TelemetryRecord = {
-            "file": filename,
-            "status": "success",
-            "total_blocks": len(all_instantiated_blocks),
-            "normative_rules": sum(
-                len(b.normative_statements) for b in all_instantiated_blocks
-            ),
-            "total_chars": sum(lengths),
-            "max_block_chars": max(lengths, default=0),
-            "min_block_chars": min(lengths, default=0),
-        }
-
-        return "success", None, telemetry_record
-
+        telemetry_record = _run_worker_logic(filepath, rfc_num, source_type, output_dir)
     except Exception:
         logger.exception(
             "Fatal crash during parsing worker execution for: %s", filepath.name
         )
         error_msg = traceback.format_exc().replace("\n", " | ")
         return "failed", error_msg, None
+    else:
+        return "success", None, telemetry_record
 
 
 @dataclass(frozen=True)
@@ -391,7 +411,21 @@ class PipelineOrchestrator:
         """
         try:
             status, error_msg, telemetry = future.result()
+        except TimeoutError:
+            timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
+            logger.warning(
+                "Worker process for %s exceeded runtime limits and was terminated.",
+                filename,
+            )
+            self._record_telemetry(filename, "failed", timeout_err, None)
+            return False
 
+        except Exception as exc:
+            error_msg = f"Task execution error or abrupt process cancellation: {exc}"
+            logger.exception("Task execution failed for: %s", filename)
+            self._record_telemetry(filename, "failed", error_msg, None)
+            return False
+        else:
             if (
                 status == "success"
                 and telemetry
@@ -405,21 +439,6 @@ class PipelineOrchestrator:
                 self._record_telemetry(filename, "success", None, telemetry)
                 return True
 
-            self._record_telemetry(filename, "failed", error_msg, None)
-            return False
-
-        except TimeoutError:
-            timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
-            logger.warning(
-                "Worker process for %s exceeded runtime limits and was terminated.",
-                filename,
-            )
-            self._record_telemetry(filename, "failed", timeout_err, None)
-            return False
-
-        except Exception as exc:
-            error_msg = f"Task execution error or abrupt process cancellation: {exc}"
-            logger.exception("Task execution failed for: %s", filename)
             self._record_telemetry(filename, "failed", error_msg, None)
             return False
 
@@ -442,6 +461,9 @@ class PipelineOrchestrator:
         """
         try:
             filepath = next(file_iterator)
+        except StopIteration:
+            return None
+        else:
             rfc_num = self._extract_rfc_num(filepath)
             future = pool.schedule(  # pyright: ignore[reportUnknownMemberType]
                 _execute_rfc_parsing_worker,
@@ -449,8 +471,6 @@ class PipelineOrchestrator:
                 timeout=self.per_file_timeout,
             )
             return future, filepath
-        except StopIteration:
-            return None
 
     def _drain_file_iterator(
         self,

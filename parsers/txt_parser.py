@@ -235,7 +235,7 @@ class LegacyTextParser:
         return 0, 1, first_line, None
 
     def _calculate_header_modifiers(
-        self, first_line: str, active_lines: int, has_underline: bool
+        self, first_line: str, active_lines: int, *, has_underline: bool
     ) -> int:
         """Calculates positive and negative scoring modifiers for a potential header.
 
@@ -294,7 +294,7 @@ class LegacyTextParser:
 
         active_lines = len([line for line in lines if line.strip()])
         modifier_score = self._calculate_header_modifiers(
-            first_line, active_lines, has_underline
+            first_line, active_lines, has_underline=has_underline
         )
 
         total_score = base_score + modifier_score
