@@ -1,4 +1,7 @@
-"""Tree builder engine for assembling flat intermediate blocks into nested canonical RFC documents."""
+"""Tree builder engine for assembling flat intermediate blocks.
+
+Maps raw DOM dictionaries into nested canonical RFC documents.
+"""
 
 import hashlib
 import json
@@ -24,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class CanonicalTreeBuilder:
-    """Assembles flat text or XML block dictionaries into structured Pydantic NormalizedRFC documents."""
+    """Assembles block dictionaries into Pydantic NormalizedRFC documents."""
 
     def __init__(self, metadata_lookup_path: Path) -> None:
         """Initializes the tree builder by loading global metadata index lookups.
@@ -46,11 +49,12 @@ class CanonicalTreeBuilder:
     def _parse_section_path(
         h_path: str, section_number: str | None, rfc_number: int
     ) -> tuple[str, str, str]:
-        """Parses a hierarchical breadcrumb path string into distinct identification fields.
+        """Parses a hierarchical breadcrumb path into distinct identification fields.
 
         Args:
             h_path (str): The raw section hierarchy breadcrumb text path string.
-            section_number (str | None): Optional section identifier extracted by the parser.
+            section_number (str | None):
+                Optional section identifier extracted by the parser.
             rfc_number (int): Numeric identifier of the target RFC, used to generate
                 deterministic hashes for unnumbered or unknown sections.
 
@@ -109,7 +113,8 @@ class CanonicalTreeBuilder:
 
         if str(rfc_number) not in self.metadata_lookup:
             logger.warning(
-                "No metadata entry discovered for RFC %s inside the lookup ledger. Generating placeholder structural fallbacks.",
+                "No metadata entry discovered for RFC %s inside the lookup ledger. "
+                "Generating placeholder structural fallbacks.",
                 rfc_number,
             )
 
@@ -144,10 +149,12 @@ class CanonicalTreeBuilder:
         """Filters and maps raw keyword dictionaries into validated Pydantic models.
 
         Args:
-            raw_statements (list[ExtractedStatementDict]): Raw extracted statement dictionaries.
+            raw_statements (list[ExtractedStatementDict]):
+                Raw extracted statement dictionaries.
 
         Returns:
-            list[NormativeStatement]: Validated normative statement Pydantic model objects.
+            list[NormativeStatement]:
+                Validated normative statement Pydantic model objects.
         """
         return [
             NormativeStatement(
@@ -162,18 +169,21 @@ class CanonicalTreeBuilder:
         flat_blocks: list[CanonicalBlockDict],
         source_type: SourceType,
     ) -> NormalizedRFC:
-        """Aggregates a flat collection of intermediate blocks into a validated document DOM structure.
+        """Aggregates a flat collection of blocks into a validated document structure.
 
         Args:
             rfc_number (int): Numeric identifier of the target RFC.
-            flat_blocks (list[CanonicalBlockDict]): Flat list of extracted intermediate blocks.
+            flat_blocks (list[CanonicalBlockDict]):
+                Flat list of extracted intermediate blocks.
             source_type (SourceType): Structural parser format type specifier string.
 
         Returns:
-            NormalizedRFC: Populated and validated root canonical Pydantic model artifact.
+            NormalizedRFC:
+                Populated and validated root canonical Pydantic model artifact.
 
         Raises:
-            InvalidRFCNumberError: If the provided RFC numeric identifier is zero or negative.
+            InvalidRFCNumberError:
+                If the provided RFC numeric identifier is zero or negative.
         """
         if rfc_number <= 0:
             raise InvalidRFCNumberError(rfc_number)

@@ -66,8 +66,8 @@ class RFCIndexParser:
         if not doc_id:
             return 0
 
-        # Matches the literal string "RFC" followed by one or more digits anywhere in the string.
-        # Used to extract the ID from XML index doc-id tags (e.g., "RFC2616").
+        # Matches the literal string "RFC" followed by one or more digits anywhere
+        # in the string. Used to extract the ID from XML index doc-id tags.
         match = re.search(r"RFC(\d+)", doc_id, re.IGNORECASE)
         return int(match.group(1)) if match else 0
 
@@ -79,7 +79,8 @@ class RFCIndexParser:
             entry (_Element): The parent <rfc-entry> node.
 
         Returns:
-            RFCPublicationDateDict | None: Normalized date mapping or None if unparseable.
+            RFCPublicationDateDict | None:
+                Normalized date mapping or None if unparseable.
         """
         date_node = find_child_by_local_name(entry, "date")
         if date_node is None:
@@ -125,7 +126,8 @@ class RFCIndexParser:
 
         Args:
             entry (_Element): The parent <rfc-entry> node.
-            tag_name (str): The specific XML relation tag (e.g., 'obsoletes', 'updates').
+            tag_name (str):
+                The specific XML relation tag (e.g., 'obsoletes', 'updates').
 
         Returns:
             list[int]: Collection of numeric RFC identifiers.
@@ -143,13 +145,14 @@ class RFCIndexParser:
         return relations
 
     def _parse_rfc_entry(self, entry: _Element) -> RFCIndexEntryDict | None:
-        """Extracts standard attributes and edge relations from a single rfc-entry XML node.
+        """Extracts attributes and edge relations from a single rfc-entry XML node.
 
         Args:
-            entry (_Element): The lxml etree element representing the <rfc-entry>.
+            entry (_Element): The parent <rfc-entry> node.
 
         Returns:
-            RFCIndexEntryDict: The compiled schema-compliant dictionary, or None if invalid.
+            RFCIndexEntryDict | None:
+                The compiled schema-compliant dictionary, or None if invalid.
         """
         doc_id_text = get_child_text_by_local_name(entry, "doc-id")
         if not doc_id_text:

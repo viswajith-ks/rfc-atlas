@@ -1,4 +1,7 @@
-"""Hierarchy-aware chunking pipeline using Pebble for multi-core scatter-gather execution."""
+"""Hierarchy-aware chunking pipeline using Pebble.
+
+Manages multi-core scatter-gather execution for high-throughput processing.
+"""
 
 import gc
 import logging
@@ -33,7 +36,8 @@ class BatchChunker:
 
         Args:
             batch_id (int): The unique sequential identifier for this worker's batch.
-            tmp_dir (Path): The designated directory for the worker to write isolated temporary logs and JSONL chunk files before the gather phase.
+            tmp_dir (Path): The designated directory for the worker to write isolated
+                temporary logs and JSONL chunk files before the gather phase.
         """
         self.batch_id = batch_id
         self.tmp_dir = tmp_dir
@@ -52,7 +56,8 @@ class BatchChunker:
             text (str): The raw text payload to be chunked.
 
         Returns:
-            list[str]: A list of sequential, overlapping text chunks bounded by `CHUNK_SIZE_LIMIT`.
+            list[str]: A list of sequential, overlapping text chunks bounded by
+                `CHUNK_SIZE_LIMIT`.
         """
         if not text:
             return []
@@ -117,16 +122,16 @@ class BatchChunker:
     ) -> None:
         """Chunks a document block and writes it to the appropriate isolated table log.
 
-        Extracts the payload, determines the table routing (e.g., 'prose', 'sourcecode'),
-        generates the sliding window fragments, and serializes them to disk. Applies a
-        containment filter to ensure highly localized block metadata (like normative
-        statements) is only attached to chunk fragments that physically contain the
-        source text, preventing semantic hallucination during vector retrieval.
+        Extracts the payload, determines the table routing (e.g., 'prose',
+        'sourcecode'), generates the sliding window fragments, and serializes them to
+        disk. Applies a containment filter to ensure highly localized block metadata.
 
         Args:
-            block (Block): The strictly validated Pydantic block from the normalized JSON.
+            block (Block): The strictly validated Pydantic block from the
+                normalized JSON.
             rfc_number (int): The numeric RFC identifier (e.g., 6716).
-            h_path (list[str]): The hierarchical section breadcrumb path of the block.
+            h_path (list[str]): The hierarchical section breadcrumb path of the
+                block.
             rfc_metadata (RFCMetadata): Global document-level metadata (e.g., title,
                 status) injected into every chunk to aid downstream filtering.
         """
@@ -175,7 +180,8 @@ class BatchChunker:
         """Executes the chunking pipeline sequentially across the assigned batch.
 
         Args:
-            file_paths (list[Path]): The list of canonical JSON file paths for this batch.
+            file_paths (list[Path]): The list of canonical JSON file paths for
+                this batch.
 
         Returns:
             dict[str, int]: A metrics dictionary containing:
@@ -219,7 +225,8 @@ def worker_task(batch_id: int, file_paths: list[Path], tmp_dir: Path) -> dict[st
     Args:
         batch_id (int): The unique sequential identifier for this batch.
         file_paths (list[Path]): The subset of JSON files assigned to this worker.
-        tmp_dir (Path): The designated directory for the worker to write its logs and outputs.
+        tmp_dir (Path): The designated directory for the worker to write its logs
+            and outputs.
 
     Returns:
         dict[str, int]: Batch execution metrics (blocks and chunks processed).
@@ -258,14 +265,19 @@ def gather_files(
 ) -> None:
     """Concatenates all isolated worker files and logs into master outputs atomically.
 
-    Uses temporary file buffers and OS-level atomic replacement (`os.replace`) to guarantee
-    that a crash during gathering never leaves a corrupted or partial file in the final chunks directory.
+    Uses temporary file buffers and OS-level atomic replacement (`os.replace`)
+    to guarantee that a crash during gathering never leaves a corrupted or
+    partial file in the final chunks directory.
 
     Args:
-        total_batches (int): The total number of batches processed during the scatter phase.
-        chunks_dir (Path): The target directory for the final concatenated JSONL master tables.
-        tmp_dir (Path): The directory containing the isolated worker output files to be gathered.
-        logs_dir (Path): The directory to save the final concatenated pipeline execution log.
+        total_batches (int): The total number of batches processed during the
+            scatter phase.
+        chunks_dir (Path): The target directory for the final concatenated JSONL
+            master tables.
+        tmp_dir (Path): The directory containing the isolated worker output files
+            to be gathered.
+        logs_dir (Path): The directory to save the final concatenated pipeline
+            execution log.
     """
     logger.info(
         "Gather Phase: Concatenating worker chunks and logs into master files..."
@@ -287,7 +299,8 @@ def gather_files(
                         shutil.copyfileobj(tmp_file, master_file)
                 else:
                     sys.stderr.write(
-                        f"\n[WARN] Batch {batch_id} truncated or failed for table '{table_name}' — skipping corrupted fragment.\n"
+                        f"\n[WARN] Batch {batch_id} truncated or failed for "
+                        f"table '{table_name}' — skipping corrupted fragment.\n"
                     )
                     sys.stderr.flush()
 
@@ -410,7 +423,8 @@ def _execute_scatter_phase(
 
                     if sys.stderr.isatty():
                         sys.stderr.write(
-                            f"\r\033[K[PROCESS] Batches: {completed_batches}/{total_batches} ..."
+                            f"\r\033[K[PROCESS] Batches: "
+                            f"{completed_batches}/{total_batches} ..."
                         )
                         sys.stderr.flush()
 
@@ -437,11 +451,12 @@ def run_chunking_pipeline(
     logs_dir: Path,
     tmp_dir: Path,
 ) -> None:
-    """Coordinates the full multi-core scatter-gather chunking pipeline using a bounded queue.
+    """Coordinates the multi-core scatter-gather chunking pipeline via bounded queue.
 
     Args:
         normalized_dir (Path): Directory containing the canonical JSON input files.
-        chunks_dir (Path): Target directory for the generated LanceDB JSONL chunk tables.
+        chunks_dir (Path): Target directory for the generated LanceDB JSONL
+            chunk tables.
         logs_dir (Path): Target directory for the final execution logs.
         tmp_dir (Path): Intermediate workspace for isolated worker file descriptors.
     """

@@ -14,7 +14,8 @@ class RFCParser(Protocol):
         """Parses an RFC document into a flat list of canonical intermediate blocks.
 
         Returns:
-            list[CanonicalBlockDict]: A flat list of canonical intermediate block dictionaries
+            list[CanonicalBlockDict]:
+                A flat list of canonical intermediate block dictionaries
                 ready for normative extraction and tree assembly.
         """
         ...
@@ -30,12 +31,16 @@ def refine_block_type(
     rerouted to a highly specialized vector table, such as 'security' or 'references'.
 
     Args:
-        block_type (IntermediateBlockType): The initial structural classification of the block (e.g., 'prose').
-        hierarchy_path (str): The pre-joined, lowercase hierarchical section path (e.g., '1. introduction > 1.1 background').
+        block_type (IntermediateBlockType):
+            The initial structural classification of the block (e.g., 'prose').
+        hierarchy_path (str):
+            The pre-joined, lowercase hierarchical section path
+            (e.g., '1. introduction > 1.1 background').
 
     Returns:
-        IntermediateBlockType: The refined semantic block type. Returns the original block_type
-                               if no hierarchical refinement is applicable.
+        IntermediateBlockType:
+            The refined semantic block type. Returns the original block_type
+            if no hierarchical refinement is applicable.
     """
     if not hierarchy_path or block_type not in {"prose", "paragraph"}:
         return block_type

@@ -151,8 +151,9 @@ class RFCMetadata(BaseModel):
     protocol_family: str | None = Field(
         default=None,
         description=(
-            "Placeholder for future semantic enrichment (e.g., Transport, Routing, Cryptography). "
-            "Currently unpopulated as it is not natively provided by the baseline IETF index."
+            "Placeholder for future semantic enrichment (e.g., Transport, Routing, "
+            "Cryptography). Currently unpopulated as it is not natively provided by "
+            "the baseline IETF index."
         ),
     )
 
@@ -165,25 +166,32 @@ class NormativeStatement(BaseModel):
 
     actor: str | None = Field(
         default=None,
-        description="Target protocol actor or system subject responsible for execution.",
+        description=(
+            "Target protocol actor or system subject responsible for execution."
+        ),
     )
     referenced_rfcs: list[int] = Field(
         default=[],
-        description="Isolated cross-referenced protocol identifiers found within this requirement.",
+        description=(
+            "Isolated cross-referenced protocol identifiers found within this "
+            "requirement."
+        ),
     )
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Intercepts model serialization to strip out the 'actor' field if it is uninitialized.
+        """Intercepts serialization to strip out 'actor' if uninitialized.
 
-        This optimizes downstream database storage sizing while ensuring that fields like
-        'protocol_family' retain explicit null markers at the root level.
+        This optimizes downstream database storage sizing while ensuring that fields
+        like 'protocol_family' retain explicit null markers at the root level.
 
         Args:
-            handler (SerializerFunctionWrapHandler): The default Pydantic core serialization logic.
+            handler (SerializerFunctionWrapHandler):
+                The default Pydantic core serialization logic.
 
         Returns:
-            dict[str, Any]: The cleaned model state dictionary missing the null 'actor' property.
+            dict[str, Any]:
+                The cleaned model state dictionary missing the null 'actor' property.
         """
         data = handler(self)
         if data.get("actor") is None:
@@ -209,16 +217,18 @@ class Block(BaseModel):
 
     @model_serializer(mode="wrap")
     def serialize_model(self, handler: SerializerFunctionWrapHandler) -> dict[str, Any]:
-        """Intercepts model serialization to strip out 'sourcecode_type' if it is uninitialized.
+        """Intercepts serialization to strip out 'sourcecode_type' if uninitialized.
 
-        Prevents sparse structural block types from padding output payloads with redundant
-        null variables across massive ingestion sets.
+        Prevents sparse structural block types from padding output payloads with
+        redundant null variables across massive ingestion sets.
 
         Args:
-            handler (SerializerFunctionWrapHandler): The default Pydantic core serialization logic.
+            handler (SerializerFunctionWrapHandler):
+                The default Pydantic core serialization logic.
 
         Returns:
-            dict[str, Any]: The cleaned model state dictionary missing the null 'sourcecode_type' property.
+            dict[str, Any]:
+                The cleaned model state missing the null 'sourcecode_type' property.
         """
         data = handler(self)
         if data.get("sourcecode_type") is None:
@@ -237,7 +247,7 @@ class Section(BaseModel):
 
 
 class NormalizedRFC(BaseModel):
-    """Root canonical artifact representing a fully parsed and structured RFC document."""
+    """Root canonical artifact representing a fully parsed RFC document."""
 
     rfc_id: int
     metadata: RFCMetadata
@@ -252,7 +262,8 @@ class NormalizedRFC(BaseModel):
             NormalizedRFC: The validated model instance.
 
         Raises:
-            ValueError: If the root rfc_id does not exactly match the metadata.rfc_number.
+            ValueError:
+                If the root rfc_id does not exactly match the metadata.rfc_number.
         """
         if self.rfc_id != self.metadata.rfc_number:
             msg = (
@@ -265,8 +276,9 @@ class NormalizedRFC(BaseModel):
     def save_to_disk(self, filepath: Path) -> None:
         """Serializes the canonical RFC artifact to a JSON file on disk atomically.
 
-        Omit sparse structural block fields (`sourcecode_type`, `actor`) while preserving
-        explicit null markers for relational metadata parameters (`protocol_family`).
+        Omits sparse structural block fields (`sourcecode_type`, `actor`) while
+        preserving explicit null markers for relational metadata parameters
+        (`protocol_family`).
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
         tmp_filepath = filepath.with_suffix(filepath.suffix + ".tmp")

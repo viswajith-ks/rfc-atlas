@@ -1,4 +1,7 @@
-"""Pipeline orchestration engine for managing parallel RFC ingestion, parsing, and telemetry collection."""
+"""Pipeline orchestration engine for managing parallel RFC ingestion.
+
+This module handles parsing workflows and telemetry collection.
+"""
 
 import json
 import logging
@@ -102,8 +105,9 @@ def _execute_rfc_parsing_worker(
         output_dir (Path): Destination directory for the normalized JSON output.
 
     Returns:
-        tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]: Execution status,
-            error message string if failed, and telemetry metrics if successful.
+        tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]:
+            Execution status, error message string if failed, and telemetry
+            metrics if successful.
     """
     try:
         telemetry_record = _run_worker_logic(filepath, rfc_num, source_type, output_dir)
@@ -134,7 +138,10 @@ class PipelineConfig:
 
 
 class PipelineOrchestrator:
-    """Coordinates multi-process parsing workflows across historical and modern RFC document layers."""
+    """Coordinates multi-process parsing workflows across RFC document layers.
+
+    This manages both historical and modern execution eras.
+    """
 
     _POLL_INTERVAL: float = 1.0
     _is_instantiated: bool = False
@@ -147,8 +154,10 @@ class PipelineOrchestrator:
             config (PipelineConfig): The unified configuration mapping.
 
         Raises:
-            SingletonViolationError: If an attempt is made to instantiate a strict Singleton twice.
-            UnsupportedHostOSError: If the underlying operating system kernel is not Linux.
+            SingletonViolationError: If an attempt is made to instantiate a strict
+                Singleton twice.
+            UnsupportedHostOSError: If the underlying operating system kernel is
+                not Linux.
         """
         if PipelineOrchestrator._is_instantiated:
             logger.critical("Initialization aborted: Orchestrator Singleton violation.")
@@ -196,17 +205,22 @@ class PipelineOrchestrator:
 
     @classmethod
     def create_and_initialize(cls, config: PipelineConfig) -> "PipelineOrchestrator":
-        """Pre-provisions directories and updates metadata indices before returning an instance.
+        """Pre-provisions directories and updates metadata indices.
+
+        This setup ensures all dependencies are met before returning an instance.
 
         Args:
             config (PipelineConfig): The unified configuration mapping.
 
         Returns:
-            PipelineOrchestrator: A fully instantiated and initialized orchestrator singleton instance.
+            PipelineOrchestrator: A fully instantiated and initialized orchestrator
+                singleton instance.
 
         Raises:
-            CorpusDependencyError: If foundational raw index schema files are missing on disk.
-            MetadataIndexCompilationError: If the core metadata lookup ledger fails to parse or compile.
+            CorpusDependencyError: If foundational raw index schema files are missing
+                on disk.
+            MetadataIndexCompilationError: If the core metadata lookup ledger fails
+                to parse or compile.
         """
         if not config.raw_index_path.exists():
             logger.critical(
@@ -261,14 +275,15 @@ class PipelineOrchestrator:
         """
         filename = source.name
 
-        # Matches a string strictly beginning with "rfc" (case-insensitive) followed by digits and a literal dot.
+        # Matches a string strictly beginning with "rfc" (case-insensitive)
+        # followed by digits and a literal dot.
         # Isolates the ID from filenames like rfc1234.txt.
         match = re.match(r"^rfc(\d+)\.", filename, re.IGNORECASE)
 
         return int(match.group(1)) if match else 0
 
     def _get_xml_covered_rfcs(self) -> frozenset[int]:
-        """Returns the set of RFC numbers for which an XML source file exists in raw_xml_dir.
+        """Returns the set of RFC numbers that have an existing XML source file.
 
         Used during the txt ingestion pass to skip any RFC that already has a
         higher-fidelity XML counterpart. This replaces the old hard-coded
@@ -285,7 +300,7 @@ class PipelineOrchestrator:
         )
 
     def _execute_era_ingestion(self, source_type: Literal["txt", "xml"]) -> None:
-        """Discovers, filters, and processes all RFC source files matching an execution era.
+        """Discovers, filters, and processes RFC source files matching an execution era.
 
         For the txt pass, any RFC whose number appears in the XML source directory is
         skipped — the XML pass will handle it with higher fidelity. This means the txt
@@ -293,7 +308,8 @@ class PipelineOrchestrator:
         they are automatically preferred without any configuration change.
 
         Args:
-            source_type (Literal["txt", "xml"]): Targeted source format for directory scans.
+            source_type (Literal["txt", "xml"]):
+                Targeted source format for directory scans.
         """
         if source_type == "xml":
             target_dir = self.raw_xml_dir
@@ -354,13 +370,15 @@ class PipelineOrchestrator:
             filename (str): Name of the file undergoing processing.
             success (int): Cumulative count of successfully extracted files.
             failed (int): Cumulative count of processing execution failures.
-            total (int): Total file count scheduled for processing inside the current batch.
+            total (int): Total file count scheduled for processing inside the
+                current batch.
         """
         processed = success + failed
 
         if sys.stderr.isatty():
             sys.stderr.write(
-                f"\r\033[KProcessing {log_prefix}: {filename}... Success: {success} | Failed: {failed} | Total: {total}"
+                f"\r\033[KProcessing {log_prefix}: {filename}... "
+                f"Success: {success} | Failed: {failed} | Total: {total}"
             )
             sys.stderr.flush()
         elif processed % 100 == 0 or processed == total:
@@ -374,7 +392,7 @@ class PipelineOrchestrator:
             )
 
     def _allocate_workers(self) -> int:
-        """Determines the optimal number of worker cores to allocate for parallel execution.
+        """Determines the optimal worker core allocation for parallel execution.
 
         Returns:
             int: The calculated number of CPU cores to assign to the process pool.
@@ -382,7 +400,8 @@ class PipelineOrchestrator:
         if self.max_workers is not None:
             allocated = max(1, self.max_workers)
             logger.info(
-                "Spawning concurrent environment with user-configured cap: %s CPU cores.",
+                "Spawning concurrent environment with user-configured cap: "
+                "%s CPU cores.",
                 allocated,
             )
             return allocated
@@ -396,10 +415,13 @@ class PipelineOrchestrator:
         return allocated
 
     def _process_worker_result(self, future: WorkerFuture, filename: str) -> bool:
-        """Evaluates a completed worker process, records telemetry, and returns success state.
+        """Evaluates a completed worker process and records telemetry.
+
+        Returns the operational success state of the extraction.
 
         Args:
-            future (WorkerFuture): The resolved Pebble process future containing results.
+            future (WorkerFuture):
+                The resolved Pebble process future containing results.
             filename (str): Name of the processed RFC document.
 
         Returns:
@@ -408,7 +430,10 @@ class PipelineOrchestrator:
         try:
             status, error_msg, telemetry = future.result()
         except TimeoutError:
-            timeout_err = f"Execution exceeded per-file timeout limit of {self.per_file_timeout}s."
+            timeout_err = (
+                f"Execution exceeded per-file timeout limit of "
+                f"{self.per_file_timeout}s."
+            )
             logger.warning(
                 "Worker process for %s exceeded runtime limits and was terminated.",
                 filename,
@@ -537,15 +562,17 @@ class PipelineOrchestrator:
         source_type: Literal["txt", "xml"],
         log_prefix: str,
     ) -> tuple[int, int]:
-        """Manages process pool worker allocation using a sliding task submission strategy.
+        """Manages process pool worker allocation via sliding task submission.
 
         Args:
-            target_files (list[Path]): Target collection of file paths targeted for extraction.
+            target_files (list[Path]):
+                Target collection of file paths targeted for extraction.
             source_type (Literal["txt", "xml"]): Era format selector string.
             log_prefix (str): Label prefix for progress tracking outputs.
 
         Returns:
-            tuple[int, int]: Accumulated success count and task failure count across the run.
+            tuple[int, int]: Accumulated success count and task failure count
+                across the run.
         """
         total_files = len(target_files)
         if total_files == 0:
@@ -577,14 +604,15 @@ class PipelineOrchestrator:
         finally:
             if sys.stderr.isatty():
                 sys.stderr.write(
-                    f"\r\033[K[{log_prefix}] Parallel pool complete. (Total: {total_files:,})\n"
+                    f"\r\033[K[{log_prefix}] Parallel pool complete. "
+                    f"(Total: {total_files:,})\n"
                 )
                 sys.stderr.flush()
 
         return success_count, failure_count
 
     def run_legacy_text_ingestion(self) -> None:
-        """Processes plaintext RFC documents that have no XML counterpart in raw_xml_dir.
+        """Processes plaintext RFC documents lacking a modern XML counterpart.
 
         Rather than filtering by a hard-coded RFC number ceiling, this pass dynamically
         computes which RFCs are already covered by an XML source file and skips them.
@@ -610,13 +638,16 @@ class PipelineOrchestrator:
         error_msg: str | None = None,
         precomputed_telemetry: TelemetryRecord | None = None,
     ) -> None:
-        """Appends processing records or errors directly onto the runtime orchestrator tracking ledger.
+        """Appends processing records directly onto the tracking ledger.
 
         Args:
             filename (str): Name of the targeted document file.
-            status (Literal["success", "failed"]): Operational execution state indicator.
-            error_msg (str | None): Trace string containing failure data if execution failed.
-            precomputed_telemetry (TelemetryRecord | None): Worker compiled statistical profile payload.
+            status (Literal["success", "failed"]):
+                Operational execution state indicator.
+            error_msg (str | None):
+                Trace string containing failure data if execution failed.
+            precomputed_telemetry (TelemetryRecord | None): Worker compiled
+                statistical profile payload.
         """
         if status == "success" and precomputed_telemetry is not None:
             self.telemetry_manifest.append(precomputed_telemetry)
@@ -633,7 +664,10 @@ class PipelineOrchestrator:
             })
 
     def save_manifest(self) -> None:
-        """Aggregates telemetry records to generate the final deployment contract and audit logs on disk."""
+        """Aggregates telemetry records to generate the final deployment contract.
+
+        Saves the manifest and audit logs directly to disk.
+        """
         self.telemetry_manifest.sort(
             key=lambda x: PipelineOrchestrator._extract_rfc_num(Path(x["file"]))
         )

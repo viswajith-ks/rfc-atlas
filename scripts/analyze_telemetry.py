@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 def analyze_telemetry(telemetry_log_path: Path) -> None:
-    """Parses the telemetry log file and prints an executive summary report to the console.
+    """Parses the telemetry log file and prints a summary report to the console.
 
     Args:
         telemetry_log_path (Path): Path to the JSON telemetry log file.
@@ -65,18 +65,22 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
     print(f"Total Vector Chunks (Blocks) Generated: {total_blocks:,}")
     print(f"Total Normative Rules (MUST/SHOULD/MAY): {total_normative:,}")
     print(
-        f"Average Rules per RFC:                   {total_normative // total_files if total_files else 0:,}"
+        f"Average Rules per RFC:                   "
+        f"{total_normative // total_files if total_files else 0:,}"
     )
     print("-" * 50)
     print(" CHUNKING BOUNDARIES (Character Counts):")
     print(f"Global Average Block Size: {global_avg_chars:,.0f} chars")
     print(
-        f"Largest Single Block:      {largest_block_file.get('max_block_chars', 0):,} chars (Found in {largest_block_file['file']})"
+        f"Largest Single Block:      {largest_block_file.get('max_block_chars', 0):,} "
+        f"chars (Found in {largest_block_file['file']})"
     )
 
     if valid_mins and smallest_block_file is not None:
         print(
-            f"Smallest Single Block:     {smallest_block_file.get('min_block_chars', 0):,} chars (Found in {smallest_block_file['file']})"
+            "Smallest Single Block:     "
+            f"{smallest_block_file.get('min_block_chars', 0):,} "
+            f"chars (Found in {smallest_block_file['file']})"
         )
     else:
         print(
@@ -93,12 +97,15 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
 
 
 def main() -> None:
-    """Main entry point for parsing execution arguments and launching telemetry summary logic."""
+    """Main entry point for parsing arguments and launching telemetry analysis."""
     script_dir = Path(__file__).resolve().parent
     root_dir = script_dir.parent
 
     parser = argparse.ArgumentParser(
-        description="Aggregates and formats operational runtime telemetry summaries for compiled RFC corpora."
+        description=(
+            "Aggregates and formats operational runtime telemetry summaries for "
+            "compiled RFC corpora."
+        )
     )
 
     parser.add_argument(

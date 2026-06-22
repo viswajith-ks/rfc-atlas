@@ -1,4 +1,4 @@
-"""Command-line interface execution script for running the RFC dataset ingestion pipeline."""
+"""CLI execution script for running the RFC dataset ingestion pipeline."""
 
 import argparse
 import logging
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 def main() -> None:
-    """Parses command-line arguments and coordinates parallel execution of the RFC ingestion pipeline."""
+    """Coordinates parallel execution of the RFC ingestion pipeline via CLI args."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",

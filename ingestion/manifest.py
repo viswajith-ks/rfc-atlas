@@ -1,4 +1,4 @@
-"""Data schemas for tracking dataset pipeline validation manifests and system telemetry logs."""
+"""Data schemas for dataset validation manifests and system telemetry logs."""
 
 from datetime import datetime
 from pathlib import Path
@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 
 class DatasetManifest(BaseModel):
-    """Authoritative receipt tracking validation parameters across an ingestion pipeline run."""
+    """Authoritative validation receipt across an ingestion pipeline run."""
 
     dataset_version: str
     pipeline_run_at: datetime

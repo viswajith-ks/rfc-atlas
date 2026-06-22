@@ -1,4 +1,7 @@
-"""Modern XML parser for extracting canonical structured blocks from xml2rfc v3 documents."""
+"""Modern XML parser for extracting structured blocks from xml2rfc v3 documents.
+
+Uses `lxml` to traverse strict hierarchical XML specifications natively.
+"""
 
 import logging
 from pathlib import Path
@@ -66,8 +69,10 @@ class ModernRFCParser:
             xml_filepath (Path): Path to the target RFC XML file.
 
         Raises:
-            MalformedXMLRootError: If a valid numeric RFC ID cannot be extracted from the root element.
-            etree.ParseError: If the target XML stream is structurally malformed.
+            MalformedXMLRootError:
+                If a valid numeric RFC ID cannot be extracted from the root element.
+            etree.ParseError:
+                If the target XML stream is structurally malformed.
         """
         self.xml_filepath = xml_filepath
 
@@ -88,10 +93,11 @@ class ModernRFCParser:
         self.rfc_id = int(raw_id)
 
     def parse_document(self) -> list[CanonicalBlockDict]:
-        """Executes top-level parsing across the front, middle, and back sections of the document.
+        """Executes top-level parsing across all structural document sections.
 
         Returns:
-            list[CanonicalBlockDict]: A flat list of canonical intermediate block dictionaries.
+            list[CanonicalBlockDict]:
+                A flat list of canonical intermediate block dictionaries.
         """
         blocks: list[CanonicalBlockDict] = []
 
@@ -175,13 +181,15 @@ class ModernRFCParser:
         """Resolves the breadcrumb path and section number for a given XML container.
 
         Args:
-            section_node (_Element): The current XML container node.
             node_tag (str): The local tag name of the container.
             hierarchy_path (list[str]): Accumulated list of parent section titles.
-            parent_section_number (str | None): Tracked section number passed from parent nodes.
+            parent_section_number (str | None):
+                Tracked section number passed from parent nodes.
 
         Returns:
-            tuple[str, list[str], str | None]: The formatted path string, updated path list, and current section number.
+            tuple[str, list[str], str | None]:
+                The formatted path string, updated path list, and current
+                section number.
         """
         if node_tag in {"blockquote", "aside"}:
             current_path = [*hierarchy_path, node_tag.capitalize()]
@@ -221,7 +229,8 @@ class ModernRFCParser:
             section_number (str | None): The current section number.
 
         Returns:
-            list[CanonicalBlockDict]: A list of extracted block dictionaries from the figure.
+            list[CanonicalBlockDict]:
+                A list of extracted block dictionaries from the figure.
         """
         blocks: list[CanonicalBlockDict] = []
         figure_title = ""
@@ -252,15 +261,17 @@ class ModernRFCParser:
         hierarchy_path: list[str],
         parent_section_number: str | None = None,
     ) -> list[CanonicalBlockDict]:
-        """Recursively traverses sections and structural containers to preserve block lineage.
+        """Recursively traverses structural containers to preserve block lineage.
 
         Args:
-            section_node (_Element): The current section or structural container node.
+            section_node (_Element): The current section or container node.
             hierarchy_path (list[str]): Accumulated list of parent section titles.
-            parent_section_number (str | None): Tracked section number passed from parent nodes.
+            parent_section_number (str | None):
+                Tracked section number passed from parent nodes.
 
         Returns:
-            list[CanonicalBlockDict]: Extracted blocks from this container and all nested children.
+            list[CanonicalBlockDict]:
+                Extracted blocks from this container and all nested children.
         """
         blocks: list[CanonicalBlockDict] = []
         node_tag = get_local_name(section_node)
@@ -328,7 +339,7 @@ class ModernRFCParser:
         return "".join(parts)
 
     def _normalize_inline_element(self, node: _Element) -> str:
-        """Extracts plain text from an inline element while formatting cross-reference tokens.
+        """Extracts plain text from an inline element and formats references.
 
         Args:
             node (_Element): The target XML element node containing mixed-content text.
@@ -343,14 +354,17 @@ class ModernRFCParser:
     def _extract_bibliographic_metadata(
         node: _Element, category: ReferenceCategory
     ) -> ReferenceMetadataDict:
-        """Extracts deep bibliographic structural metadata from a reference specification tag.
+        """Extracts deep bibliographic metadata from a reference specification.
 
         Args:
-            node (_Element): The XML element node matching <reference> or <referencegroup>.
-            category (ReferenceCategory): Specifier denoting the citation context category.
+            node (_Element):
+                The XML element node matching <reference> or <referencegroup>.
+            category (ReferenceCategory):
+                Specifier denoting the citation context category.
 
         Returns:
-            ReferenceMetadataDict: Structured citation data optimized for relational mapping.
+            ReferenceMetadataDict:
+                Structured citation data optimized for relational mapping.
         """
         anchor = node.get("anchor", "UNKNOWN")
         target_url = node.get("target")
@@ -521,7 +535,8 @@ class ModernRFCParser:
             section_number (str | None): Section structural location index.
 
         Returns:
-            CanonicalBlockDict: Structured intermediate block artifact matching schema boundaries.
+            CanonicalBlockDict:
+                Structured intermediate block artifact matching schema boundaries.
         """
         source_fragment = etree.tostring(
             node, encoding="unicode", pretty_print=False

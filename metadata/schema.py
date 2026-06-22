@@ -32,7 +32,7 @@ class RFCPublicationDate(BaseModel):
 
 
 class RFCIndexEntryDict(TypedDict):
-    """Dictionary schema for structured entries in the compiled metadata lookup table."""
+    """Dictionary schema for structured entries in the metadata lookup table."""
 
     rfc_number: int
     title: str

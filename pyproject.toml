@@ -55,8 +55,6 @@ select = [
     "TC", "TD", "TID", "TRY", "UP", "YTT",
 ]
 ignore = [
-    "E501",    # Line too long
-
     # Formatter Incompatibilities: Prevents looping conflicts with `ruff format`
     "COM812", "ISC001", "E203", "D206",
 
@@ -84,7 +82,8 @@ runtime-evaluated-decorators = ["pydantic.validate_call"]
 # SLF001: Allow unit tests to inspect and assert internal private helper methods
 # INP001: Allow loose test files without requiring __init__.py package markers
 # PLR2004: Allow magic values in tests for mock data and arbitrary assertions
-"tests/**/*.py" = ["S101", "D", "SLF001", "INP001", "PLR2004"]
+# E501: Allow long lines in tests for massive mock strings and assertions
+"tests/**/*.py" = ["S101", "D", "SLF001", "INP001", "PLR2004", "E501"]
 
 # T201: Allow explicit print() statements in CLI execution scripts
 # INP001: Exclude loose CLI execution directories from requiring __init__.py

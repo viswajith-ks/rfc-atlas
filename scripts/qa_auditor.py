@@ -46,13 +46,15 @@ class AuditMetrics:
 def scan_chunk_tables(
     chunks_dir: Path,
 ) -> tuple[defaultdict[str, int], int, int, list[str]]:
-    """Scans LanceDB JSONL chunk tables to calculate total chunk mass and identify boundary violations.
+    """Scans LanceDB JSONL chunk tables to calculate mass and identify boundaries.
 
     Args:
-        chunks_dir (Path): Path to the target LanceDB chunk JSONL output directory.
+        chunks_dir (Path): The directory containing the output `.jsonl` files.
 
     Returns:
-        tuple[defaultdict[str, int], int, int, list[str]]: A tuple containing the chunk mass dictionary, total chunk count, boundary warning count, and anomaly log list.
+        tuple[defaultdict[str, int], int, int, list[str]]:
+            A tuple containing the chunk mass dictionary, total chunk count,
+            boundary warning count, and anomaly log list.
     """
     chunk_mass: defaultdict[str, int] = defaultdict(int)
     anomalies: list[str] = []
@@ -68,18 +70,21 @@ def scan_chunk_tables(
                     raw_chunk: JSONNode = json.loads(line)
                 except (ValueError, KeyError) as e:
                     anomalies.append(
-                        f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: {e}"
+                        f"[JSON FATAL] Corrupted line in {jsonl_path.name} "
+                        f"at line {line_num}: {e}"
                     )
                 else:
                     # 2. Perform the honest runtime check
                     if not isinstance(raw_chunk, dict):
                         anomalies.append(
-                            f"[JSON FATAL] Corrupted line in {jsonl_path.name} at line {line_num}: Expected dict, got {type(raw_chunk).__name__}"
+                            f"[JSON FATAL] Corrupted line in {jsonl_path.name} "
+                            f"at line {line_num}: "
+                            f"Expected dict, got {type(raw_chunk).__name__}"
                         )
                         continue
 
-                    # 3. Pyright dynamically narrows raw_chunk to dict[str, JSONNode] here!
-                    # We drop `Any` completely.
+                    # 3. Pyright dynamically narrows raw_chunk to dict[str, JSONNode]
+                    # here! We drop `Any` completely.
                     chunk = raw_chunk
 
                     rfc: str = str(chunk.get("rfc_number", "unknown"))
@@ -94,11 +99,13 @@ def scan_chunk_tables(
 
                     if size > MAX_CHUNK_SIZE:
                         anomalies.append(
-                            f"[BOUNDARY FATAL] {rfc} in {jsonl_path.name} line {line_num} has {size} chars!"
+                            f"[BOUNDARY FATAL] {rfc} in {jsonl_path.name} "
+                            f"line {line_num} has {size} chars!"
                         )
                     elif size < MIN_CHUNK_SIZE:
                         anomalies.append(
-                            f"[BOUNDARY WARN] {rfc} in {jsonl_path.name} line {line_num} has only {size} chars: {text!r}"
+                            f"[BOUNDARY WARN] {rfc} in {jsonl_path.name} "
+                            f"line {line_num} has only {size} chars: {text!r}"
                         )
 
     return chunk_mass, total_chunks, tables_scanned, anomalies
@@ -111,7 +118,9 @@ def scan_normalized_files(normalized_dir: Path) -> tuple[defaultdict[str, int], 
         normalized_dir (Path): Path to the normalized JSON document directory.
 
     Returns:
-        tuple[defaultdict[str, int], int]: A tuple containing the baseline document character mass dictionary and total document count.
+        tuple[defaultdict[str, int], int]:
+            A tuple containing the baseline document character mass dictionary
+            and total document count.
     """
     norm_mass: defaultdict[str, int] = defaultdict(int)
     normalized_files: list[Path] = list(normalized_dir.glob("*.json"))
@@ -147,7 +156,8 @@ def calculate_conservation(
 
     Args:
         norm_mass (defaultdict[str, int]): The source baseline character counts per RFC.
-        chunk_mass (defaultdict[str, int]): The downstream chunked character counts per RFC.
+        chunk_mass (defaultdict[str, int]):
+            The downstream chunked character counts per RFC.
         anomalies (list[str]): The active anomaly tracking list.
 
     Returns:
@@ -173,12 +183,16 @@ def calculate_conservation(
 
         if ratio < 1.0:
             anomalies.append(
-                f"[MASS ERROR] RFC {rfc_id} lost data! Normalized: {initial_mass:,} -> Chunks: {final_mass:,} (Ratio: {ratio:.2f})"
+                f"[MASS ERROR] RFC {rfc_id} lost data! "
+                f"Normalized: {initial_mass:,} -> Chunks: {final_mass:,} "
+                f"(Ratio: {ratio:.2f})"
             )
             missing_rfcs += 1
         elif ratio > MAX_HEALTHY_EXPANSION_RATIO:
             anomalies.append(
-                f"[MASS WARN] RFC {rfc_id} bloated. Normalized: {initial_mass:,} -> Chunks: {final_mass:,} (Ratio: {ratio:.2f})"
+                f"[MASS WARN] RFC {rfc_id} bloated. "
+                f"Normalized: {initial_mass:,} -> Chunks: {final_mass:,} "
+                f"(Ratio: {ratio:.2f})"
             )
             bloated_rfcs += 1
 

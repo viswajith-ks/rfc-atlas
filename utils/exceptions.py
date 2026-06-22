@@ -26,7 +26,8 @@ class UnsupportedHostOSError(RFCAtlasError):
     def __init__(self, platform_name: str) -> None:
         """Initializes the exception."""
         super().__init__(
-            f"Operating system '{platform_name}' is unsupported. Linux is strictly required."
+            f"Operating system '{platform_name}' is unsupported. "
+            "Linux is strictly required."
         )
 
 
@@ -42,12 +43,13 @@ class MetadataIndexCompilationError(RFCAtlasError):
 
 
 class CorpusDependencyError(RFCAtlasError):
-    """Raised when a foundational protocol ledger or manifest cannot be located on disk."""
+    """Raised when a foundational protocol ledger or manifest cannot be found."""
 
     def __init__(self, expected_path: Path | str, dependency_name: str) -> None:
         """Initializes the exception."""
         super().__init__(
-            f"Required corpus dependency '{dependency_name}' missing at: {expected_path}"
+            f"Required corpus dependency '{dependency_name}' "
+            f"missing at: {expected_path}"
         )
 
 
@@ -55,22 +57,24 @@ class CorpusDependencyError(RFCAtlasError):
 
 
 class InvalidRFCNumberError(RFCAtlasError):
-    """Raised when a protocol document claims an impossible or non-positive identifier."""
+    """Raised when a protocol document claims a non-positive identifier."""
 
     def __init__(self, rfc_number: int) -> None:
         """Initializes the exception."""
         super().__init__(
-            f"Invalid RFC identifier '{rfc_number}'. Identifier must be a positive integer."
+            f"Invalid RFC identifier '{rfc_number}'. "
+            "Identifier must be a positive integer."
         )
 
 
 class MalformedFilenameError(RFCAtlasError):
-    """Raised when an input document violates the strict 'rfcXXXX.ext' naming convention."""
+    """Raised when an input document violates the 'rfcXXXX.ext' naming convention."""
 
     def __init__(self, filename: str) -> None:
         """Initializes the exception."""
         super().__init__(
-            f"Filename '{filename}' violates canonical extraction pattern 'rfc[0-9]+.ext'."
+            f"Filename '{filename}' violates canonical extraction pattern "
+            "'rfc[0-9]+.ext'."
         )
 
 
@@ -85,7 +89,7 @@ class MalformedXMLRootError(RFCAtlasError):
 
 
 class MalformedIndexXMLError(RFCAtlasError):
-    """Raised when the global RFC Index XML file is structurally corrupt or unparsable."""
+    """Raised when the global RFC Index XML file is structurally corrupt."""
 
     def __init__(self, filepath: Path | str, parse_error: Exception) -> None:
         """Initializes the exception."""

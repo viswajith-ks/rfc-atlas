@@ -1,4 +1,7 @@
-"""Telemetry script for analyzing block length distributions in normalized RFC artifacts."""
+"""Telemetry script for analyzing block length distributions.
+
+Scans normalized RFC artifacts and compiles statistical summaries.
+"""
 
 import csv
 import json
@@ -40,7 +43,8 @@ def extract_blocks_recursive(node: JSONNode, rfc_id: str) -> list[BlockLengthRec
         rfc_id: The identifier of the RFC being processed.
 
     Returns:
-        A strictly typed list of telemetry records containing block metadata and text lengths.
+        A strictly typed list of telemetry records containing block metadata
+        and text lengths.
     """
     blocks: list[BlockLengthRecord] = []
 
@@ -135,11 +139,13 @@ def print_distribution_report(
     print(f"Total Blocks Scanned : {total_blocks:,}")
     print(f"Target Chunk Limit   : {CHUNK_THRESHOLD:,} characters")
     print(
-        f"Blocks > Limit       : {over_threshold:,} ({(over_threshold / total_blocks) * 100:.2f}% of total)\n"
+        f"Blocks > Limit       : {over_threshold:,} "
+        f"({(over_threshold / total_blocks) * 100:.2f}% of total)\n"
     )
 
     print(
-        f"{'Block Type':<15} | {'Count':<8} | {'p50 (Med)':<9} | {'p95':<7} | {'Max Length':<10}"
+        f"{'Block Type':<15} | {'Count':<8} | {'p50 (Med)':<9} | "
+        f"{'p95':<7} | {'Max Length':<10}"
     )
     print("-" * 60)
 

@@ -1,4 +1,7 @@
-"""Heuristic text parser for extracting structured blocks from legacy plaintext RFCs (RFC 1 - 8649)."""
+"""Heuristic text parser for extracting structured blocks from legacy plaintext RFCs.
+
+Covers documents spanning RFC 1 through RFC 8649.
+"""
 
 import re
 from collections import deque
@@ -37,7 +40,8 @@ class LegacyTextParser:
         re.IGNORECASE,
     )
 
-    # A structurally flexible regular expression absorbing spelling and pluralization variations
+    # A structurally flexible regular expression absorbing spelling and pluralization
+    # variations for unnumbered headers.
     _UNNUMBERED_HEADERS_RE = re.compile(
         r"^(?:"
         r"abstract|"
@@ -52,8 +56,8 @@ class LegacyTextParser:
         re.IGNORECASE,
     )
 
-    # Captures numeric hierarchy headers. Group 1 grabs the dot-separated numbers (e.g., "1.2.3"),
-    # and Group 2 grabs the remaining title text.
+    # Captures numeric hierarchy headers. Group 1 grabs the dot-separated numbers
+    # (e.g., "1.2.3"), and Group 2 grabs the remaining title text.
     _NUMERIC_HEADER_RE = re.compile(r"^([0-9]+(?:\.[0-9]+)*)(?:\.|\s+)(.*)$")
 
     # Captures Appendix-style headers. Group 1 grabs "Appendix A.1",
@@ -63,8 +67,9 @@ class LegacyTextParser:
         re.IGNORECASE,
     )
 
-    # Strict Roman Numeral validation (prevents matching English words like "VALID." or "CIVIL.")
-    # Uses lookahead to ensure at least one valid char, followed by strict subtractive notation rules
+    # Strict Roman Numeral validation (prevents matching English words like "VALID").
+    # Uses lookahead to ensure at least one valid char, followed by strict
+    # subtractive notation rules.
     _ROMAN_HEADER_RE = re.compile(
         r"^(?=[MDCLXVI])(M*(?:CM|CD|D?C{0,3})(?:XC|XL|L?X{0,3})(?:IX|IV|V?I{0,3}))\.\s+(.*)$",
         re.IGNORECASE,
@@ -93,7 +98,8 @@ class LegacyTextParser:
             txt_filepath (Path): Path to the target RFC plaintext file.
 
         Raises:
-            MalformedFilenameError: If a valid numeric RFC ID cannot be extracted from the filename.
+            MalformedFilenameError:
+                If a valid numeric RFC ID cannot be extracted from the filename.
         """
         self.txt_filepath = txt_filepath
 
@@ -106,7 +112,8 @@ class LegacyTextParser:
 
         filename = self.txt_filepath.name
 
-        # Matches the literal string "rfc", captures one or more digits, and expects exactly ".txt".
+        # Matches the literal string "rfc", captures one or more digits, and expects
+        # exactly ".txt" at the end of the filename.
         # Used to defensively extract the ID from the file path.
         match = re.search(r"rfc(\d+)\.txt", filename, re.IGNORECASE)
 
@@ -180,20 +187,22 @@ class LegacyTextParser:
         return "\n".join(stitched_lines)
 
     def _split_squashed_prose(self, text: str) -> tuple[str, str | None]:
-        """Separates an inline section header from trailing body text paragraph boundaries.
+        """Separates an inline section header from trailing body text paragraphs.
 
         Args:
-            text (str): Raw line segment text found after structural tokens.
+            text (str): The raw string combining a header and paragraph body.
 
         Returns:
-            tuple[str, str | None]: Cleaned section header title and trailing prose segment if present.
+            tuple[str, str | None]:
+                Cleaned section header title and trailing prose segment if present.
         """
         if not text:
             return "", None
 
-        # Splits text where a section header has been improperly squashed against body prose.
-        # Splits on either 2+ spaces followed by a capital letter,
-        # OR a period after a lowercase letter/digit followed by a space and a capital letter.
+        # Splits text where a section header has been improperly squashed against
+        # body prose. Splits on either 2+ spaces followed by a capital letter,
+        # OR a period after a lowercase letter/digit followed by a space and a
+        # capital letter.
         squash_split = re.split(
             r"\s{2,}(?=[A-Z])|(?<=[a-z0-9]\.)\s+(?=[A-Z])", text, maxsplit=1
         )
@@ -249,7 +258,8 @@ class LegacyTextParser:
         Args:
             first_line (str): The isolated first line of the text block.
             active_lines (int): Count of non-empty lines within the block.
-            has_underline (bool): Flag indicating if the block uses underline formatting.
+            has_underline (bool):
+                Flag indicating if the block uses underline formatting.
 
         Returns:
             int: The calculated scoring modifier to apply to the base pattern score.
@@ -276,14 +286,15 @@ class LegacyTextParser:
         return modifier
 
     def _evaluate_header(self, block: str) -> tuple[bool, int, str, str | None]:
-        """Evaluates a raw block structure to determine if it functions as a section header.
+        """Evaluates a raw block structure to determine if it functions as a header.
 
         Args:
-            block (str): Target text block pulled from processing stream.
+            block (str): Multi-line string representing a single visual paragraph.
 
         Returns:
-            tuple[bool, int, str, str | None]: Classification indicator flag, structural section depth,
-                isolated header title string, and remaining trailing text paragraphs.
+            tuple[bool, int, str, str | None]:
+                Classification indicator flag, structural section depth,
+                isolated header title string, and remaining trailing paragraphs.
         """
         lines = block.split("\n")
         if not lines or not lines[0].strip():
@@ -415,10 +426,10 @@ class LegacyTextParser:
         """Constructs the breadcrumb array based on numeric or appendix patterns.
 
         Args:
-            first_line (str): First line of the evaluated header block.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
-            state (HierarchyState): Mutable state tracker containing current prefix maps and depths.
+            state (HierarchyState):
+                Mutable state tracker containing current prefix maps and depths.
 
         Returns:
             list[str]: The reconstructed list of hierarchical breadcrumbs.
@@ -465,10 +476,10 @@ class LegacyTextParser:
         """Resolves the document hierarchy path and mutates tracking state in place.
 
         Args:
-            first_line (str): First line of the evaluated header block.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
-            state (HierarchyState): Mutable state tracker for hierarchical breadcrumb resolution.
+            state (HierarchyState):
+                Mutable state tracker for hierarchical breadcrumb resolution.
 
         Returns:
             list[str]: The newly reconstructed path array.
@@ -532,7 +543,7 @@ class LegacyTextParser:
         }
 
     def _extract_blocks(self, clean_text: str) -> list[CanonicalBlockDict]:
-        """Segments layout rows into contextual text chunks based on formatting profiles.
+        """Segments layout rows into contextual text chunks based on format profiles.
 
         Args:
             clean_text (str): Cleaned unified plain text document stream.
@@ -580,7 +591,8 @@ class LegacyTextParser:
         """Triggers the step-by-step extraction workflow across loaded file strings.
 
         Returns:
-            list[CanonicalBlockDict]: Flat list of unified, parsed block dictionary entities.
+            list[CanonicalBlockDict]:
+                Flat list of unified, parsed block dictionary entities.
         """
         clean_text = self._strip_pagination(self.raw_text)
         return self._extract_blocks(clean_text)

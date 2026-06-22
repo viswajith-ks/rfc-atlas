@@ -56,7 +56,9 @@ def get_child_text_by_local_name(parent: _Element, tag_name: str) -> str | None:
         tag_name (str): The local tag name target.
 
     Returns:
-        str | None: Cleaned inner string payload if the node exists and contains text, else None.
+        str | None:
+            Cleaned inner string payload if the node exists and contains text,
+            else None.
     """
     child = find_child_by_local_name(parent, tag_name)
 

@@ -11,12 +11,12 @@ from normalization.schema import (
 
 
 class NormativeExtractor:
-    """Scans intermediate text blocks to isolate and normalize BCP-14 requirement keywords."""
+    """Scans intermediate blocks to isolate and normalize BCP-14 keywords."""
 
     _VALID_KEYWORDS = frozenset(get_args(NormativeKeyword))
 
-    # Strict word-boundary match for exact BCP-14 compliance keywords to prevent partial matches
-    # (e.g., catching "MUST" without catching "MUSTARD").
+    # Strict word-boundary match for exact BCP-14 compliance keywords to prevent
+    # partial matches (e.g., catching "MUST" without catching "MUSTARD").
     _KEYWORD_PATTERN = re.compile(
         r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|NOT\s+RECOMMENDED|RECOMMENDED|MAY|OPTIONAL)\b"
     )
@@ -57,7 +57,7 @@ class NormativeExtractor:
             hierarchy_path (str): The full breadcrumb trajectory text path string.
 
         Returns:
-            bool: True if the section context matches an exclusion constraint, else False.
+            bool: True if the context matches an exclusion constraint, else False.
         """
         parts = hierarchy_path.split(" > ")
 
@@ -66,8 +66,9 @@ class NormativeExtractor:
 
         current_section = parts[-1]
         clean_section = (
-            # Matches hierarchy paths starting with "appendix" followed by a space, alphanumeric characters/dots,
-            # and trailing spaces. Used to cleanly strip appendix prefixes for section evaluations.
+            # Matches hierarchy paths starting with "appendix" followed by a space,
+            # alphanumeric characters/dots, and trailing spaces. Used to cleanly
+            # strip appendix prefixes for section evaluations.
             re
             .sub(
                 r"^(appendix\s+[a-z0-9.]+\s*)", "", current_section, flags=re.IGNORECASE
@@ -87,7 +88,8 @@ class NormativeExtractor:
             blocks (list[CanonicalBlockDict]): A list of target intermediate block maps.
 
         Returns:
-            list[CanonicalBlockDict]: Processed block collection records with added normative statements.
+            list[CanonicalBlockDict]:
+                Processed block collection records with added normative statements.
         """
         enriched_blocks: list[CanonicalBlockDict] = []
         target_block_types = ("prose", "security", "list", "table")
