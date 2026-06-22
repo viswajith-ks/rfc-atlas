@@ -149,7 +149,7 @@ def print_distribution_report(
         p50: int = int(statistics.median(lengths)) if count > 0 else 0
         p95: int = (
             int(statistics.quantiles(lengths, n=100)[94])
-            if count >= 2
+            if count >= 2  # noqa: PLR2004
             else (lengths[0] if count == 1 else 0)
         )
         max_len: int = max(lengths) if count > 0 else 0

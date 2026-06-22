@@ -81,6 +81,10 @@ class LegacyTextParser:
     _CONFIDENCE_MODERN: float = 0.8
     _CONFIDENCE_EARLY: float = 0.6
     _EARLY_RFC_THRESHOLD: int = 1000
+    _MAX_INLINE_HEADER_WORDS: int = 6
+    _MAX_UPPERCASE_HEADER_LEN: int = 60
+    _HEADER_PENALTY_LENGTH: int = 120
+    _MIN_ABNF_SCORE: int = 8
 
     def __init__(self, txt_filepath: Path) -> None:
         """Initializes the parser and loads the plaintext document into memory.
@@ -175,8 +179,7 @@ class LegacyTextParser:
 
         return "\n".join(stitched_lines)
 
-    @staticmethod
-    def _split_squashed_prose(text: str) -> tuple[str, str | None]:
+    def _split_squashed_prose(self, text: str) -> tuple[str, str | None]:
         """Separates an inline section header from trailing body text paragraph boundaries.
 
         Args:
@@ -195,7 +198,10 @@ class LegacyTextParser:
             r"\s{2,}(?=[A-Z])|(?<=[a-z0-9]\.)\s+(?=[A-Z])", text, maxsplit=1
         )
 
-        if len(squash_split) == 2 and len(squash_split[0].split()) <= 6:
+        if (
+            len(squash_split) == 2  # noqa: PLR2004
+            and len(squash_split[0].split()) <= self._MAX_INLINE_HEADER_WORDS
+        ):
             return squash_split[0].strip(), squash_split[1].strip()
 
         return text, None
@@ -235,9 +241,8 @@ class LegacyTextParser:
 
         return 0, 1, first_line, None
 
-    @staticmethod
     def _calculate_header_modifiers(
-        first_line: str, active_lines: int, *, has_underline: bool
+        self, first_line: str, active_lines: int, *, has_underline: bool
     ) -> int:
         """Calculates positive and negative scoring modifiers for a potential header.
 
@@ -254,10 +259,10 @@ class LegacyTextParser:
         if has_underline:
             modifier += 10
 
-        if first_line.isupper() and len(first_line) < 60:
+        if first_line.isupper() and len(first_line) < self._MAX_UPPERCASE_HEADER_LEN:
             modifier += 4
 
-        if active_lines == 1 or (has_underline and active_lines == 2):
+        if active_lines == 1 or (has_underline and active_lines == 2):  # noqa: PLR2004
             modifier += 4
 
         if first_line.endswith((",", ";")) or re.search(
@@ -265,7 +270,7 @@ class LegacyTextParser:
         ):
             modifier -= 6
 
-        if len(first_line) > 120:
+        if len(first_line) > self._HEADER_PENALTY_LENGTH:
             modifier -= 12
 
         return modifier
@@ -285,7 +290,7 @@ class LegacyTextParser:
             return False, 0, "", None
 
         first_line = lines[0].strip()
-        has_underline = len(lines) >= 2 and bool(
+        has_underline = len(lines) >= 2 and bool(  # noqa: PLR2004
             re.match(r"^[-=_\s]{3,}$", lines[1].strip())
         )
 
@@ -393,7 +398,7 @@ class LegacyTextParser:
         rule_assignments = re.findall(r"^\s*[a-zA-Z0-9-]+\s*=\s*", block, re.MULTILINE)
         score += len(rule_assignments) * 2
 
-        if "[" in block and "]" in block and len(rule_assignments) < 2:
+        if "[" in block and "]" in block and len(rule_assignments) < 2:  # noqa: PLR2004
             score -= 5
         if re.search(r"^\s*(?:if|export|set|chown|chmod)\b", block, re.MULTILINE):
             score -= 8
@@ -507,7 +512,7 @@ class LegacyTextParser:
 
         if is_indented:
             abnf_score = self._calculate_abnf_score(block)
-            block_type = "abnf" if abnf_score >= 8 else "artwork"
+            block_type = "abnf" if abnf_score >= self._MIN_ABNF_SCORE else "artwork"
             normalized_text = block
         else:
             normalized_text = " ".join(block.split())
