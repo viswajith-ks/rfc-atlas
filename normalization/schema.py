@@ -8,6 +8,7 @@ from pydantic import (
     Field,
     SerializerFunctionWrapHandler,
     model_serializer,
+    model_validator,
 )
 
 from metadata.schema import RFCPublicationDate
@@ -243,11 +244,31 @@ class NormalizedRFC(BaseModel):
     sections: list[Section]
     preface_blocks: list[Block] = Field(default=[])
 
+    @model_validator(mode="after")
+    def _enforce_id_parity(self) -> "NormalizedRFC":
+        """Ensures the root ID matches the metadata ID to prevent relational drift.
+
+        Returns:
+            NormalizedRFC: The validated model instance.
+
+        Raises:
+            ValueError: If the root rfc_id does not exactly match the metadata.rfc_number.
+        """
+        if self.rfc_id != self.metadata.rfc_number:
+            msg = (
+                f"ID mismatch: root rfc_id ({self.rfc_id}) does not match "
+                f"metadata.rfc_number ({self.metadata.rfc_number})"
+            )
+            raise ValueError(msg)
+        return self
+
     def save_to_disk(self, filepath: Path) -> None:
-        """Serializes the canonical RFC artifact to a JSON file on disk with strict field routing.
+        """Serializes the canonical RFC artifact to a JSON file on disk atomically.
 
         Omit sparse structural block fields (`sourcecode_type`, `actor`) while preserving
         explicit null markers for relational metadata parameters (`protocol_family`).
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        tmp_filepath = filepath.with_suffix(filepath.suffix + ".tmp")
+        tmp_filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
+        Path(tmp_filepath).replace(filepath)

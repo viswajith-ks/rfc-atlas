@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import TextIO
 
 from pebble import ProcessPool
+from pydantic import ValidationError
 
 from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
 from normalization.schema import Block, NormalizedRFC, RFCMetadata
@@ -96,7 +97,7 @@ class BatchChunker:
             doc_model = NormalizedRFC.model_validate_json(raw_json_text)
             rfc_number: int = doc_model.metadata.rfc_number
             rfc_metadata = doc_model.metadata
-        except (OSError, ValueError, KeyError):
+        except (OSError, ValueError, KeyError, ValidationError):
             logger.exception("[Batch %s] Failed on %s", self.batch_id, filepath.name)
         else:
             for block in doc_model.preface_blocks:

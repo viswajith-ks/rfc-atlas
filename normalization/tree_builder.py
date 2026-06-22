@@ -4,7 +4,6 @@ import hashlib
 import json
 import logging
 from pathlib import Path
-from typing import get_args
 
 from metadata.schema import RFCIndexEntryDict, RFCPublicationDate
 from normalization.schema import (
@@ -14,7 +13,6 @@ from normalization.schema import (
     CanonicalBlockDict,
     ExtractedStatementDict,
     NormalizedRFC,
-    NormativeKeyword,
     NormativeStatement,
     RFCMetadata,
     Section,
@@ -43,8 +41,6 @@ class CanonicalTreeBuilder:
 
         with lookup_path.open(encoding="utf-8") as f:
             self.metadata_lookup: dict[str, RFCIndexEntryDict] = json.load(f)
-
-        self.valid_keywords = frozenset(get_args(NormativeKeyword))
 
     @staticmethod
     def _parse_section_path(
@@ -141,8 +137,9 @@ class CanonicalTreeBuilder:
             protocol_family=meta_dict.get("protocol_family"),
         )
 
+    @staticmethod
     def _build_normative_list(
-        self, raw_statements: list[ExtractedStatementDict]
+        raw_statements: list[ExtractedStatementDict],
     ) -> list[NormativeStatement]:
         """Filters and maps raw keyword dictionaries into validated Pydantic models.
 
@@ -152,16 +149,12 @@ class CanonicalTreeBuilder:
         Returns:
             list[NormativeStatement]: Validated normative statement Pydantic model objects.
         """
-        normative_stmts: list[NormativeStatement] = []
-        for stmt in raw_statements:
-            kw = stmt["keyword"]
-            if kw in self.valid_keywords:
-                normative_stmts.append(
-                    NormativeStatement(
-                        keyword=kw, statement_text=stmt["statement_text"]
-                    )
-                )
-        return normative_stmts
+        return [
+            NormativeStatement(
+                keyword=stmt["keyword"], statement_text=stmt["statement_text"]
+            )
+            for stmt in raw_statements
+        ]
 
     def build_tree(
         self,

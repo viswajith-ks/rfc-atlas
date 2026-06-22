@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 class ModernRFCParser:
     """Structural parser for xml2rfc v3 compliant RFC documents (RFC 8650+)."""
 
-    _TARGET_TAGS = frozenset([
+    _TARGET_TAGS = frozenset({
         "t",
         "sourcecode",
         "artwork",
@@ -39,7 +39,7 @@ class ModernRFCParser:
         "ul",
         "ol",
         "dl",
-    ])
+    })
 
     _INFORMATIVE_TOKENS = frozenset({
         "informative",
@@ -239,7 +239,7 @@ class ModernRFCParser:
 
                 if figure_title:
                     block["normalized_text"] = (
-                        f"[{figure_title}] \n{block['normalized_text']}"
+                        f"[{figure_title}]\n{block['normalized_text']}"
                     )
 
                 blocks.append(block)
@@ -275,7 +275,13 @@ class ModernRFCParser:
             if tag == "name":
                 continue
 
-            if tag in {"section", "references", "blockquote", "aside"}:
+            if tag in {
+                "section",
+                "references",
+                "referencegroup",
+                "blockquote",
+                "aside",
+            }:
                 blocks.extend(self._parse_section(child, current_path, section_number))
 
             elif tag in self._TARGET_TAGS:
@@ -438,7 +444,7 @@ class ModernRFCParser:
         title = "Untitled"
         if title_nodes:
             raw_title = "".join(str(t) for t in title_nodes[0].itertext())
-            if cleaned := raw_title.strip():
+            if cleaned := " ".join(raw_title.split()):
                 title = cleaned
 
         author_nodes = [n for n in node.iter() if get_local_name(n) == "author"]
@@ -458,10 +464,11 @@ class ModernRFCParser:
         )
         context_string = f"{path_lower} {parent_anchor}"
 
+        category: ReferenceCategory
         if any(tok in context_string for tok in self._NORMATIVE_TOKENS):
-            category: ReferenceCategory = "Normative"
+            category = "Normative"
         else:
-            category: ReferenceCategory = "Informative"
+            category = "Informative"
 
         ref_meta = self._extract_bibliographic_metadata(node, category)
         return normalized_text, ref_meta

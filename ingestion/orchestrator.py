@@ -69,10 +69,7 @@ def _run_worker_logic(
     )
 
     output_path = output_dir / f"rfc{rfc_num}_normalized.json"
-    tmp_output_path = output_dir / f"rfc{rfc_num}_normalized.tmp"
-
-    canonical_tree.save_to_disk(tmp_output_path)
-    Path(tmp_output_path).replace(output_path)
+    canonical_tree.save_to_disk(output_path)
 
     all_instantiated_blocks = canonical_tree.preface_blocks + [
         block for section in canonical_tree.sections for block in section.blocks
@@ -107,17 +104,7 @@ def _execute_rfc_parsing_worker(
     Returns:
         tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]: Execution status,
             error message string if failed, and telemetry metrics if successful.
-
-    Raises:
-        RuntimeError: If the worker process loses access to the global initialized state.
     """
-    if PipelineOrchestrator.worker_tree_builder is None:
-        msg = (
-            "FATAL: CoW global memory lost. Worker initialized improperly! "
-            "Ensure your OS supports 'fork' multiprocessing contexts."
-        )
-        raise RuntimeError(msg)
-
     try:
         telemetry_record = _run_worker_logic(filepath, rfc_num, source_type, output_dir)
     except Exception:
@@ -648,7 +635,7 @@ class PipelineOrchestrator:
     def save_manifest(self) -> None:
         """Aggregates telemetry records to generate the final deployment contract and audit logs on disk."""
         self.telemetry_manifest.sort(
-            key=lambda x: self._extract_rfc_num(Path(x["file"]))
+            key=lambda x: PipelineOrchestrator._extract_rfc_num(Path(x["file"]))
         )
         logger.info("Compiling Final Dataset Manifest...")
 
