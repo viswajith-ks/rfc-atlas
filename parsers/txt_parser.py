@@ -175,7 +175,8 @@ class LegacyTextParser:
 
         return "\n".join(stitched_lines)
 
-    def _split_squashed_prose(self, text: str) -> tuple[str, str | None]:
+    @staticmethod
+    def _split_squashed_prose(text: str) -> tuple[str, str | None]:
         """Separates an inline section header from trailing body text paragraph boundaries.
 
         Args:
@@ -234,8 +235,9 @@ class LegacyTextParser:
 
         return 0, 1, first_line, None
 
+    @staticmethod
     def _calculate_header_modifiers(
-        self, first_line: str, active_lines: int, *, has_underline: bool
+        first_line: str, active_lines: int, *, has_underline: bool
     ) -> int:
         """Calculates positive and negative scoring modifiers for a potential header.
 
@@ -362,7 +364,8 @@ class LegacyTextParser:
 
         return merged_blocks
 
-    def _calculate_abnf_score(self, block: str) -> int:
+    @staticmethod
+    def _calculate_abnf_score(block: str) -> int:
         """Calculates the likelihood that a block contains ABNF syntax heuristics.
 
         Args:

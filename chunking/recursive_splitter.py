@@ -40,7 +40,8 @@ class BatchChunker:
         self.chunks_generated: int = 0
         self.handles: dict[str, TextIO] = {}
 
-    def split_text_with_overlap(self, text: str) -> list[str]:
+    @staticmethod
+    def split_text_with_overlap(text: str) -> list[str]:
         """Splits continuous text strings using a sliding window with overlap.
 
         Calculates split boundaries prioritizing newlines or spaces to avoid

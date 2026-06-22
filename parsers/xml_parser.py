@@ -76,7 +76,8 @@ class ModernRFCParser:
             self.root = self.tree.getroot()
         except etree.ParseError:
             logger.exception(
-                f"CRITICAL ERROR: Modern XML Ingestion Parsing Failed for document: {self.xml_filepath}."
+                "CRITICAL ERROR: Modern XML Ingestion Parsing Failed for document: %s.",
+                self.xml_filepath,
             )
             raise
 
@@ -127,7 +128,8 @@ class ModernRFCParser:
 
         return blocks
 
-    def _extract_table_as_markdown(self, table_elem: _Element) -> str:
+    @staticmethod
+    def _extract_table_as_markdown(table_elem: _Element) -> str:
         """Converts XML table structure to a lightweight Markdown string.
 
         Iterates through table rows, normalizing header and data cells to maintain
@@ -163,8 +165,8 @@ class ModernRFCParser:
 
         return "\n".join(lines)
 
+    @staticmethod
     def _resolve_node_path(
-        self,
         section_node: _Element,
         node_tag: str,
         hierarchy_path: list[str],
@@ -331,8 +333,9 @@ class ModernRFCParser:
         raw_text = self._extract_inline_text(node)
         return " ".join(raw_text.split())
 
+    @staticmethod
     def _extract_bibliographic_metadata(
-        self, node: _Element, category: ReferenceCategory
+        node: _Element, category: ReferenceCategory
     ) -> ReferenceMetadataDict:
         """Extracts deep bibliographic structural metadata from a reference specification tag.
 
@@ -463,8 +466,9 @@ class ModernRFCParser:
         ref_meta = self._extract_bibliographic_metadata(node, category)
         return normalized_text, ref_meta
 
+    @staticmethod
     def _resolve_block_type_and_format(
-        self, tag: str, raw_lang: str | None, path_lower: str
+        tag: str, raw_lang: str | None, path_lower: str
     ) -> tuple[IntermediateBlockType, SourcecodeFormat | None]:
         """Resolves the intermediate block type and specific sourcecode format.
 

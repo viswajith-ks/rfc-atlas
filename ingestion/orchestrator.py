@@ -223,7 +223,7 @@ class PipelineOrchestrator:
         """
         if not config.raw_index_path.exists():
             logger.critical(
-                f"Foundational raw RFC Index file not found: {config.raw_index_path}"
+                "Foundational raw RFC Index file not found: %s", config.raw_index_path
             )
             raise CorpusDependencyError(config.raw_index_path, "RFC Index XML")
 
@@ -329,8 +329,8 @@ class PipelineOrchestrator:
             # by the subsequent xml pass, so we skip it entirely in the txt pass.
             xml_covered = self._get_xml_covered_rfcs()
             logger.info(
-                f"Found {len(xml_covered):,} XML-covered RFCs. "
-                f"Their txt counterparts will be skipped."
+                "Found %s XML-covered RFCs. Their txt counterparts will be skipped.",
+                f"{len(xml_covered):,}",
             )
 
             raw_files = list(target_dir.glob(glob_pattern))
@@ -350,11 +350,15 @@ class PipelineOrchestrator:
 
         logger.info("-" * 50)
         logger.info(
-            f"--- {log_prefix.upper()} ERA COMPLETE | Success: {success} | Failed: {failed} ---"
+            "--- %s ERA COMPLETE | Success: %s | Failed: %s ---",
+            log_prefix.upper(),
+            success,
+            failed,
         )
 
+    @staticmethod
     def _print_progress_ticker(
-        self, log_prefix: str, filename: str, success: int, failed: int, total: int
+        log_prefix: str, filename: str, success: int, failed: int, total: int
     ) -> None:
         """Outputs a unified pipeline processing ticker directly to stderr.
 
@@ -374,7 +378,12 @@ class PipelineOrchestrator:
             sys.stderr.flush()
         elif processed % 100 == 0 or processed == total:
             logger.info(
-                f"[{log_prefix}] {processed:,}/{total:,} files processed (Success: {success}, Failed: {failed})"
+                "[%s] %s/%s files processed (Success: %s, Failed: %s)",
+                log_prefix,
+                f"{processed:,}",
+                f"{total:,}",
+                success,
+                failed,
             )
 
     def _allocate_workers(self) -> int:
@@ -658,7 +667,7 @@ class PipelineOrchestrator:
             pipeline_run_at=now,
             parser_version=self.parser_version,
             chunking_version=self.chunking_version,
-            # TODO: Populate embedding_model during Phase 3 pipeline integration
+            # TODO: Populate embedding_model during embedding phase
             embedding_model=None,
             total_rfcs_indexed=len(successful),
             total_blocks_generated=total_blocks,
@@ -668,9 +677,9 @@ class PipelineOrchestrator:
         )
 
         manifest.save_to_disk(self.dataset_manifest_path)
-        logger.info(f"Receipt saved to {self.dataset_manifest_path}.")
+        logger.info("Receipt saved to %s.", self.dataset_manifest_path)
 
         self.telemetry_log_path.write_text(
             json.dumps(self.telemetry_manifest, indent=2), encoding="utf-8"
         )
-        logger.info(f"Telemetry log saved to {self.telemetry_log_path}.")
+        logger.info("Telemetry log saved to %s.", self.telemetry_log_path)

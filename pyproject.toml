@@ -64,11 +64,9 @@ ignore = [
     # Redundant or Unsafe Pylint Rules: keep the safer Flake8 equivalents
     "PLR1711",
 
-    # Wave 2 Diplomatic Immunities (Dogmatic rules that harm domain modeling)
-    "PLR6301", # no-self-use: Forcing @staticmethod degrades class inheritance
-    "G004",    # logging-f-string: Modern Python 3.11+ f-strings are preferred
-    "FIX",     # flake8-fixme: Allow TODO comments for Phase 3 roadmap tracking
-    "TD",      # flake8-todos: Aesthetically overly restrictive TODO formatting
+    # flake8-todos: Aesthetically overly restrictive TODO formatting
+    "TD002",
+    "TD003",
 
     # Docstring constraints
     "D417", # Redundant Docstring Check: The new DOC suite does this better

@@ -1,4 +1,4 @@
-"""Automated Quality Assurance Auditor for Phase 2 Chunking.
+"""Automated Quality Assurance Auditor for Chunking phase.
 
 Validates chunk boundary limits and verifies the conservation of mass
 between normalized JSON artifacts and generated LanceDB JSONL chunks.
@@ -222,7 +222,7 @@ def run_audit() -> None:
     report_file_path: Path = LOGS_DIR / "qa_audit_report.txt"
 
     print("====================================================")
-    print(" INITIATING PHASE 2 PIPELINE QA AUDIT")
+    print(" INITIATING PIPELINE QA AUDIT")
     print(f" Report will be saved to: {report_file_path}")
     print("====================================================\n")
 

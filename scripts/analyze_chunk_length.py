@@ -129,7 +129,7 @@ def print_distribution_report(
         lengths_by_type (dict[str, list[int]]): Lengths grouped by block classification.
     """
     print("\n" + "=" * 50)
-    print(" 📊 PHASE 2: BLOCK LENGTH TELEMETRY REPORT")
+    print(" 📊 BLOCK LENGTH TELEMETRY REPORT")
     print("=" * 50)
     print(f"Total Blocks Scanned : {total_blocks:,}")
     print(f"Target Chunk Limit   : {CHUNK_THRESHOLD:,} characters")

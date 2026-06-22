@@ -53,7 +53,8 @@ class RFCIndexParser:
         self.output_path = output_path
         self.metadata_dict: dict[str, RFCIndexEntryDict] = {}
 
-    def _clean_doc_id(self, doc_id: str) -> int:
+    @staticmethod
+    def _clean_doc_id(doc_id: str) -> int:
         """Extracts the numeric identifier from a raw document ID string.
 
         Args:
@@ -70,7 +71,8 @@ class RFCIndexParser:
         match = re.search(r"RFC(\d+)", doc_id, re.IGNORECASE)
         return int(match.group(1)) if match else 0
 
-    def _extract_date(self, entry: _Element) -> RFCPublicationDateDict | None:
+    @staticmethod
+    def _extract_date(entry: _Element) -> RFCPublicationDateDict | None:
         """Extracts and normalizes the publication date from an RFC entry node.
 
         Args:
@@ -100,7 +102,8 @@ class RFCIndexParser:
 
         return {"year": year_val, "month": month_val}
 
-    def _extract_authors(self, entry: _Element) -> list[str]:
+    @staticmethod
+    def _extract_authors(entry: _Element) -> list[str]:
         """Extracts the list of author names from an RFC entry node.
 
         Args:
@@ -198,7 +201,7 @@ class RFCIndexParser:
         if not self.xml_path.exists():
             raise CorpusDependencyError(self.xml_path, "RFC Index XML")
 
-        logger.info(f"Parsing RFC Index XML from {self.xml_path}...")
+        logger.info("Parsing RFC Index XML from %s...", self.xml_path)
 
         try:
             context = etree.iterparse(
