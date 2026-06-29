@@ -14,7 +14,9 @@ dependencies = [
     "pydantic==2.13.4",
     "lxml==6.1.1",
     "lxml-stubs==0.5.1",
-    "pebble==5.2.0"
+    "pebble==5.2.0",
+    "kaggle==2.2.3",
+    "tenacity==9.1.4",
 ]
 
 [project.optional-dependencies]
@@ -25,7 +27,7 @@ dev = [
     "pyright==1.1.410"
 ]
 
-retrieval = [
+vector_store = [
     "lancedb==0.33.0",
     "pyarrow==24.0.0",
     "tantivy==0.26.0",
@@ -37,7 +39,7 @@ retrieval = [
 [tool.setuptools.packages.find]
 include = [
     "chunking*", "evaluation*", "graph*", "ingestion*", "metadata*",
-    "normalization*", "parsers*", "retrieval*", "scripts*", "utils*"
+    "normalization*", "parsers*", "retrieval*", "vector_store*", "scripts*", "utils*"
 ]
 exclude = [
     "data*", "notebooks*", "tests*"
