@@ -88,6 +88,10 @@ class BatchChunker:
 
             next_start: int = end - OVERLAP_SIZE
 
+            # Pathological Input Guard: If a single unbroken word exceeds
+            # CHUNK_SIZE_LIMIT(e.g., base64 dumps or massive compound words),
+            # window rollback can stall. Force a minimum 1-char forward step
+            # to guarantee loop termination.
             if next_start <= start:
                 next_start = start + 1
 
@@ -298,11 +302,12 @@ def gather_files(
                     with worker_tmp_path.open("rb") as tmp_file:
                         shutil.copyfileobj(tmp_file, master_file)
                 else:
-                    sys.stderr.write(
-                        f"\n[WARN] Batch {batch_id} truncated or failed for "
-                        f"table '{table_name}' — skipping corrupted fragment.\n"
+                    logger.warning(
+                        "Batch %s truncated or failed for table '%s' — "
+                        "skipping corrupted fragment.",
+                        batch_id,
+                        table_name,
                     )
-                    sys.stderr.flush()
 
         Path(tmp_master_path).replace(master_path)
 

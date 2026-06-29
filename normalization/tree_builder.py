@@ -123,10 +123,7 @@ class CanonicalTreeBuilder:
         parsed_date = None
 
         if pub_date_dict is not None:
-            parsed_date = RFCPublicationDate(
-                year=pub_date_dict["year"],
-                month=pub_date_dict["month"],
-            )
+            parsed_date = RFCPublicationDate(**pub_date_dict)
 
         return RFCMetadata(
             rfc_number=rfc_number,

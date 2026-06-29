@@ -14,6 +14,7 @@ class NormativeExtractor:
     """Scans intermediate blocks to isolate and normalize BCP-14 keywords."""
 
     _VALID_KEYWORDS = frozenset(get_args(NormativeKeyword))
+    _NOISE_WORD_LENGTH = 12
 
     # Strict word-boundary match for exact BCP-14 compliance keywords to prevent
     # partial matches (e.g., catching "MUST" without catching "MUSTARD").
@@ -21,8 +22,15 @@ class NormativeExtractor:
         r"\b(MUST\s+NOT|MUST|REQUIRED|SHALL\s+NOT|SHALL|SHOULD\s+NOT|SHOULD|NOT\s+RECOMMENDED|RECOMMENDED|MAY|OPTIONAL)\b"
     )
 
-    # NLP regex to safely split block text into individual sentences
-    _SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+    # NLP regex safely splitting sentences while ignoring common standards abbreviations
+    # (grouped by character width to satisfy Python's fixed-width lookbehind rules).
+    _SENTENCE_SPLIT_RE = re.compile(
+        r"(?<!\b(?:e\.g|i\.e|Sec|Fig|RFC|Ref|App|Vol|Eqs))"  # 3-letter abbreviations
+        r"(?<!\b(?:vs|Eq|No|pp|ch|SP))"  # 2-letter abbreviations
+        r"(?<!\b(?:Sect|Figs|Refs|Apps|prop))"  # 4-letter abbreviations
+        r"(?<!\b\d)"  # Decimal points (e.g., 3.14.)
+        r"(?<=[.!?])\s+"
+    )
 
     _NORMALIZATION_MAP: ClassVar[dict[str, NormativeKeyword]] = {
         "MUST": "MUST",
@@ -102,6 +110,9 @@ class NormativeExtractor:
                 extracted_statements: list[ExtractedStatementDict] = []
 
                 for sentence in sentences:
+                    clean_sentence = sentence.strip()
+                    if len(clean_sentence) < self._NOISE_WORD_LENGTH:
+                        continue
                     for match in self._KEYWORD_PATTERN.finditer(sentence):
                         kw = " ".join(match.group(0).split())
 

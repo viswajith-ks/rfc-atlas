@@ -39,17 +39,20 @@ FLUSH_BUFFER_ROWS: int = 65_536
 SHARD_FILE_ROWS: int = 131_072
 EPSILON: float = 1e-12
 
-KAGGLE_OUT_DIR = Path("/kaggle/working/parquet_vectors")
-KAGGLE_SCRATCH_DIR = Path("/kaggle/working/scratch_parquet")
-_KAGGLE_BASE_INPUT = Path("/kaggle/input")
+KAGGLE_OUT_DIR = Path(
+    os.environ.get("RFC_ATLAS_OUT_DIR", "/kaggle/working/parquet_vectors")
+)
+KAGGLE_SCRATCH_DIR = Path(
+    os.environ.get("RFC_ATLAS_SCRATCH_DIR", "/kaggle/working/scratch_parquet")
+)
+_BASE_INPUT = Path(os.environ.get("RFC_ATLAS_IN_DIR", "/kaggle/input"))
 
 try:
-    kaggle_in_dir = next(_KAGGLE_BASE_INPUT.rglob("*.jsonl")).parent
+    _resolved_in = next(_BASE_INPUT.rglob("*.jsonl")).parent
 except StopIteration:
-    kaggle_in_dir = _KAGGLE_BASE_INPUT
+    _resolved_in = _BASE_INPUT
 
-KAGGLE_IN_DIR = kaggle_in_dir
-
+KAGGLE_IN_DIR = _resolved_in
 KAGGLE_OUT_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = KAGGLE_OUT_DIR / "embedder_telemetry.log"
 
