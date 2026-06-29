@@ -69,7 +69,7 @@ def run_audit() -> None:
         results: list[dict[str, Any]] = (  # pyright: ignore[reportUnknownVariableType]
             prose_tbl
             .search(query, query_type="fts")  # pyright: ignore[reportUnknownMemberType]
-            .select(["chunk_id", "rfc_number", "text_payload"])
+            .select(["chunk_id", "rfc_number", "text_payload", "_score"])
             .limit(3)
             .to_list()
         )
@@ -79,9 +79,11 @@ def run_audit() -> None:
         return
 
     for idx, row in enumerate(results, 1):
+        score: float = float(row.get("_score", 0.0))
         logger.info(
-            "Match #%d | RFC %s | Chunk: %s",
+            "Match #%d (BM25 Score: %.2f) | RFC %s | Chunk: %s",
             idx,
+            score,
             row["rfc_number"],
             row["chunk_id"],
         )

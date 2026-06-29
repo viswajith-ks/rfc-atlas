@@ -179,6 +179,8 @@ def _sync_single_table(
     if table_new_chunks == 0:
         logger.info("⏭️ %s: No new chunks to add.", table_name)
     else:
+        logger.info("🧹 Compacting storage fragments & healing HNSW graph...")
+        lance_table.optimize()
         logger.info(
             "✅ %s: Appended %s new chunks.", table_name, f"{table_new_chunks:,}"
         )

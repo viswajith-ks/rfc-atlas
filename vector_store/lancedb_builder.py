@@ -42,12 +42,13 @@ def _build_indices(lance_table: LanceTable, total_rows: int) -> None:
     if total_rows > HNSW_ROW_THRESHOLD:
         logger.info("Training HNSW Graph Index (Max Quality)...")
         start_time = time.time()
+        calculated_partitions = max(16, int(total_rows // 4096))
 
         lance_table.create_index(
             vector_column_name="vector",
             metric="l2",
             index_type="IVF_HNSW_SQ",
-            num_partitions=1024,
+            num_partitions=calculated_partitions,
             m=32,
             ef_construction=200,
             replace=True,
