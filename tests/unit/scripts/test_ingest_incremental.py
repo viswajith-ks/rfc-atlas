@@ -8,11 +8,15 @@ import numpy as np
 import pyarrow as pa
 import pytest
 
+from rfc_atlas.vector_store.schema import (
+    LANCE_CHUNK_SCHEMA,
+    VECTOR_DIMENSIONS,
+    build_lance_table,
+)
 from scripts.ingest_incremental import (
     _get_existing_ids,  # pyright: ignore[reportPrivateUsage]
     _sync_single_table,  # pyright: ignore[reportPrivateUsage]
 )
-from vector_store.schema import LANCE_CHUNK_SCHEMA, VECTOR_DIMENSIONS, build_lance_table
 
 
 @pytest.fixture

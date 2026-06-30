@@ -16,8 +16,8 @@ from typing import TextIO
 from pebble import ProcessPool
 from pydantic import ValidationError
 
-from chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
-from normalization.schema import Block, NormalizedRFC, RFCMetadata
+from rfc_atlas.chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
+from rfc_atlas.normalization.schema import Block, NormalizedRFC, RFCMetadata
 
 logger = logging.getLogger(__name__)
 

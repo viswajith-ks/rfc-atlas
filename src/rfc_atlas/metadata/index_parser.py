@@ -8,9 +8,9 @@ from pathlib import Path
 from lxml import etree
 from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
 
-from metadata.schema import RFCIndexEntryDict, RFCPublicationDateDict
-from utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
-from utils.xml_utils import (
+from rfc_atlas.metadata.schema import RFCIndexEntryDict, RFCPublicationDateDict
+from rfc_atlas.utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
+from rfc_atlas.utils.xml_utils import (
     find_child_by_local_name,
     get_child_text_by_local_name,
     get_local_name,

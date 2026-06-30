@@ -10,7 +10,7 @@ from typing import get_args
 from lxml import etree
 from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
 
-from normalization.schema import (
+from rfc_atlas.normalization.schema import (
     XML_TAG_TO_INTERMEDIATE_TYPE_MAP,
     BlockMetadataDict,
     CanonicalBlockDict,
@@ -19,9 +19,9 @@ from normalization.schema import (
     ReferenceMetadataDict,
     SourcecodeFormat,
 )
-from parsers.base import refine_block_type
-from utils.exceptions import MalformedXMLRootError
-from utils.xml_utils import (
+from rfc_atlas.parsers.base import refine_block_type
+from rfc_atlas.utils.exceptions import MalformedXMLRootError
+from rfc_atlas.utils.xml_utils import (
     find_child_by_local_name,
     find_children_by_local_name,
     get_local_name,

@@ -8,8 +8,8 @@ import json
 import logging
 from pathlib import Path
 
-from metadata.schema import RFCIndexEntryDict, RFCPublicationDate
-from normalization.schema import (
+from rfc_atlas.metadata.schema import RFCIndexEntryDict, RFCPublicationDate
+from rfc_atlas.normalization.schema import (
     INTERMEDIATE_TO_FINAL_TYPE_MAP,
     Block,
     BlockType,
@@ -21,7 +21,7 @@ from normalization.schema import (
     Section,
     SourceType,
 )
-from utils.exceptions import CorpusDependencyError, InvalidRFCNumberError
+from rfc_atlas.utils.exceptions import CorpusDependencyError, InvalidRFCNumberError
 
 logger = logging.getLogger(__name__)
 

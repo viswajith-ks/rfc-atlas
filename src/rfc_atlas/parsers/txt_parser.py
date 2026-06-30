@@ -8,9 +8,9 @@ from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from normalization.schema import CanonicalBlockDict, IntermediateBlockType
-from parsers.base import refine_block_type
-from utils.exceptions import MalformedFilenameError
+from rfc_atlas.normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from rfc_atlas.parsers.base import refine_block_type
+from rfc_atlas.utils.exceptions import MalformedFilenameError
 
 
 @dataclass

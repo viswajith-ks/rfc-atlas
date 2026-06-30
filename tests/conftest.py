@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 
-from normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from rfc_atlas.normalization.schema import CanonicalBlockDict, IntermediateBlockType
 
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 RAW_TXT_PATH: Path = FIXTURES_DIR / "raw_txt" / "synthetic_rfc_9999.txt"

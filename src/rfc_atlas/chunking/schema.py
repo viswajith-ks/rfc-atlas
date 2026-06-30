@@ -4,7 +4,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from normalization.schema import (
+from rfc_atlas.normalization.schema import (
     BlockType,
     NormativeStatement,
     SourcecodeFormat,

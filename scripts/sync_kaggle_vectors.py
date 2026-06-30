@@ -33,8 +33,8 @@ DATA_CHUNKS_DIR = REPO_ROOT / "data" / "chunks"
 LOCAL_EMBEDDINGS_DIR = REPO_ROOT / "data" / "embeddings"
 STAGING_DIR = REPO_ROOT / ".scratch" / "kaggle_deploy"
 LOCAL_LOG_DIR = REPO_ROOT / "data" / "logs"
-REMOTE_ENTRY_MODULE = "vector_store.kaggle_embedder"
-REMOTE_ENTRY_SCRIPT = "vector_store/kaggle_embedder.py"
+REMOTE_ENTRY_MODULE = "rfc_atlas.vector_store.kaggle_embedder"
+REMOTE_ENTRY_SCRIPT = "src/rfc_atlas/vector_store/kaggle_embedder.py"
 
 IGNORE_PATTERNS = {
     ".git",

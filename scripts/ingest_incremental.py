@@ -19,7 +19,7 @@ from lancedb.table import Table as LanceTable
 from sentence_transformers import SentenceTransformer
 from tqdm.auto import tqdm
 
-from vector_store.schema import (
+from rfc_atlas.vector_store.schema import (
     LANCE_CHUNK_SCHEMA,
     VECTOR_DIMENSIONS,
     build_lance_table,

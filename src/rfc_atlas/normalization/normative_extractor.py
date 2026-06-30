@@ -3,7 +3,7 @@
 import re
 from typing import ClassVar, get_args
 
-from normalization.schema import (
+from rfc_atlas.normalization.schema import (
     CanonicalBlockDict,
     ExtractedStatementDict,
     NormativeKeyword,

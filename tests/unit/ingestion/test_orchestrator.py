@@ -6,8 +6,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
-from utils.exceptions import SingletonViolationError
+from rfc_atlas.ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
+from rfc_atlas.utils.exceptions import SingletonViolationError
 
 
 @pytest.fixture
@@ -66,8 +66,8 @@ def test_xml_superiority_routing(orchestrator: PipelineOrchestrator) -> None:
     assert 1001 not in xml_covered, "RFC 1001 is TXT only, it MUST NOT be covered."
 
 
-@patch("ingestion.orchestrator.ProcessPool")
-@patch("ingestion.orchestrator.wait")
+@patch("rfc_atlas.ingestion.orchestrator.ProcessPool")
+@patch("rfc_atlas.ingestion.orchestrator.wait")
 def test_orchestrator_crash_handlers_and_telemetry(
     mock_wait: MagicMock,
     mock_pool_class: MagicMock,

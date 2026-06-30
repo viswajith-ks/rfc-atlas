@@ -2,7 +2,7 @@
 
 from typing import Protocol
 
-from normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from rfc_atlas.normalization.schema import CanonicalBlockDict, IntermediateBlockType
 
 
 class RFCParser(Protocol):

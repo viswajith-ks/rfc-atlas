@@ -6,10 +6,10 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from utils.exceptions import MissingTelemetryLogError
+from rfc_atlas.utils.exceptions import MissingTelemetryLogError
 
 if TYPE_CHECKING:
-    from ingestion.manifest import TelemetryRecord
+    from rfc_atlas.ingestion.manifest import TelemetryRecord
 
 
 def analyze_telemetry(telemetry_log_path: Path) -> None:

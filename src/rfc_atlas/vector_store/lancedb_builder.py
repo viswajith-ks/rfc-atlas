@@ -14,7 +14,7 @@ import lancedb
 import pyarrow.parquet as pq
 from lancedb.table import Table as LanceTable
 
-from vector_store.schema import LANCE_CHUNK_SCHEMA
+from rfc_atlas.vector_store.schema import LANCE_CHUNK_SCHEMA
 
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)

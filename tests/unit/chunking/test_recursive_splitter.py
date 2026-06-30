@@ -4,8 +4,8 @@ from typing import Any
 
 import pytest
 
-from chunking.recursive_splitter import BatchChunker, Block
-from normalization.schema import NormativeStatement, RFCMetadata
+from rfc_atlas.chunking.recursive_splitter import BatchChunker, Block
+from rfc_atlas.normalization.schema import NormativeStatement, RFCMetadata
 
 # Constants synchronized with the module configuration
 CHUNK_LIMIT: int = 2000

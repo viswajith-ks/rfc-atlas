@@ -3,7 +3,7 @@ import math
 import numpy as np
 import pyarrow as pa
 
-from vector_store.schema import (
+from rfc_atlas.vector_store.schema import (
     VECTOR_DIMENSIONS,
     _safe_optional_int,  # pyright: ignore[reportPrivateUsage]
     _safe_required_int,  # pyright: ignore[reportPrivateUsage]

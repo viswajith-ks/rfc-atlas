@@ -20,13 +20,13 @@ from typing import Literal, TypeAlias
 
 from pebble import ProcessPool
 
-from ingestion.manifest import DatasetManifest, TelemetryRecord
-from metadata.index_parser import RFCIndexParser
-from normalization.normative_extractor import NormativeExtractor
-from normalization.tree_builder import CanonicalTreeBuilder
-from parsers.txt_parser import LegacyTextParser
-from parsers.xml_parser import ModernRFCParser
-from utils.exceptions import (
+from rfc_atlas.ingestion.manifest import DatasetManifest, TelemetryRecord
+from rfc_atlas.metadata.index_parser import RFCIndexParser
+from rfc_atlas.normalization.normative_extractor import NormativeExtractor
+from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
+from rfc_atlas.parsers.txt_parser import LegacyTextParser
+from rfc_atlas.parsers.xml_parser import ModernRFCParser
+from rfc_atlas.utils.exceptions import (
     CorpusDependencyError,
     MetadataIndexCompilationError,
     SingletonViolationError,

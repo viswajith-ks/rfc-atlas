@@ -3,8 +3,8 @@ from pathlib import Path
 
 import pytest
 
-from metadata.index_parser import RFCIndexParser
-from utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
+from rfc_atlas.metadata.index_parser import RFCIndexParser
+from rfc_atlas.utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
 
 # A minimal, valid XML snippet matching the official IETF rfc-index schema
 SYNTHETIC_INDEX_XML = """<?xml version="1.0" encoding="UTF-8"?>

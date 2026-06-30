@@ -40,19 +40,8 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-include = [
-    "chunking*",
-    "evaluation*",
-    "graph*",
-    "ingestion*",
-    "metadata*",
-    "normalization*",
-    "parsers*",
-    "retrieval*",
-    "scripts*",
-    "utils*",
-    "vector_store*",
-]
+where = ["src"]
+include = ["rfc_atlas*"]
 exclude = [
     "data*",
     "notebooks*",
@@ -236,7 +225,7 @@ reportUnnecessaryTypeIgnoreComment = "warning"  # Flags a # type: ignore comment
 reportUnreachable = "error"                     # Flags structurally/type-analytically unreachable code
 
 [tool.pytest.ini_options]
-pythonpath = ["."]
+pythonpath = [".", "src"]
 testpaths = ["tests"]
 addopts = "-ra -q --strict-markers --cov=. --cov-report=term-missing"
 

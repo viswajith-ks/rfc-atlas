@@ -5,12 +5,12 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from normalization.schema import CanonicalBlockDict
-from normalization.tree_builder import CanonicalTreeBuilder
-from utils.exceptions import InvalidRFCNumberError
+from rfc_atlas.normalization.schema import CanonicalBlockDict
+from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
+from rfc_atlas.utils.exceptions import InvalidRFCNumberError
 
 if TYPE_CHECKING:
-    from metadata.schema import RFCIndexEntryDict
+    from rfc_atlas.metadata.schema import RFCIndexEntryDict
 
 
 @pytest.fixture

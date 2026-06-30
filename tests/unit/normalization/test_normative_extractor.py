@@ -2,8 +2,11 @@ from collections.abc import Callable
 
 import pytest
 
-from normalization.normative_extractor import CanonicalBlockDict, NormativeExtractor
-from normalization.schema import (
+from rfc_atlas.normalization.normative_extractor import (
+    CanonicalBlockDict,
+    NormativeExtractor,
+)
+from rfc_atlas.normalization.schema import (
     NormativeKeyword,
 )
 

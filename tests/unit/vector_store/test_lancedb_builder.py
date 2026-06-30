@@ -7,8 +7,8 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 import pytest
 
-from vector_store.lancedb_builder import construct_database
-from vector_store.schema import VECTOR_DIMENSIONS, build_lance_table
+from rfc_atlas.vector_store.lancedb_builder import construct_database
+from rfc_atlas.vector_store.schema import VECTOR_DIMENSIONS, build_lance_table
 
 
 @pytest.fixture

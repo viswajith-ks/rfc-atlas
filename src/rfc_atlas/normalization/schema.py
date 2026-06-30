@@ -11,7 +11,7 @@ from pydantic import (
     model_validator,
 )
 
-from metadata.schema import RFCPublicationDate
+from rfc_atlas.metadata.schema import RFCPublicationDate
 
 ReferenceCategory = Literal["Normative", "Informative"]
 SourceType: TypeAlias = Literal["xml", "txt"]

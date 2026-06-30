@@ -26,7 +26,7 @@ import pyarrow as pa
 import pyarrow.parquet as pq
 from sentence_transformers import SentenceTransformer
 
-from vector_store.schema import (
+from rfc_atlas.vector_store.schema import (
     LANCE_CHUNK_SCHEMA,
     VECTOR_DIMENSIONS,
     build_lance_table,

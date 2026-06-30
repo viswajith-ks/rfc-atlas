@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from vector_store.errata_ledger import ErrataLedger
+from rfc_atlas.vector_store.errata_ledger import ErrataLedger
 
 pytestmark = pytest.mark.usefixtures("_reset_ledger")
 

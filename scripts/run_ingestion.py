@@ -5,7 +5,7 @@ import logging
 import sys
 from pathlib import Path
 
-from ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
+from rfc_atlas.ingestion.orchestrator import PipelineConfig, PipelineOrchestrator
 
 logger = logging.getLogger(__name__)
 

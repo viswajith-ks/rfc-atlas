@@ -3,13 +3,13 @@ from typing import get_args
 import pytest
 from pydantic import ValidationError
 
-from chunking.schema import (
+from rfc_atlas.chunking.schema import (
     TABLE_ROUTING_MAP,
     ChunkRecord,
     LanceTableRoute,
     NormativeStatement,
 )
-from normalization.schema import BlockType
+from rfc_atlas.normalization.schema import BlockType
 
 EXPECTED_BLOCKS: frozenset[str] = frozenset(get_args(BlockType))
 VALID_TABLES: frozenset[str] = frozenset(get_args(LanceTableRoute))

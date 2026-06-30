@@ -3,7 +3,7 @@ from pathlib import Path
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from vector_store.kaggle_embedder import get_final_chunk_id_of_parquet
+from rfc_atlas.vector_store.kaggle_embedder import get_final_chunk_id_of_parquet
 
 
 def test_get_final_chunk_id_success(tmp_path: Path) -> None:

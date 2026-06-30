@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING
 
 import pytest
 
-from parsers.txt_parser import LegacyTextParser
+from rfc_atlas.parsers.txt_parser import LegacyTextParser
 
 if TYPE_CHECKING:
-    from normalization.schema import CanonicalBlockDict
+    from rfc_atlas.normalization.schema import CanonicalBlockDict
 
 
 @pytest.fixture
