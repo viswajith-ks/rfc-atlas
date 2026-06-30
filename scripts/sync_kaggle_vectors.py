@@ -504,26 +504,39 @@ class KaggleOrchestrator:
         builtins.input = lambda _="": "y"
 
         try:
-            if hasattr(self.api, "dataset_delete"):
-                self.api.dataset_delete(self.username, self.dataset_id)
-                print(f"[+] Ephemeral dataset {self.ds_slug} wiped from Kaggle.")
-        except (ApiException, OSError, ValueError, ConnectionError, TimeoutError) as e:
-            print(
-                f"[-] Non-fatal warning: Could not cleanly delete dataset "
-                f"{self.ds_slug}. Reason: {e}"
-            )
+            try:
+                if hasattr(self.api, "dataset_delete"):
+                    self.api.dataset_delete(self.username, self.dataset_id)
+                    print(f"[+] Ephemeral dataset {self.ds_slug} wiped from Kaggle.")
+            except (
+                ApiException,
+                OSError,
+                ValueError,
+                ConnectionError,
+                TimeoutError,
+            ) as e:
+                print(
+                    f"[-] Non-fatal warning: Could not cleanly delete dataset "
+                    f"{self.ds_slug}. Reason: {e}"
+                )
 
-        try:
-            if hasattr(self.api, "kernels_delete"):
-                self.api.kernels_delete(self.kernel_slug, no_confirm=True)
-                print(f"[+] Ephemeral kernel {self.kernel_slug} wiped from Kaggle.")
-        except (ApiException, OSError, ValueError, ConnectionError, TimeoutError) as e:
-            print(
-                f"[-] Non-fatal warning: Could not cleanly delete kernel "
-                f"{self.kernel_slug}. Reason: {e}"
-            )
-
-        builtins.input = original_input
+            try:
+                if hasattr(self.api, "kernels_delete"):
+                    self.api.kernels_delete(self.kernel_slug, no_confirm=True)
+                    print(f"[+] Ephemeral kernel {self.kernel_slug} wiped from Kaggle.")
+            except (
+                ApiException,
+                OSError,
+                ValueError,
+                ConnectionError,
+                TimeoutError,
+            ) as e:
+                print(
+                    f"[-] Non-fatal warning: Could not cleanly delete kernel "
+                    f"{self.kernel_slug}. Reason: {e}"
+                )
+        finally:
+            builtins.input = original_input
 
         if STAGING_DIR.exists():
             shutil.rmtree(STAGING_DIR)

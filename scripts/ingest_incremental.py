@@ -133,7 +133,7 @@ def _sync_single_table(
     """
     table_name = jsonl_path.stem
 
-    if table_name not in db.table_names():
+    if table_name not in db.list_tables().tables:
         logger.warning("⚠️ Table '%s' does not exist in LanceDB. Skipping.", table_name)
         return 0, model
 

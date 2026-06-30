@@ -30,6 +30,7 @@ dev = [
 vector_store = [
     "lancedb==0.33.0",
     "pyarrow==24.0.0",
+    "pylance==7.0.0",
     "tantivy==0.26.0",
     "sentence-transformers==5.6.0",
     "einops==0.8.2",
@@ -77,7 +78,6 @@ ignore = [
     "TD003",
 
     # Docstring constraints
-    "D417", # Redundant Docstring Check: The new DOC suite does this better
     "D203", # Ignored in favor of D211 (no blank lines before class docstring)
     "D213"  # Ignored in favor of D212 (summary on the first line)
 ]
@@ -94,7 +94,8 @@ runtime-evaluated-decorators = ["pydantic.validate_call"]
 # INP001: Allow loose test files without requiring __init__.py package markers
 # PLR2004: Allow magic values in tests for mock data and arbitrary assertions
 # E501: Allow long lines in tests for massive mock strings and assertions
-"tests/**/*.py" = ["S101", "D", "SLF001", "INP001", "PLR2004", "E501"]
+# PLC2701: Allow imports or references to private modules and implementation details
+"tests/**/*.py" = ["S101", "D", "SLF001", "INP001", "PLR2004", "E501", "PLC2701"]
 
 # T201: Allow explicit print() statements in CLI execution scripts
 # INP001: Exclude loose CLI execution directories from requiring __init__.py
