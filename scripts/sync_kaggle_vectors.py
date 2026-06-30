@@ -141,7 +141,7 @@ def _generate_notebook_payload(ds_slug: str) -> dict[str, Any]:
         "                shutil.copy2(pq, target_out / pq.name)\n\n",
         "    print('[*] Installing project dependencies...')\n",
         "    subprocess.run(\n",
-        "        [sys.executable, '-m', 'pip', 'install', '-e', '.[vector_store]'],\n",
+        "        [sys.executable, '-m', 'pip', 'install', '-e', '.[vector-store]'],\n",
         "        cwd=workdir, check=True\n",
         "    )\n\n",
         "    gpus_available = [f'cuda:{i}' for i in range(gpu_count)]\n",

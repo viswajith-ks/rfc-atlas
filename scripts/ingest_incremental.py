@@ -52,9 +52,9 @@ def _get_existing_ids(table: LanceTable) -> set[str]:
     if total_rows == 0:
         return set()
 
-    arrow_tbl = table.to_lance().to_table(columns=["chunk_id"])  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+    arrow_tbl = table.to_lance().to_table(columns=["chunk_id"])  # pyright: ignore[reportUnknownMemberType]
 
-    return set(arrow_tbl["chunk_id"].to_pylist())  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+    return set(arrow_tbl["chunk_id"].to_pylist())
 
 
 def _flush_and_append(
@@ -138,9 +138,7 @@ def _sync_single_table(
         return 0, model
 
     lance_table = db.open_table(table_name)
-    table_schema = LANCE_CHUNK_SCHEMA.with_metadata(
-        lance_table.schema.metadata or {}  # pyright: ignore[reportUnknownMemberType]
-    )
+    table_schema = LANCE_CHUNK_SCHEMA.with_metadata(lance_table.schema.metadata or {})
     existing_ids = _get_existing_ids(lance_table)
 
     logger.info(

@@ -35,7 +35,7 @@ def _build_indices(lance_table: LanceTable, total_rows: int) -> None:
     """
     logger.info("Compiling Tantivy Sparse Lexical Index (BM25)...")
     start_time = time.time()
-    lance_table.create_fts_index("text_payload", replace=True)  # pyright: ignore[reportUnknownMemberType]
+    lance_table.create_fts_index("text_payload", replace=True)
     elapsed = time.time() - start_time
     logger.info("Tantivy index compiled in %.2f seconds.", elapsed)
 
@@ -52,7 +52,7 @@ def _build_indices(lance_table: LanceTable, total_rows: int) -> None:
             m=32,
             ef_construction=200,
             replace=True,
-        )  # pyright: ignore[reportUnknownMemberType]
+        )
 
         elapsed = time.time() - start_time
         logger.info("HNSW training completed in %.2f seconds.", elapsed)

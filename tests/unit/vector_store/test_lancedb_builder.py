@@ -68,7 +68,7 @@ def test_lancedb_bootstrapping_and_indexing(
         table
         .search("Transmission Control", query_type="fts")  # pyright: ignore[reportUnknownMemberType]
         .select(["chunk_id"])
-        .to_list()  # pyright: ignore[reportUnknownMemberType]
+        .to_list()
     )
 
     # It should successfully find the matching chunks via full-text search

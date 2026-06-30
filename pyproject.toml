@@ -6,44 +6,69 @@ build-backend = "setuptools.build_meta"
 name = "rfc-atlas"
 version = "0.1.0"
 description = "A structured, deterministic ingestion and chunking pipeline for IETF RFCs."
+readme = "README.md"
+license = {text = "MIT"}
 requires-python = ">=3.11"
 authors = [
-    { name = "Viswajith K S" }
+    { name = "Viswajith K S" },
 ]
 dependencies = [
-    "pydantic==2.13.4",
+    "kaggle==2.2.3",
     "lxml==6.1.1",
     "lxml-stubs==0.5.1",
     "pebble==5.2.0",
-    "kaggle==2.2.3",
+    "pydantic==2.13.4",
     "tenacity==9.1.4",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest==9.1.1",
-    "pytest-cov==7.1.0",
-    "ruff==0.15.18",
-    "pyright==1.1.410"
-]
-
-vector_store = [
+vector-store = [
+    "einops==0.8.2",
     "lancedb==0.33.0",
     "pyarrow==24.0.0",
     "pylance==7.0.0",
-    "tantivy==0.26.0",
     "sentence-transformers==5.6.0",
-    "einops==0.8.2",
+    "tantivy==0.26.0",
     "transformers==5.12.1",
+]
+dev = [
+    "poethepoet==0.47.0",
+    "pyright==1.1.410",
+    "pytest==9.1.1",
+    "pytest-cov==7.1.0",
+    "ruff==0.15.18",
 ]
 
 [tool.setuptools.packages.find]
 include = [
-    "chunking*", "evaluation*", "graph*", "ingestion*", "metadata*",
-    "normalization*", "parsers*", "retrieval*", "vector_store*", "scripts*", "utils*"
+    "chunking*",
+    "evaluation*",
+    "graph*",
+    "ingestion*",
+    "metadata*",
+    "normalization*",
+    "parsers*",
+    "retrieval*",
+    "scripts*",
+    "utils*",
+    "vector_store*",
 ]
 exclude = [
-    "data*", "notebooks*", "tests*"
+    "data*",
+    "notebooks*",
+    "tests*",
+]
+
+[tool.poe.tasks]
+format = "ruff format ."
+lint = "ruff check ."
+typecheck = "pyright"
+test = "pytest tests/"
+check = [
+    "format",
+    "lint",
+    "typecheck",
+    "test",
 ]
 
 [tool.ruff]
@@ -51,35 +76,104 @@ line-length = 88
 target-version = "py311"
 exclude = [
     "**/__pycache__",
-    "data",
     "**/node_modules",
     "**/.*",
+    "data",
 ]
 # Enabled preview mode to activate the superior `DOC` ruleset
 preview = true
 
 [tool.ruff.lint]
 select = [
-    "A", "ANN", "ARG", "ASYNC", "B", "BLE", "C4", "C90", "COM", "D", "DOC", "DTZ",
-    "E", "W", "EM", "ERA", "EXE", "F", "FA", "FAST", "FBT", "FIX", "FLY", "FURB",
-    "G", "I", "ICN", "INP", "INT", "ISC", "LOG", "N", "PERF", "PGH", "PIE", "PL",
-    "PT", "PTH", "Q", "RET", "RSE", "RUF", "S", "SIM", "SLF", "SLOT", "T10", "T20",
-    "TC", "TD", "TID", "TRY", "UP", "YTT",
+    # --- Core Python & Formatting ---
+    "E",      # Pycodestyle (PEP8 formatting errors)
+    "F",      # Pyflakes (Logic errors, undefined names)
+    "I",      # isort (Import sorting)
+    "UP",     # pyupgrade (Modernize Python syntax for 3.11+)
+    "W",      # Pycodestyle (PEP8 formatting warnings)
+
+    # --- Types & Docstrings ---
+    "ANN",    # flake8-annotations (Enforce type hinting)
+    "D",      # pydocstyle (Docstring formatting)
+    "DOC",    # pydoclint (Validates docstring arguments match function signatures)
+    "FA",     # flake8-future-annotations (Checks __future__ imports)
+    "TC",     # flake8-type-checking (Moves typing imports into TYPE_CHECKING blocks)
+
+    # --- Code Style & Naming ---
+    "COM",    # flake8-commas (Trailing commas)
+    "ICN",    # flake8-import-conventions (Standardizes aliases like import numpy as np)
+    "ISC",    # flake8-implicit-str-concat (Prevents accidental string joining)
+    "N",      # pep8-naming (Variable and class naming conventions)
+    "Q",      # flake8-quotes (Quote style consistency)
+
+    # --- Bug Prevention & Security ---
+    "A",      # flake8-builtins (Prevents shadowing built-in functions like id, list, dir)
+    "B",      # flake8-bugbear (Common Python bugs and design flaws)
+    "BLE",    # flake8-blind-except (Prevents bare except: blocks)
+    "DTZ",    # flake8-datetimez (Forces timezone-aware datetime usage)
+    "FBT",    # flake8-boolean-trap (Prevents confusing boolean flags in function args)
+    "PT",     # flake8-pytest-style (Pytest best practices)
+    "S",      # flake8-bandit (Security testing, e.g., hardcoded passwords, shell=True)
+
+    # --- Code Complexity & Refactoring ---
+    "C4",     # flake8-comprehensions (Optimizes list/dict comprehensions)
+    "C90",    # mccabe (Cyclomatic complexity limit)
+    "FURB",   # refurb (Modern Python best practices)
+    "PL",     # Pylint (Broad linter for complexity, refactoring, and convention)
+    "RET",    # flake8-return (Refactors unnecessary else/elif after return)
+    "SIM",    # flake8-simplify (Code simplification suggestions)
+    "TRY",    # tryceratops (Exception handling anti-patterns)
+
+    # --- Performance & Optimization ---
+    "ASYNC",  # flake8-async (Async/await anti-patterns)
+    "FAST",   # FastAPI-specific rules (Safe to include even if unused)
+    "FLY",    # flynt (Converts .format() and % formatting to f-strings)
+    "PERF",   # Perflint (Performance anti-patterns)
+    "SLOT",   # flake8-slots (Requires __slots__ for memory optimization)
+
+    # --- Project Hygiene & Maintainability ---
+    "ERA",    # eradicate (Flags commented-out code)
+    "EXE",    # flake8-executable (Executable files and shebang validation)
+    "FIX",    # flake8-fixme (Flags FIXME and XXX comments)
+    "INP",    # flake8-no-pep420 (Requires __init__.py in packages)
+    "T10",    # flake8-debugger (Catches leftover breakpoint() and pdb statements)
+    "T20",    # flake8-print (Catches leftover print() statements in prod code)
+    "TD",     # flake8-todos (Standardizes TODO formatting)
+    "TID",    # flake8-tidy-imports (Bans relative parent imports)
+
+    # --- Logging & Exceptions ---
+    "EM",     # flake8-errmsg (Requires clean exception string formatting)
+    "G",      # flake8-logging-format (Bans f-strings in logging to optimize memory)
+    "LOG",    # flake8-logging (Logging module best practices)
+    "RSE",    # flake8-raise (Raise statements best practices)
+
+    # --- Miscellaneous & Edge Cases ---
+    "ARG",    # flake8-unused-arguments (Flags unused function arguments)
+    "INT",    # flake8-gettext (i18n internationalization issues)
+    "PGH",    # pygrep-hooks (Prevents blanket # type: ignore or # noqa comments)
+    "PIE",    # flake8-pie (Misc code simplification)
+    "PTH",    # flake8-use-pathlib (Forces pathlib over os.path)
+    "RUF",    # Ruff-specific internal rules
+    "SLF",    # flake8-self (Prevents accessing private class members from outside)
+    "YTT",    # flake8-2020 (Safe sys.version checks)
 ]
 ignore = [
-    # Formatter Incompatibilities: Prevents looping conflicts with `ruff format`
-    "COM812", "ISC001", "E203", "D206",
+    # --- Formatter incompatibilities ---
+    "COM812",  # missing trailing comma
+    "D206",    # docstring indentation with spaces instead of tabs
+    "E203",    # whitespace before `:` in slices
+    "ISC001",  # implicitly concatenated strings on a single line
 
-    # Redundant or Unsafe Pylint Rules: keep the safer Flake8 equivalents
-    "PLR1711",
+    # --- Docstring constraints ---
+    "D203",    # one blank line before class docstring; ignored in favor of D211
+    "D213",    # multi-line docstring summary on the second line; ignored in favor of D212
 
-    # flake8-todos: Aesthetically overly restrictive TODO formatting
-    "TD002",
-    "TD003",
+    # --- Redundant or unsafe Pylint rules ---
+    "PLR1711",  # useless `return None` at end of function
 
-    # Docstring constraints
-    "D203", # Ignored in favor of D211 (no blank lines before class docstring)
-    "D213"  # Ignored in favor of D212 (summary on the first line)
+    # --- flake8-todos ---
+    "TD002",  # missing TODO author
+    "TD003",  # missing TODO issue link
 ]
 
 [tool.ruff.lint.flake8-type-checking]
@@ -88,49 +182,66 @@ runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 runtime-evaluated-decorators = ["pydantic.validate_call"]
 
 [tool.ruff.lint.per-file-ignores]
-# S101: Allows Python's standard 'assert' statements in tests
-# D: Completely ignores all pydocstyle rules inside the tests directory
-# SLF001: Allow unit tests to inspect and assert internal private helper methods
-# INP001: Allow loose test files without requiring __init__.py package markers
-# PLR2004: Allow magic values in tests for mock data and arbitrary assertions
-# E501: Allow long lines in tests for massive mock strings and assertions
-# PLC2701: Allow imports or references to private modules and implementation details
-"tests/**/*.py" = ["S101", "D", "SLF001", "INP001", "PLR2004", "E501", "PLC2701"]
-
-# T201: Allow explicit print() statements in CLI execution scripts
-# INP001: Exclude loose CLI execution directories from requiring __init__.py
-"scripts/**/*.py" = ["T201", "INP001"]
+"tests/**/*.py" = [
+    "D",       # pydocstyle: Completely ignores all docstring rules inside tests
+    "E501",    # pycodestyle: Allows long lines for massive mock strings and assertions
+    "INP001",  # flake8-no-pep420: Allows loose test files without __init__.py markers
+    "PLC2701", # pylint: Allows imports/references to private implementation details
+    "PLR2004", # pylint: Allows magic values in tests for mock data and assertions
+    "S101",    # flake8-bandit: Allows Python's standard 'assert' statements in tests
+    "SLF001",  # flake8-self: Allows tests to inspect and assert internal private methods
+]
+"scripts/**/*.py" = [
+    "INP001",  # flake8-no-pep420: Excludes loose CLI directories from requiring __init__.py
+    "T201",    # flake8-print: Allows explicit print() statements in CLI execution scripts
+]
 
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 
 [tool.ruff.lint.pylint]
 max-args = 5
-max-statements = 50
 max-returns = 6
+max-statements = 50
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
 
 [tool.ruff.format]
-quote-style = "double"
 indent-style = "space"
+quote-style = "double"
 
 [tool.pyright]
-typeCheckingMode = "strict"
-reportMissingImports = true
-reportMissingTypeStubs = false
 pythonVersion = "3.11"
-venvPath = "."
+typeCheckingMode = "strict"
 venv = ".venv"
+venvPath = "."
 exclude = [
-    "**/__pycache__",
-    "data",
-    "**/node_modules",
     "**/.*",
+    "**/__pycache__",
+    "**/node_modules",
+    ".venv",
+    "data",
 ]
+
+deprecateTypingAliases = true                   # Flags outdated typing imports (e.g., typing.List) in favor of built-in types
+
+reportCallInDefaultInitializer = "error"        # Flags expensive function calls in default arguments
+reportImplicitOverride = "error"                # Requires explicit @override decorator on overridden methods
+reportImportCycles = "error"                    # Flags cyclical dependency chains
+reportMissingTypeStubs = false                  # Disables errors when imported third-party libraries lack PEP 561 type stub files/hints
+reportPropertyTypeMismatch = "error"            # Flags property setter/getter type mismatches
+reportUninitializedInstanceVariable = "warning" # Requires instance variables to be declared in __init__
+reportUnnecessaryTypeIgnoreComment = "warning"  # Flags a # type: ignore comment that has no effect
+reportUnreachable = "error"                     # Flags structurally/type-analytically unreachable code
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-ra -q --strict-markers"
+addopts = "-ra -q --strict-markers --cov=. --cov-report=term-missing"
+
+[tool.coverage.run]
+omit = [
+    "tests/*",
+    "data/*",
+]
