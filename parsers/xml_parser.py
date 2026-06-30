@@ -181,6 +181,7 @@ class ModernRFCParser:
         """Resolves the breadcrumb path and section number for a given XML container.
 
         Args:
+            section_node (_Element): The current XML section or container element node.
             node_tag (str): The local tag name of the container.
             hierarchy_path (list[str]): Accumulated list of parent section titles.
             parent_section_number (str | None):

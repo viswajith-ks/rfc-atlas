@@ -426,6 +426,8 @@ class LegacyTextParser:
         """Constructs the breadcrumb array based on numeric or appendix patterns.
 
         Args:
+            first_line (str): The isolated first line of the header block containing
+                the raw prefix.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
             state (HierarchyState):
@@ -476,6 +478,7 @@ class LegacyTextParser:
         """Resolves the document hierarchy path and mutates tracking state in place.
 
         Args:
+            first_line (str): The isolated first line of the header block.
             clean_title (str): The stripped section title.
             depth (int): The structural depth calculated by the header parser.
             state (HierarchyState):

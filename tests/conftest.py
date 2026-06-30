@@ -12,7 +12,6 @@ from normalization.schema import CanonicalBlockDict, IntermediateBlockType
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 RAW_TXT_PATH: Path = FIXTURES_DIR / "raw_txt" / "synthetic_rfc_9999.txt"
 RAW_XML_PATH: Path = FIXTURES_DIR / "raw_xml" / "synthetic_rfc_9999.xml"
-EXPECTED_CHUNKS_PATH: Path = FIXTURES_DIR / "golden_outputs" / "expected_chunks.jsonl"
 EXPECTED_TREE_PATH: Path = FIXTURES_DIR / "golden_outputs" / "expected_tree.json"
 
 
@@ -24,16 +23,6 @@ def synthetic_txt_content() -> str:
 @pytest.fixture
 def synthetic_xml_content() -> str:
     return RAW_XML_PATH.read_text(encoding="utf-8")
-
-
-# TODO: Integration stage - This fixture is currently orphaned but will be
-# consumed when validating LanceDB vector insertion and embedding pipelines.
-@pytest.fixture
-def expected_chunks() -> list[dict[str, Any]]:
-    chunks: list[dict[str, Any]] = []
-    with Path(EXPECTED_CHUNKS_PATH).open(encoding="utf-8") as f:
-        chunks.extend(json.loads(line) for line in f if line.strip())
-    return chunks
 
 
 @pytest.fixture

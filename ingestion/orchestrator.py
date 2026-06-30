@@ -133,6 +133,7 @@ class PipelineConfig:
     metadata_path: Path
     parser_version: str = "1.0.0"
     chunking_version: str = "1.0.0"
+    embedding_model: str = "nomic-ai/nomic-embed-text-v1.5"
     max_workers: int | None = None
     per_file_timeout: float = 45.0
 
@@ -177,6 +178,7 @@ class PipelineOrchestrator:
         self.metadata_path = config.metadata_path
         self.parser_version = config.parser_version
         self.chunking_version = config.chunking_version
+        self.embedding_model = config.embedding_model
         self.max_workers = config.max_workers
         self.per_file_timeout = config.per_file_timeout
 
@@ -688,8 +690,7 @@ class PipelineOrchestrator:
             pipeline_run_at=now,
             parser_version=self.parser_version,
             chunking_version=self.chunking_version,
-            # TODO: Populate embedding_model during embedding phase
-            embedding_model=None,
+            embedding_model=self.embedding_model,
             total_rfcs_indexed=len(successful),
             total_blocks_generated=total_blocks,
             total_normative_statements=total_normative,
