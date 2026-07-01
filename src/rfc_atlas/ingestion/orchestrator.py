@@ -41,21 +41,25 @@ WorkerFuture: TypeAlias = Future[
 ]
 
 
-def _run_worker_logic(
-    filepath: Path, rfc_num: int, source_type: SourceType, output_dir: Path
+def process_document(
+    filepath: Path,
+    rfc_num: int,
+    source_type: SourceType,
+    output_dir: Path,
+    builder: CanonicalTreeBuilder,
 ) -> TelemetryRecord:
-    """Executes the raw parsing and normalization pipeline for a single document.
+    """Parses, normalizes, and saves a single RFC document, returning telemetry.
+
+    Args:
+        filepath (Path): Exact file path to the target RFC document.
+        rfc_num (int): Numeric identifier of the RFC document.
+        source_type (SourceType): Format type of the source document ('txt' or 'xml').
+        output_dir (Path): Destination directory for the normalized JSON output.
+        builder (CanonicalTreeBuilder): The initialized metadata-aware tree builder.
 
     Returns:
         TelemetryRecord: The final dictionary containing processing metrics and status.
     """
-    builder = PipelineOrchestrator.worker_tree_builder
-    if builder is None:
-        logger.info("Worker-side lazy-initialization of CanonicalTreeBuilder...")
-        metadata_path = output_dir.parent / "metadata" / "rfc_metadata_lookup.json"
-        builder = CanonicalTreeBuilder(metadata_path)
-        PipelineOrchestrator.worker_tree_builder = builder
-
     if source_type == "txt":
         parser = LegacyTextParser(filepath)
     else:
@@ -92,6 +96,24 @@ def _run_worker_logic(
         "max_block_chars": max(lengths, default=0),
         "min_block_chars": min(lengths, default=0),
     }
+
+
+def _run_worker_logic(
+    filepath: Path, rfc_num: int, source_type: SourceType, output_dir: Path
+) -> TelemetryRecord:
+    """Executes the raw parsing and normalization pipeline for a single document.
+
+    Returns:
+        TelemetryRecord: The final dictionary containing processing metrics and status.
+    """
+    builder = PipelineOrchestrator.worker_tree_builder
+    if builder is None:
+        logger.info("Worker-side lazy-initialization of CanonicalTreeBuilder...")
+        metadata_path = output_dir.parent / "metadata" / "rfc_metadata_lookup.json"
+        builder = CanonicalTreeBuilder(metadata_path)
+        PipelineOrchestrator.worker_tree_builder = builder
+
+    return process_document(filepath, rfc_num, source_type, output_dir, builder)
 
 
 def _execute_rfc_parsing_worker(

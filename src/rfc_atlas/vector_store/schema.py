@@ -3,9 +3,12 @@
 import json
 from typing import Any
 
+import numpy as np
+import numpy.typing as npt
 import pyarrow as pa
 
 VECTOR_DIMENSIONS: int = 256
+EPSILON: float = 1e-12
 
 LANCE_CHUNK_SCHEMA = pa.schema([
     pa.field("chunk_id", pa.string(), nullable=False),
@@ -64,6 +67,28 @@ def _safe_optional_int(val: object) -> int | None:
         except ValueError:
             return None
     return None
+
+
+def normalize_and_convert_vectors(raw_embeddings: npt.NDArray[np.float32]) -> pa.Array:
+    """Slices, L2-normalizes, and converts raw embeddings to PyArrow format.
+
+    Args:
+        raw_embeddings (npt.NDArray[np.float32]): The raw embeddings given by the model.
+
+    Returns:
+        pa.Array: A PyArrow FixedSizeListArray of the normalized vectors.
+    """
+    sliced = raw_embeddings[:, :VECTOR_DIMENSIONS]
+    norms: npt.NDArray[np.float32] = np.sqrt(
+        np.sum(sliced * sliced, axis=1, keepdims=True, dtype=np.float32)
+    )
+    norms[norms < EPSILON] = EPSILON
+    normalized_vectors = sliced / norms
+
+    flat_vector_data = normalized_vectors.ravel()
+    return pa.FixedSizeListArray.from_arrays(
+        pa.array(flat_vector_data, type=pa.float32()), VECTOR_DIMENSIONS
+    )
 
 
 def build_lance_table(

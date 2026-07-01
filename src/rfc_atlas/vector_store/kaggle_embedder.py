@@ -18,10 +18,8 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
-import numpy as np
-import numpy.typing as npt
 import pyarrow as pa
 import pyarrow.parquet as pq
 from sentence_transformers import SentenceTransformer
@@ -30,7 +28,12 @@ from rfc_atlas.vector_store.schema import (
     LANCE_CHUNK_SCHEMA,
     VECTOR_DIMENSIONS,
     build_lance_table,
+    normalize_and_convert_vectors,
 )
+
+if TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
 
 JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
@@ -41,7 +44,6 @@ os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 BATCH_SIZE: int = 8
 FLUSH_BUFFER_ROWS: int = 65_536
 SHARD_FILE_ROWS: int = 131_072
-EPSILON: float = 1e-12
 
 KAGGLE_OUT_DIR = Path(
     os.environ.get("RFC_ATLAS_OUT_DIR", "/kaggle/working/parquet_vectors")
@@ -164,27 +166,13 @@ def flush_buffer(
         show_progress_bar=True,
     )
 
-    sliced = raw_embeddings[:, :VECTOR_DIMENSIONS]
-    norms: npt.NDArray[np.float32] = np.sqrt(
-        np.sum(sliced * sliced, axis=1, keepdims=True, dtype=np.float32)
-    )
-    norms[norms < EPSILON] = EPSILON
-    normalized_vectors = sliced / norms
-
-    flat_vector_data = normalized_vectors.ravel()
-    vector_arrow_array = pa.FixedSizeListArray.from_arrays(
-        pa.array(flat_vector_data, type=pa.float32()), VECTOR_DIMENSIONS
-    )
+    vector_arrow_array = normalize_and_convert_vectors(raw_embeddings)
 
     pa_table = build_lance_table(records, vector_arrow_array, schema=schema)
     writer.write_table(pa_table)  # pyright: ignore[reportUnknownMemberType]
 
     del (
         raw_embeddings,
-        sliced,
-        norms,
-        normalized_vectors,
-        flat_vector_data,
         vector_arrow_array,
         pa_table,
     )

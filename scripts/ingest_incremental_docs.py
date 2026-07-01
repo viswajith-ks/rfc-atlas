@@ -14,14 +14,14 @@ import traceback
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 from rfc_atlas.ingestion.manifest import DatasetManifest, TelemetryRecord
-from rfc_atlas.normalization.normative_extractor import NormativeExtractor
-from rfc_atlas.normalization.schema import SourceType
+from rfc_atlas.ingestion.orchestrator import process_document
 from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
-from rfc_atlas.parsers.txt_parser import LegacyTextParser
-from rfc_atlas.parsers.xml_parser import ModernRFCParser
+
+if TYPE_CHECKING:
+    from rfc_atlas.normalization.schema import SourceType
 
 JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
@@ -95,61 +95,6 @@ def _build_existing_state(normalized_dir: Path) -> dict[int, str]:
             state[rfc_num] = src_type
 
     return state
-
-
-def _process_single_document(
-    filepath: Path,
-    rfc_num: int,
-    source_type: SourceType,
-    output_dir: Path,
-    builder: CanonicalTreeBuilder,
-) -> TelemetryRecord:
-    """Parses and normalizes a single RFC document.
-
-    Args:
-        filepath (Path): Exact file path to the target RFC document.
-        rfc_num (int): Numeric identifier of the RFC document.
-        source_type (SourceType): Format type of the source document ('txt' or 'xml').
-        output_dir (Path): Destination directory for the normalized JSON output.
-        builder (CanonicalTreeBuilder): The tree builder instance.
-
-    Returns:
-        TelemetryRecord: The final dictionary containing processing metrics.
-    """
-    if source_type == "txt":
-        parser = LegacyTextParser(filepath)
-    else:
-        parser = ModernRFCParser(filepath)
-
-    canonical_blocks = parser.parse_document()
-    extractor = NormativeExtractor()
-    enriched_blocks = extractor.process_blocks(canonical_blocks)
-    valid_blocks = [b for b in enriched_blocks if b["normalized_text"].strip()]
-
-    canonical_tree = builder.build_tree(
-        rfc_number=rfc_num,
-        flat_blocks=valid_blocks,
-        source_type=source_type,
-    )
-
-    output_path = output_dir / f"rfc{rfc_num}_normalized.json"
-    canonical_tree.save_to_disk(output_path)
-
-    all_blocks = canonical_tree.preface_blocks + [
-        block for section in canonical_tree.sections for block in section.blocks
-    ]
-
-    lengths = [len(b.normalized_text) for b in all_blocks]
-
-    return {
-        "file": filepath.name,
-        "status": "success",
-        "total_blocks": len(all_blocks),
-        "normative_rules": sum(len(b.normative_statements) for b in all_blocks),
-        "total_chars": sum(lengths),
-        "max_block_chars": max(lengths, default=0),
-        "min_block_chars": min(lengths, default=0),
-    }
 
 
 def _identify_deltas(
@@ -295,7 +240,7 @@ def run_incremental_ingest(config: IncrementalConfig) -> None:
         rfc_num = _extract_rfc_num(filepath.name)
         logger.info("Processing [%s]: %s", src_type, filepath.name)
         try:
-            record = _process_single_document(
+            record = process_document(
                 filepath, rfc_num, src_type, config.output_dir, builder
             )
             new_telemetry.append(record)

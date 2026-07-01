@@ -8,11 +8,9 @@ and appends them to the database. Idempotent and safe to run continuously.
 import json
 import logging
 from pathlib import Path
-from typing import TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import lancedb
-import numpy as np
-import numpy.typing as npt
 import pyarrow as pa
 from lancedb import DBConnection
 from lancedb.table import Table as LanceTable
@@ -21,9 +19,13 @@ from tqdm.auto import tqdm
 
 from rfc_atlas.vector_store.schema import (
     LANCE_CHUNK_SCHEMA,
-    VECTOR_DIMENSIONS,
     build_lance_table,
+    normalize_and_convert_vectors,
 )
+
+if TYPE_CHECKING:
+    import numpy as np
+    import numpy.typing as npt
 
 JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
@@ -32,7 +34,6 @@ JSONDict: TypeAlias = dict[str, JSONNode]
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-EPSILON: float = 1e-12
 BATCH_SIZE: int = 8
 FLUSH_BUFFER_ROWS: int = 2_000
 
@@ -87,17 +88,7 @@ def _flush_and_append(
         show_progress_bar=False,
     )
 
-    sliced = raw_embeddings[:, :VECTOR_DIMENSIONS]
-    norms: npt.NDArray[np.float32] = np.sqrt(
-        np.sum(sliced * sliced, axis=1, keepdims=True, dtype=np.float32)
-    )
-    norms[norms < EPSILON] = EPSILON
-    normalized_vectors = sliced / norms
-
-    flat_vector_data = normalized_vectors.ravel()
-    vector_arrow_array = pa.FixedSizeListArray.from_arrays(
-        pa.array(flat_vector_data, type=pa.float32()), VECTOR_DIMENSIONS
-    )
+    vector_arrow_array = normalize_and_convert_vectors(raw_embeddings)
 
     pa_table = build_lance_table(records, vector_arrow_array, schema=schema)
     lance_table.add(pa_table)  # pyright: ignore[reportUnknownMemberType]
