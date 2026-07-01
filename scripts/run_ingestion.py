@@ -9,6 +9,8 @@ from rfc_atlas.ingestion.orchestrator import PipelineConfig, PipelineOrchestrato
 
 logger = logging.getLogger(__name__)
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def main() -> None:
     """Coordinates parallel execution of the RFC ingestion pipeline via CLI args."""
@@ -18,8 +20,6 @@ def main() -> None:
         datefmt="%H:%M:%S",
     )
 
-    base_dir = Path(__file__).resolve().parent.parent
-
     parser = argparse.ArgumentParser(
         description="RFC Intelligent System Ingestion Pipeline Tooling Interface."
     )
@@ -27,37 +27,37 @@ def main() -> None:
     parser.add_argument(
         "--raw-txt-dir",
         type=Path,
-        default=base_dir / "data" / "raw" / "rfcs_txt",
+        default=_PROJECT_ROOT / "data" / "raw" / "rfcs_txt",
         help="Path to directory containing raw legacy text RFC files.",
     )
     parser.add_argument(
         "--raw-xml-dir",
         type=Path,
-        default=base_dir / "data" / "raw" / "rfcs_xml",
+        default=_PROJECT_ROOT / "data" / "raw" / "rfcs_xml",
         help="Path to directory containing raw modern XML RFC files.",
     )
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=base_dir / "data" / "normalized",
+        default=_PROJECT_ROOT / "data" / "normalized",
         help="Destination directory for serialized canonical JSON trees.",
     )
     parser.add_argument(
         "--manifest-dir",
         type=Path,
-        default=base_dir / "data" / "manifests",
+        default=_PROJECT_ROOT / "data" / "manifests",
         help="Destination directory for operational manifest tracking logs.",
     )
     parser.add_argument(
         "--raw-index-path",
         type=Path,
-        default=base_dir / "data" / "raw" / "rfc_index" / "rfc-index.xml",
+        default=_PROJECT_ROOT / "data" / "raw" / "rfc_index" / "rfc-index.xml",
         help="Path to the foundational global raw rfc-index.xml file.",
     )
     parser.add_argument(
         "--metadata-path",
         type=Path,
-        default=base_dir / "data" / "metadata" / "rfc_metadata_lookup.json",
+        default=_PROJECT_ROOT / "data" / "metadata" / "rfc_metadata_lookup.json",
         help="Path to the compiled metadata lookup cache file.",
     )
     parser.add_argument(

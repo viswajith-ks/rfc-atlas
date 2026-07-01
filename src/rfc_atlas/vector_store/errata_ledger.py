@@ -7,20 +7,22 @@ official IETF string-based ("RFC1234") errata manifest.
 import json
 import logging
 from pathlib import Path
-from typing import Any, ClassVar
+from typing import ClassVar, TypeAlias
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ERRATA_PATH = (
-    Path(__file__).resolve().parents[1] / "data" / "metadata" / "errata.json"
-)
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
+DEFAULT_ERRATA_PATH = _PROJECT_ROOT / "data" / "metadata" / "errata.json"
 
 
 class ErrataLedger:
     """Singleton ledger that loads and normalizes IETF errata into memory."""
 
     _instance: ClassVar["ErrataLedger | None"] = None
-    _ledger: ClassVar[dict[int, list[dict[str, Any]]]] = {}
+    _ledger: ClassVar[dict[int, list[dict[str, JSONNode]]]] = {}
     _is_loaded: ClassVar[bool] = False
 
     def __new__(cls) -> "ErrataLedger":
@@ -34,11 +36,11 @@ class ErrataLedger:
         return cls._instance
 
     @classmethod
-    def _process_entry(cls, entry: dict[str, Any]) -> None:
+    def _process_entry(cls, entry: dict[str, JSONNode]) -> None:
         """Processes a single errata entry and adds it to the ledger if valid.
 
         Args:
-            entry (dict[str, Any]): Raw JSON dictionary representing an erratum.
+            entry (dict[str, JSONNode]): Raw JSON dictionary representing an erratum.
         """
         doc_id = entry.get("doc-id", "")
 
@@ -51,7 +53,12 @@ class ErrataLedger:
             return
 
         status = entry.get("errata_status_code", "")
-        if status in {"Verified", "Reported", "Held for Document Update"}:
+
+        if isinstance(status, str) and status in {
+            "Verified",
+            "Reported",
+            "Held for Document Update",
+        }:
             if rfc_num not in cls._ledger:
                 cls._ledger[rfc_num] = []
             cls._ledger[rfc_num].append(entry)
@@ -77,17 +84,7 @@ class ErrataLedger:
 
         try:
             with path.open("r", encoding="utf-8") as f:
-                raw_data: list[dict[str, Any]] = json.load(f)
-
-            for entry in raw_data:
-                cls._process_entry(entry)
-
-            cls._is_loaded = True
-            logger.info(
-                "ErrataLedger initialized. Tracking corrections for %d RFCs.",
-                len(cls._ledger),
-            )
-
+                raw_data: JSONNode = json.load(f)
         except json.JSONDecodeError:
             logger.critical(
                 "Syntax corruption in %s. Errata injection permanently disabled.",
@@ -95,7 +92,7 @@ class ErrataLedger:
                 exc_info=True,
             )
             cls._is_loaded = True
-
+            return
         except OSError:
             logger.warning(
                 "Transient I/O failure reading %s. Will retry on next access.",
@@ -103,6 +100,18 @@ class ErrataLedger:
                 exc_info=True,
             )
             cls._is_loaded = False
+            return
+
+        if isinstance(raw_data, list):
+            for entry in raw_data:
+                if isinstance(entry, dict):
+                    cls._process_entry(entry)
+
+        cls._is_loaded = True
+        logger.info(
+            "ErrataLedger initialized. Tracking corrections for %d RFCs.",
+            len(cls._ledger),
+        )
 
     @classmethod
     def force_reload(cls, filepath: Path | str = DEFAULT_ERRATA_PATH) -> None:
@@ -116,14 +125,14 @@ class ErrataLedger:
         cls.load(filepath)
 
     @classmethod
-    def get_errata(cls, rfc_number: int) -> list[dict[str, Any]]:
+    def get_errata(cls, rfc_number: int) -> list[dict[str, JSONNode]]:
         """O(1) lookup returning all active errata for a given RFC integer.
 
         Args:
             rfc_number (int): Numeric identifier of the target RFC.
 
         Returns:
-            list[dict[str, Any]]: A list of errata dictionary records for the given RFC.
+            list[dict[str, JSONNode]]: A list of errata dictionary records.
         """
         if not cls._is_loaded:
             cls.load()

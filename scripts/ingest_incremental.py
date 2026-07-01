@@ -8,7 +8,7 @@ and appends them to the database. Idempotent and safe to run continuously.
 import json
 import logging
 from pathlib import Path
-from typing import Any
+from typing import TypeAlias
 
 import lancedb
 import numpy as np
@@ -24,6 +24,10 @@ from rfc_atlas.vector_store.schema import (
     VECTOR_DIMENSIONS,
     build_lance_table,
 )
+
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
+JSONDict: TypeAlias = dict[str, JSONNode]
 
 logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -58,7 +62,7 @@ def _get_existing_ids(table: LanceTable) -> set[str]:
 
 
 def _flush_and_append(
-    records: list[dict[str, Any]],
+    records: list[JSONDict],
     lance_table: LanceTable,
     model: SentenceTransformer,
     schema: pa.Schema,
@@ -66,7 +70,7 @@ def _flush_and_append(
     """Embeds a buffer of new records and appends them to LanceDB.
 
     Args:
-        records (list[dict[str, Any]]): The buffer of parsed JSONL chunk records.
+        records (list[JSONDict]): The buffer of parsed JSONL chunk records.
         lance_table (LanceTable): The target LanceDB table for ingestion.
         model (SentenceTransformer): The loaded embedding model instance.
         schema (pa.Schema): The PyArrow schema to validate and enforce.
@@ -147,7 +151,7 @@ def _sync_single_table(
         f"{len(existing_ids):,}",
     )
 
-    records_buffer: list[dict[str, Any]] = []
+    records_buffer: list[JSONDict] = []
     table_new_chunks: int = 0
 
     with jsonl_path.open("r", encoding="utf-8") as f:
@@ -156,12 +160,12 @@ def _sync_single_table(
                 continue
 
             try:
-                record: dict[str, Any] = json.loads(line)
+                record: JSONDict = json.loads(line)
             except json.JSONDecodeError:
                 logger.warning("Skipping malformed line in %s", jsonl_path.name)
                 continue
 
-            if record["chunk_id"] not in existing_ids:
+            if str(record.get("chunk_id")) not in existing_ids:
                 records_buffer.append(record)
                 table_new_chunks += 1
 

@@ -4,7 +4,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from scripts.sync_kaggle_vectors import REPO_ROOT, KaggleOrchestrator
+from scripts.sync_kaggle_vectors import (
+    _PROJECT_ROOT,  # pyright: ignore[reportPrivateUsage]
+    KaggleOrchestrator,
+)
 
 
 @pytest.fixture
@@ -35,28 +38,31 @@ def test_build_pack_bundle_ignores(mock_orchestrator: KaggleOrchestrator) -> Non
 
     # 1. Should Ignore
     assert (
-        mock_orchestrator._should_ignore(REPO_ROOT / ".venv" / "bin" / "python") is True  # pyright: ignore[reportPrivateUsage]
+        mock_orchestrator._should_ignore(_PROJECT_ROOT / ".venv" / "bin" / "python")  # pyright: ignore[reportPrivateUsage]
+        is True
     )
     assert (
-        mock_orchestrator._should_ignore(REPO_ROOT / "__pycache__" / "test.pyc") is True  # pyright: ignore[reportPrivateUsage]
+        mock_orchestrator._should_ignore(_PROJECT_ROOT / "__pycache__" / "test.pyc")  # pyright: ignore[reportPrivateUsage]
+        is True
     )
     assert (
-        mock_orchestrator._should_ignore(REPO_ROOT / "data" / "raw" / "rfc.txt") is True  # pyright: ignore[reportPrivateUsage]
+        mock_orchestrator._should_ignore(_PROJECT_ROOT / "data" / "raw" / "rfc.txt")  # pyright: ignore[reportPrivateUsage]
+        is True
     )
     assert (
-        mock_orchestrator._should_ignore(REPO_ROOT / "tests" / "unit" / "test_x.py")  # pyright: ignore[reportPrivateUsage]
+        mock_orchestrator._should_ignore(_PROJECT_ROOT / "tests" / "unit" / "test_x.py")  # pyright: ignore[reportPrivateUsage]
         is True
     )
 
     # 2. Should Include
     assert (
         mock_orchestrator._should_ignore(  # pyright: ignore[reportPrivateUsage]
-            REPO_ROOT / "scripts" / "sync_kaggle_vectors.py"
+            _PROJECT_ROOT / "scripts" / "sync_kaggle_vectors.py"
         )
         is False
     )
     assert (
-        mock_orchestrator._should_ignore(REPO_ROOT / "vector_store" / "schema.py")  # pyright: ignore[reportPrivateUsage]
+        mock_orchestrator._should_ignore(_PROJECT_ROOT / "vector_store" / "schema.py")  # pyright: ignore[reportPrivateUsage]
         is False
     )
 

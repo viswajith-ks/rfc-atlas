@@ -8,15 +8,15 @@ import json
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, TypeAlias
+from typing import TypeAlias
 
 JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
 
-PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
-NORMALIZED_DIR: Path = PROJECT_ROOT / "data" / "normalized"
-CHUNKS_DIR: Path = PROJECT_ROOT / "data" / "chunks"
-LOGS_DIR: Path = PROJECT_ROOT / "data" / "logs"
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
+NORMALIZED_DIR: Path = _PROJECT_ROOT / "data" / "normalized"
+CHUNKS_DIR: Path = _PROJECT_ROOT / "data" / "chunks"
+LOGS_DIR: Path = _PROJECT_ROOT / "data" / "logs"
 
 MAX_CHUNK_SIZE: int = 2000
 MIN_CHUNK_SIZE: int = 12
@@ -158,6 +158,29 @@ def scan_chunk_tables(
     return chunk_mass, total_chunks, tables_scanned, anomalies, distribution
 
 
+def _calculate_blocks_mass(blocks_node: JSONNode) -> int:
+    """Safely calculates the total character mass from a JSON list of blocks.
+
+    Args:
+        blocks_node (JSONNode): The raw JSON node expected to be a list of blocks.
+
+    Returns:
+        int: The accumulated character mass of all valid text payloads.
+    """
+    mass = 0
+    if not isinstance(blocks_node, list):
+        return 0
+
+    for block in blocks_node:
+        if not isinstance(block, dict):
+            continue
+        payload = block.get("normalized_text", "")
+        if isinstance(payload, str) and payload.strip():
+            mass += len(payload)
+
+    return mass
+
+
 def _scan_single_normalized(json_path: Path, norm_mass: defaultdict[str, int]) -> None:
     """Scans a single normalized JSON artifact to accumulate baseline character mass.
 
@@ -165,23 +188,29 @@ def _scan_single_normalized(json_path: Path, norm_mass: defaultdict[str, int]) -
         json_path (Path): Path to the normalized `.json` file.
         norm_mass (defaultdict[str, int]): Accumulator for baseline character mass.
     """
-    with json_path.open(encoding="utf-8") as f:
-        doc: dict[str, Any] = json.load(f)
-        rfc_str: str = str(doc.get("metadata", {}).get("rfc_number", "unknown"))
-        size_acc: int = 0
+    try:
+        with json_path.open(encoding="utf-8") as f:
+            raw_doc: JSONNode = json.load(f)
+    except (json.JSONDecodeError, OSError):
+        return
 
-        for block in doc.get("preface_blocks", []):
-            payload: str = block.get("normalized_text", "")
-            if payload.strip():
-                size_acc += len(payload)
+    if not isinstance(raw_doc, dict):
+        return
 
-        for section in doc.get("sections", []):
-            for block in section.get("blocks", []):
-                payload = block.get("normalized_text", "")
-                if payload.strip():
-                    size_acc += len(payload)
+    metadata = raw_doc.get("metadata")
+    rfc_str: str = "unknown"
+    if isinstance(metadata, dict):
+        rfc_str = str(metadata.get("rfc_number", "unknown"))
 
-        norm_mass[rfc_str] = size_acc
+    size_acc: int = _calculate_blocks_mass(raw_doc.get("preface_blocks"))
+
+    sections = raw_doc.get("sections")
+    if isinstance(sections, list):
+        for section in sections:
+            if isinstance(section, dict):
+                size_acc += _calculate_blocks_mass(section.get("blocks"))
+
+    norm_mass[rfc_str] = size_acc
 
 
 def scan_normalized_files(normalized_dir: Path) -> tuple[defaultdict[str, int], int]:

@@ -21,6 +21,7 @@ from rfc_atlas.normalization.schema import Block, NormalizedRFC, RFCMetadata
 
 logger = logging.getLogger(__name__)
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 CHUNK_SIZE_LIMIT: int = 2000
 OVERLAP_SIZE: int = 250
 BATCH_SIZE: int = 50
@@ -511,8 +512,7 @@ def run_chunking_pipeline(
 
 
 if __name__ == "__main__":
-    _project_root = Path(__file__).resolve().parent.parent
-    _data_dir = _project_root / "data"
+    _data_dir = _PROJECT_ROOT / "data"
 
     run_chunking_pipeline(
         normalized_dir=_data_dir / "normalized",

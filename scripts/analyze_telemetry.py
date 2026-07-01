@@ -11,6 +11,8 @@ from rfc_atlas.utils.exceptions import MissingTelemetryLogError
 if TYPE_CHECKING:
     from rfc_atlas.ingestion.manifest import TelemetryRecord
 
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
 
 def analyze_telemetry(telemetry_log_path: Path) -> None:
     """Parses the telemetry log file and prints a summary report to the console.
@@ -98,9 +100,6 @@ def analyze_telemetry(telemetry_log_path: Path) -> None:
 
 def main() -> None:
     """Main entry point for parsing arguments and launching telemetry analysis."""
-    script_dir = Path(__file__).resolve().parent
-    root_dir = script_dir.parent
-
     parser = argparse.ArgumentParser(
         description=(
             "Aggregates and formats operational runtime telemetry summaries for "
@@ -111,7 +110,7 @@ def main() -> None:
     parser.add_argument(
         "--telemetry-log-path",
         type=Path,
-        default=root_dir / "data" / "manifests" / "telemetry_log.json",
+        default=_PROJECT_ROOT / "data" / "manifests" / "telemetry_log.json",
         help="Path to the JSON file where pipeline tracking metrics are recorded.",
     )
 

@@ -24,7 +24,7 @@ class BlockLengthRecord(TypedDict):
     length: int
 
 
-_PROJECT_ROOT: Path = Path(__file__).resolve().parent.parent
+_PROJECT_ROOT: Path = Path(__file__).resolve().parents[1]
 DATA_DIR: Path = _PROJECT_ROOT / "data"
 NORMALIZED_DIR: Path = DATA_DIR / "normalized"
 LOGS_DIR: Path = DATA_DIR / "logs"

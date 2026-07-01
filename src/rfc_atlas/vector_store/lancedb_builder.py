@@ -19,7 +19,7 @@ from rfc_atlas.vector_store.schema import LANCE_CHUNK_SCHEMA
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROJECT_ROOT = Path(__file__).resolve().parents[3]
 LOCAL_IN_DIR = _PROJECT_ROOT / "data" / "embeddings" / "parquet_vectors"
 LOCAL_DB_DIR = _PROJECT_ROOT / "data" / "lancedb"
 

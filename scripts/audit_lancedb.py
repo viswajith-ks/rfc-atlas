@@ -13,7 +13,7 @@ import lancedb
 logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
-DB_PATH = Path(__file__).resolve().parents[1] / "data" / "lancedb"
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_audit() -> None:
@@ -23,13 +23,14 @@ def run_audit() -> None:
     total row counts, and runs a test Tantivy BM25 Full-Text Search against the
     'prose' table to guarantee search functionality.
     """
-    if not DB_PATH.exists():
-        logger.error("❌ ERROR: LanceDB not found at %s", DB_PATH)
+    db_path = _PROJECT_ROOT / "data" / "lancedb"
+    if not db_path.exists():
+        logger.error("❌ ERROR: LanceDB not found at %s", db_path)
         return
 
-    db = lancedb.connect(str(DB_PATH))
+    db = lancedb.connect(str(db_path))
 
-    clean_table_names = [p.stem for p in DB_PATH.glob("*.lance")]
+    clean_table_names = [p.stem for p in db_path.glob("*.lance")]
 
     logger.info("==================================================")
     logger.info("📊 LANCEDB INTEGRITY AUDIT")

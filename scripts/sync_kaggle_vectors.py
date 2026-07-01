@@ -28,11 +28,11 @@ from tenacity import (
     wait_exponential,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
-DATA_CHUNKS_DIR = REPO_ROOT / "data" / "chunks"
-LOCAL_EMBEDDINGS_DIR = REPO_ROOT / "data" / "embeddings"
-STAGING_DIR = REPO_ROOT / ".scratch" / "kaggle_deploy"
-LOCAL_LOG_DIR = REPO_ROOT / "data" / "logs"
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA_CHUNKS_DIR = _PROJECT_ROOT / "data" / "chunks"
+LOCAL_EMBEDDINGS_DIR = _PROJECT_ROOT / "data" / "embeddings"
+STAGING_DIR = _PROJECT_ROOT / ".scratch" / "kaggle_deploy"
+LOCAL_LOG_DIR = _PROJECT_ROOT / "data" / "logs"
 REMOTE_ENTRY_MODULE = "rfc_atlas.vector_store.kaggle_embedder"
 REMOTE_ENTRY_SCRIPT = "src/rfc_atlas/vector_store/kaggle_embedder.py"
 
@@ -244,7 +244,7 @@ class KaggleOrchestrator:
         Returns:
             bool: True if the path matches an exclusion pattern, False otherwise.
         """
-        rel = path.relative_to(REPO_ROOT).as_posix()
+        rel = path.relative_to(_PROJECT_ROOT).as_posix()
         for pat in IGNORE_PATTERNS:
             if fnmatch.fnmatch(rel, pat) or rel.startswith(pat.rstrip("/") + "/"):
                 return True
@@ -261,10 +261,10 @@ class KaggleOrchestrator:
             f"{bundle_path.name}"
         )
         with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
-            for path in REPO_ROOT.rglob("*"):
+            for path in _PROJECT_ROOT.rglob("*"):
                 if path.is_dir() or self._should_ignore(path):
                     continue
-                z.write(path, arcname=path.relative_to(REPO_ROOT))
+                z.write(path, arcname=path.relative_to(_PROJECT_ROOT))
 
             if LOCAL_EMBEDDINGS_DIR.exists():
                 parquets = list(LOCAL_EMBEDDINGS_DIR.rglob("*.parquet"))

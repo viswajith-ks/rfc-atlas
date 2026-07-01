@@ -23,6 +23,7 @@ from pebble import ProcessPool
 from rfc_atlas.ingestion.manifest import DatasetManifest, TelemetryRecord
 from rfc_atlas.metadata.index_parser import RFCIndexParser
 from rfc_atlas.normalization.normative_extractor import NormativeExtractor
+from rfc_atlas.normalization.schema import SourceType
 from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
 from rfc_atlas.parsers.txt_parser import LegacyTextParser
 from rfc_atlas.parsers.xml_parser import ModernRFCParser
@@ -41,7 +42,7 @@ WorkerFuture: TypeAlias = Future[
 
 
 def _run_worker_logic(
-    filepath: Path, rfc_num: int, source_type: Literal["txt", "xml"], output_dir: Path
+    filepath: Path, rfc_num: int, source_type: SourceType, output_dir: Path
 ) -> TelemetryRecord:
     """Executes the raw parsing and normalization pipeline for a single document.
 
@@ -94,14 +95,14 @@ def _run_worker_logic(
 
 
 def _execute_rfc_parsing_worker(
-    filepath: Path, rfc_num: int, source_type: Literal["txt", "xml"], output_dir: Path
+    filepath: Path, rfc_num: int, source_type: SourceType, output_dir: Path
 ) -> tuple[Literal["success", "failed"], str | None, TelemetryRecord | None]:
     """Parses and structures an individual RFC file inside a process-isolated worker.
 
     Args:
         filepath (Path): Exact file path to the target RFC document.
         rfc_num (int): Numeric identifier of the RFC document.
-        source_type (Literal["txt", "xml"]): Format type of the source document.
+        source_type (SourceType): Format type of the source document.
         output_dir (Path): Destination directory for the normalized JSON output.
 
     Returns:
@@ -301,7 +302,7 @@ class PipelineOrchestrator:
             if (rfc_num := self._extract_rfc_num(f)) > 0
         )
 
-    def _execute_era_ingestion(self, source_type: Literal["txt", "xml"]) -> None:
+    def _execute_era_ingestion(self, source_type: SourceType) -> None:
         """Discovers, filters, and processes RFC source files matching an execution era.
 
         For the txt pass, any RFC whose number appears in the XML source directory is
@@ -310,7 +311,7 @@ class PipelineOrchestrator:
         they are automatically preferred without any configuration change.
 
         Args:
-            source_type (Literal["txt", "xml"]):
+            source_type (SourceType):
                 Targeted source format for directory scans.
         """
         if source_type == "xml":
@@ -469,14 +470,14 @@ class PipelineOrchestrator:
         self,
         pool: ProcessPool,
         file_iterator: Iterator[Path],
-        source_type: Literal["txt", "xml"],
+        source_type: SourceType,
     ) -> tuple[WorkerFuture, Path] | None:
         """Attempts to pull the next file from the iterator and schedule it on the pool.
 
         Args:
             pool (ProcessPool): The active Pebble process pool.
             file_iterator (Iterator[Path]): The remaining queue of document file paths.
-            source_type (Literal["txt", "xml"]): Format type of the source documents.
+            source_type (SourceType): Format type of the source documents.
 
         Returns:
             tuple[WorkerFuture, Path] | None: A tuple containing the scheduled future
@@ -499,7 +500,7 @@ class PipelineOrchestrator:
         self,
         pool: ProcessPool,
         target_files: list[Path],
-        source_type: Literal["txt", "xml"],
+        source_type: SourceType,
         log_prefix: str,
         allocated_cores: int,
     ) -> tuple[int, int]:
@@ -508,7 +509,7 @@ class PipelineOrchestrator:
         Args:
             pool (ProcessPool): The active Pebble process pool.
             target_files (list[Path]): The collection of files to process.
-            source_type (Literal["txt", "xml"]): Format type of the source documents.
+            source_type (SourceType): Format type of the source documents.
             log_prefix (str): Label prefix for progress tracking outputs.
             allocated_cores (int): Number of cores to calculate pre-fill buffering.
 
@@ -561,7 +562,7 @@ class PipelineOrchestrator:
     def _run_parallel_ingestion_pool(
         self,
         target_files: list[Path],
-        source_type: Literal["txt", "xml"],
+        source_type: SourceType,
         log_prefix: str,
     ) -> tuple[int, int]:
         """Manages process pool worker allocation via sliding task submission.
@@ -569,7 +570,7 @@ class PipelineOrchestrator:
         Args:
             target_files (list[Path]):
                 Target collection of file paths targeted for extraction.
-            source_type (Literal["txt", "xml"]): Era format selector string.
+            source_type (SourceType): Era format selector string.
             log_prefix (str): Label prefix for progress tracking outputs.
 
         Returns:

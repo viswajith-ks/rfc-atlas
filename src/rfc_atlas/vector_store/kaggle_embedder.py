@@ -18,7 +18,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal, TypeAlias
 
 import numpy as np
 import numpy.typing as npt
@@ -31,6 +31,10 @@ from rfc_atlas.vector_store.schema import (
     VECTOR_DIMENSIONS,
     build_lance_table,
 )
+
+JSONPrimitive: TypeAlias = str | int | float | bool | None
+JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
+JSONDict: TypeAlias = dict[str, JSONNode]
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
@@ -77,7 +81,7 @@ class ForgeContext:
     scratch_dir: Path
     schema: pa.Schema
     model: SentenceTransformer
-    pool: dict[Literal["input", "output", "processes"], Any]
+    pool: dict[Literal["input", "output", "processes"], object]
 
 
 def verify_network_ingress() -> None:
@@ -132,16 +136,16 @@ def get_final_chunk_id_of_parquet(parquet_path: Path) -> str | None:
 
 
 def flush_buffer(
-    records: list[dict[str, Any]],
+    records: list[JSONDict],
     writer: pq.ParquetWriter,
     model: SentenceTransformer,
     schema: pa.Schema,
-    multigpu_pool: dict[Literal["input", "output", "processes"], Any],
+    multigpu_pool: dict[Literal["input", "output", "processes"], object],
 ) -> None:
     """Transforms a dict buffer into PyArrow memory and writes to disk.
 
     Args:
-        records (list[dict[str, Any]]): The buffer of parsed JSONL chunk records.
+        records (list[JSONDict]): The buffer of parsed JSONL chunk records.
         writer (pq.ParquetWriter): The active Parquet file writer instance.
         model (SentenceTransformer): The embedding model instance.
         schema (pa.Schema): The strictly enforced PyArrow schema.
@@ -250,7 +254,7 @@ def _find_resume_point(table_name: str, out_dir: Path) -> tuple[int, str | None]
     return shard_idx, last_known_id
 
 
-def _load_records(jsonl_path: Path, start_id: str | None) -> list[dict[str, Any]]:
+def _load_records(jsonl_path: Path, start_id: str | None) -> list[JSONDict]:
     """Loads the entire JSONL file into System RAM, skipping processed records.
 
     Args:
@@ -258,10 +262,10 @@ def _load_records(jsonl_path: Path, start_id: str | None) -> list[dict[str, Any]
         start_id (str | None): Chunk ID to resume from, or None to read all.
 
     Returns:
-        list[dict[str, Any]]: A length-sorted list of unprocessed record dicts.
+        list[JSONDict]: A length-sorted list of unprocessed record dicts.
     """
     seeking = start_id is not None
-    records: list[dict[str, Any]] = []
+    records: list[JSONDict] = []
     search_token = f'"chunk_id": "{start_id}"' if seeking else ""
 
     with jsonl_path.open(encoding="utf-8") as f:
@@ -280,10 +284,11 @@ def _load_records(jsonl_path: Path, start_id: str | None) -> list[dict[str, Any]
                 continue
 
             with contextlib.suppress(json.JSONDecodeError):
-                records.append(json.loads(line))
+                record: JSONDict = json.loads(line)
+                records.append(record)
 
     logger.info("🧠 Applying Smart Batching (Sorting by text length)...")
-    records.sort(key=lambda x: len(x.get("text_payload", "")))
+    records.sort(key=lambda x: len(str(x.get("text_payload", ""))))
 
     return records
 
@@ -446,7 +451,7 @@ def execute_pipeline(in_dir: Path, out_dir: Path, scratch_dir: Path) -> None:
     target_devices = ["cuda:0", "cuda:1"]
     logger.info("⚡ Spawning independent CUDA worker pool across %s...", target_devices)
 
-    multigpu_pool: dict[Literal["input", "output", "processes"], Any] = (
+    multigpu_pool: dict[Literal["input", "output", "processes"], object] = (
         model.start_multi_process_pool(target_devices=target_devices)
     )
 
