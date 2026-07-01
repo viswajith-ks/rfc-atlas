@@ -182,7 +182,7 @@ class RFCIndexParser:
 
     def _process_element(self, elem: _Element) -> None:
         """Processes a single XML node and aggressively frees memory."""
-        tag = elem.tag.split("}")[-1] if "}" in str(elem.tag) else str(elem.tag)
+        tag = get_local_name(elem)
 
         if tag == "rfc-entry":
             entry_data = self._parse_rfc_entry(elem)

@@ -45,6 +45,9 @@ def _build_indices(lance_table: LanceTable, total_rows: int) -> None:
 
         lance_table.create_index(
             vector_column_name="vector",
+            # We strictly L2-normalize vectors during ingestion.
+            # On unit vectors, L2 yields identical ranking to Cosine
+            # but benefits from faster SIMD hardware optimizations.
             metric="l2",
             index_type="IVF_HNSW_SQ",
             num_partitions=calculated_partitions,
