@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING, TypeAlias
 from rfc_atlas.ingestion.manifest import DatasetManifest, TelemetryRecord
 from rfc_atlas.ingestion.orchestrator import process_document
 from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
+from rfc_atlas.utils import atomic_write
 
 if TYPE_CHECKING:
     from rfc_atlas.normalization.schema import SourceType
@@ -169,7 +170,8 @@ def _patch_telemetry_log(
     patched_telemetry.extend(new_telemetry)
     patched_telemetry.sort(key=lambda x: _extract_rfc_num(x["file"]))
 
-    telemetry_path.write_text(json.dumps(patched_telemetry, indent=2), encoding="utf-8")
+    with atomic_write(telemetry_path) as f:
+        json.dump(patched_telemetry, f, indent=2)
     logger.info("Updated telemetry log saved to %s.", telemetry_path)
     return patched_telemetry
 

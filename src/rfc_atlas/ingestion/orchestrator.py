@@ -27,6 +27,7 @@ from rfc_atlas.normalization.schema import SourceType
 from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
 from rfc_atlas.parsers.txt_parser import LegacyTextParser
 from rfc_atlas.parsers.xml_parser import ModernRFCParser
+from rfc_atlas.utils import atomic_write
 from rfc_atlas.utils.exceptions import (
     CorpusDependencyError,
     MetadataIndexCompilationError,
@@ -724,7 +725,6 @@ class PipelineOrchestrator:
         manifest.save_to_disk(self.dataset_manifest_path)
         logger.info("Receipt saved to %s.", self.dataset_manifest_path)
 
-        self.telemetry_log_path.write_text(
-            json.dumps(self.telemetry_manifest, indent=2), encoding="utf-8"
-        )
+        with atomic_write(self.telemetry_log_path) as f:
+            json.dump(self.telemetry_manifest, f, indent=2)
         logger.info("Telemetry log saved to %s.", self.telemetry_log_path)
