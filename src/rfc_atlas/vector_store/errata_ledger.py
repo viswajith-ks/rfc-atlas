@@ -9,6 +9,8 @@ import logging
 from pathlib import Path
 from typing import ClassVar, TypeAlias
 
+from rfc_atlas.utils.exceptions import SingletonViolationError
+
 logger = logging.getLogger(__name__)
 
 JSONPrimitive: TypeAlias = str | int | float | bool | None
@@ -21,19 +23,20 @@ DEFAULT_ERRATA_PATH = _PROJECT_ROOT / "data" / "metadata" / "errata.json"
 class ErrataLedger:
     """Singleton ledger that loads and normalizes IETF errata into memory."""
 
-    _instance: ClassVar["ErrataLedger | None"] = None
+    _is_instantiated: ClassVar[bool] = False
     _ledger: ClassVar[dict[int, list[dict[str, JSONNode]]]] = {}
     _is_loaded: ClassVar[bool] = False
 
-    def __new__(cls) -> "ErrataLedger":
-        """Creates or returns the singleton instance of the ledger.
+    def __init__(self) -> None:
+        """Enforces strict singleton instantiation.
 
-        Returns:
-            ErrataLedger: The singleton instance.
+        Raises:
+            SingletonViolationError: If an attempt is made to instantiate a
+                strict Singleton twice.
         """
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
+        if ErrataLedger._is_instantiated:
+            raise SingletonViolationError(self.__class__.__name__)
+        ErrataLedger._is_instantiated = True
 
     @classmethod
     def _process_entry(cls, entry: dict[str, JSONNode]) -> None:

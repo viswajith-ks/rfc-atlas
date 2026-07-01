@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from rfc_atlas.utils.exceptions import SingletonViolationError
 from rfc_atlas.vector_store.errata_ledger import ErrataLedger
 
 pytestmark = pytest.mark.usefixtures("_reset_ledger")
@@ -50,15 +51,16 @@ def mock_errata_file(tmp_path: Path) -> Path:
 @pytest.fixture
 def _reset_ledger() -> None:  # pyright: ignore[reportUnusedFunction]
     """Fixture to ensure the Singleton state is wiped clean before each test."""
+    ErrataLedger._is_instantiated = False  # pyright: ignore[reportPrivateUsage]
     ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
     ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]
 
 
 def test_errata_ledger_singleton_physics() -> None:
-    """Asserts that multiple instantiations share the exact same memory address."""
-    ledger1 = ErrataLedger()
-    ledger2 = ErrataLedger()
-    assert id(ledger1) == id(ledger2)
+    """Asserts that secondary instantiation raises a SingletonViolationError."""
+    _ = ErrataLedger()
+    with pytest.raises(SingletonViolationError):
+        _ = ErrataLedger()
 
 
 def test_errata_parsing_and_filtering(mock_errata_file: Path) -> None:
