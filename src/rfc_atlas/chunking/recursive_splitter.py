@@ -18,6 +18,7 @@ from pydantic import ValidationError
 
 from rfc_atlas.chunking.schema import TABLE_ROUTING_MAP, ChunkRecord
 from rfc_atlas.normalization.schema import Block, NormalizedRFC, RFCMetadata
+from rfc_atlas.utils import atomic_write
 
 logger = logging.getLogger(__name__)
 
@@ -292,9 +293,8 @@ def gather_files(
 
     for table_name in unique_tables:
         master_path = chunks_dir / f"{table_name}.jsonl"
-        tmp_master_path = chunks_dir / f"{table_name}.jsonl.tmp"
 
-        with tmp_master_path.open("wb") as master_file:
+        with atomic_write(master_path, mode="wb") as master_file:
             for batch_id in range(total_batches):
                 worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
                 marker_path = tmp_dir / f"batch_{batch_id}.success"
@@ -310,24 +310,19 @@ def gather_files(
                         table_name,
                     )
 
-        Path(tmp_master_path).replace(master_path)
+        master_log_path = logs_dir / "chunking_pipeline.log"
 
-    master_log_path = logs_dir / "chunking_pipeline.log"
-    tmp_log_path = logs_dir / "chunking_pipeline.log.tmp"
-
-    with tmp_log_path.open("wb") as master_log:
-        orch_log = tmp_dir / "orchestrator_errors.log"
-        if orch_log.exists():
-            with orch_log.open("rb") as f:
-                shutil.copyfileobj(f, master_log)
-
-        for batch_id in range(total_batches):
-            worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
-            if worker_tmp_log.exists():
-                with worker_tmp_log.open("rb") as f:
+        with atomic_write(master_log_path, mode="wb") as master_log:
+            orch_log = tmp_dir / "orchestrator_errors.log"
+            if orch_log.exists():
+                with orch_log.open("rb") as f:
                     shutil.copyfileobj(f, master_log)
 
-    Path(tmp_log_path).replace(master_log_path)
+            for batch_id in range(total_batches):
+                worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
+                if worker_tmp_log.exists():
+                    with worker_tmp_log.open("rb") as f:
+                        shutil.copyfileobj(f, master_log)
 
     shutil.rmtree(tmp_dir)
     logger.info(

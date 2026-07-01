@@ -6,6 +6,8 @@ from typing import Literal, TypedDict
 
 from pydantic import BaseModel
 
+from rfc_atlas.utils import atomic_write
+
 
 class DatasetManifest(BaseModel):
     """Authoritative validation receipt across an ingestion pipeline run."""
@@ -28,9 +30,8 @@ class DatasetManifest(BaseModel):
             filepath (Path): Target path where the JSON manifest file will be written.
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        tmp_filepath = filepath.with_suffix(".json.tmp")
-        tmp_filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
-        Path(tmp_filepath).replace(filepath)
+        with atomic_write(filepath) as f:
+            f.write(self.model_dump_json(indent=2))
 
 
 class SuccessRecord(TypedDict):

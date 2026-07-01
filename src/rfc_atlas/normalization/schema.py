@@ -12,6 +12,7 @@ from pydantic import (
 )
 
 from rfc_atlas.metadata.schema import RFCPublicationDate
+from rfc_atlas.utils import atomic_write
 
 ReferenceCategory = Literal["Normative", "Informative"]
 SourceType: TypeAlias = Literal["xml", "txt"]
@@ -281,6 +282,5 @@ class NormalizedRFC(BaseModel):
         (`protocol_family`).
         """
         filepath.parent.mkdir(parents=True, exist_ok=True)
-        tmp_filepath = filepath.with_name(f"{filepath.name}.tmp")
-        tmp_filepath.write_text(self.model_dump_json(indent=2), encoding="utf-8")
-        Path(tmp_filepath).replace(filepath)
+        with atomic_write(filepath) as f:
+            f.write(self.model_dump_json(indent=2))

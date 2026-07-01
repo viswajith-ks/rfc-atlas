@@ -9,6 +9,7 @@ from lxml import etree
 from lxml.etree import _Element  # pyright: ignore[reportPrivateUsage]
 
 from rfc_atlas.metadata.schema import RFCIndexEntryDict, RFCPublicationDateDict
+from rfc_atlas.utils import atomic_write
 from rfc_atlas.utils.exceptions import CorpusDependencyError, MalformedIndexXMLError
 from rfc_atlas.utils.xml_utils import (
     find_child_by_local_name,
@@ -225,9 +226,6 @@ class RFCIndexParser:
     def _save(self) -> None:
         """Serializes the compiled metadata dictionary to disk atomically."""
         self.output_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self.output_path.with_suffix(".json.tmp")
 
-        with tmp_path.open("w", encoding="utf-8") as f:
+        with atomic_write(self.output_path) as f:
             json.dump(self.metadata_dict, f, indent=2)
-
-        Path(tmp_path).replace(self.output_path)
