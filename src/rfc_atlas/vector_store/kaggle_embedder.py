@@ -62,16 +62,6 @@ KAGGLE_IN_DIR = _resolved_in
 KAGGLE_OUT_DIR.mkdir(parents=True, exist_ok=True)
 LOG_FILE = KAGGLE_OUT_DIR / "embedder_telemetry.log"
 
-logging.Formatter.converter = time.gmtime
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(asctime)s UTC] %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8"),
-    ],
-)
 logger = logging.getLogger(__name__)
 
 
@@ -463,6 +453,17 @@ def execute_pipeline(in_dir: Path, out_dir: Path, scratch_dir: Path) -> None:
 
 
 if __name__ == "__main__":
+    logging.Formatter.converter = time.gmtime
+    logging.basicConfig(
+        level=logging.INFO,
+        format="[%(asctime)s UTC] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8"),
+        ],
+    )
+
     verify_network_ingress()
     parser = argparse.ArgumentParser(description="RFC Atlas Kaggle Vector Forge.")
     parser.add_argument("--in-dir", type=str, help="Custom input JSONL directory.")

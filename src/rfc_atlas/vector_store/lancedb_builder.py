@@ -16,7 +16,6 @@ from lancedb.table import Table as LanceTable
 
 from rfc_atlas.vector_store.schema import LANCE_CHUNK_SCHEMA
 
-logging.basicConfig(level=logging.INFO, format="%(message)s")
 logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -156,6 +155,7 @@ def construct_database(source_dir: Path, db_dir: Path) -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
     if LOCAL_DB_DIR.exists():
         shutil.rmtree(LOCAL_DB_DIR)
     construct_database(LOCAL_IN_DIR, LOCAL_DB_DIR)
