@@ -31,7 +31,11 @@ JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
 JSONDict: TypeAlias = dict[str, JSONNode]
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(message)s")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE: int = 8

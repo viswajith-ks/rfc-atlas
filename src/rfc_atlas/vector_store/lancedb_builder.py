@@ -158,7 +158,11 @@ def construct_database(source_dir: Path, db_dir: Path) -> None:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(message)s")
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     if LOCAL_DB_DIR.exists():
         shutil.rmtree(LOCAL_DB_DIR)
     construct_database(LOCAL_IN_DIR, LOCAL_DB_DIR)
