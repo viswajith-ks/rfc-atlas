@@ -27,11 +27,6 @@ if TYPE_CHECKING:
 JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -261,7 +256,13 @@ def run_incremental_ingest(config: IncrementalConfig) -> None:
     _rebuild_dataset_manifest(patched_telemetry, config)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Parses arguments and executes the incremental document ingestion pipeline."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     parser = argparse.ArgumentParser(
         description="RFC Atlas Incremental Document Ingestion"
     )
@@ -300,3 +301,7 @@ if __name__ == "__main__":
     except Exception:
         logger.exception("CRITICAL FAILURE: Incremental ingestion aborted abnormally.")
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

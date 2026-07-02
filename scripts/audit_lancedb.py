@@ -4,6 +4,8 @@ Asserts total row counts across all local tables and executes
 a test Tantivy BM25 Full-Text Search (FTS) to verify index health.
 """
 
+import argparse
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -80,5 +82,19 @@ def run_audit() -> None:
     print("✅ Tantivy FTS Engine is operational.")
 
 
+def main() -> None:
+    """Parses arguments and executes the LanceDB integrity audit."""
+    parser = argparse.ArgumentParser(description="RFC Atlas LanceDB Integrity Audit.")
+    _ = parser.parse_args()
+
+    try:
+        run_audit()
+    except (OSError, ValueError, RuntimeError) as e:
+        print(
+            f"CRITICAL FAILURE: LanceDB Audit aborted abnormally: {e}", file=sys.stderr
+        )
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    run_audit()
+    main()

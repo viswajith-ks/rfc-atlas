@@ -4,6 +4,7 @@ Executes strictly typed PyArrow ingestion of Gold Parquet chunks into LanceDB.
 Compiles Tantivy BM25 sparse lexical indices and trains IVF-PQ dense vector clusters.
 """
 
+import argparse
 import logging
 import shutil
 import sys
@@ -157,12 +158,28 @@ def construct_database(source_dir: Path, db_dir: Path) -> None:
     logger.info("\nLANCEDB CONSTRUCTION COMPLETE!")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Parses arguments and executes the LanceDB table construction."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
     )
-    if LOCAL_DB_DIR.exists():
-        shutil.rmtree(LOCAL_DB_DIR)
-    construct_database(LOCAL_IN_DIR, LOCAL_DB_DIR)
+    parser = argparse.ArgumentParser(
+        description="RFC Atlas LanceDB Construction Engine."
+    )
+    parser.add_argument("--in-dir", type=Path, default=LOCAL_IN_DIR)
+    parser.add_argument("--db-dir", type=Path, default=LOCAL_DB_DIR)
+    args = parser.parse_args()
+
+    try:
+        if args.db_dir.exists():
+            shutil.rmtree(args.db_dir)
+        construct_database(args.in_dir, args.db_dir)
+    except Exception:
+        logger.exception("CRITICAL FAILURE: LanceDB construction aborted abnormally.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

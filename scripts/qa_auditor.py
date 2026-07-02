@@ -4,7 +4,9 @@ Validates chunk boundary limits and verifies the conservation of mass
 between normalized JSON artifacts and generated LanceDB JSONL chunks.
 """
 
+import argparse
 import json
+import sys
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -363,5 +365,17 @@ def run_audit() -> None:
     print("[SUCCESS] Audit complete. Check the log file for details!")
 
 
+def main() -> None:
+    """Parses arguments and executes the QA chunk boundaries audit."""
+    parser = argparse.ArgumentParser(description="RFC Atlas QA Auditor.")
+    _ = parser.parse_args()
+
+    try:
+        run_audit()
+    except (OSError, ValueError, KeyError) as e:
+        print(f"CRITICAL FAILURE: QA Audit aborted abnormally: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    run_audit()
+    main()

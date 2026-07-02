@@ -3,6 +3,7 @@
 Scans normalized RFC artifacts and compiles statistical summaries.
 """
 
+import argparse
 import csv
 import json
 import operator
@@ -168,7 +169,12 @@ def print_distribution_report(
 
 
 def main() -> None:
-    """Executes the telemetry analysis and generates distribution reports."""
+    """Parses arguments, executes telemetry analysis, and generates reports."""
+    parser = argparse.ArgumentParser(
+        description="RFC Atlas Block Length Telemetry Analyzer."
+    )
+    _ = parser.parse_args()
+
     if not NORMALIZED_DIR.exists():
         print(f"Error: Directory {NORMALIZED_DIR} not found.")
         sys.exit(1)
@@ -177,7 +183,15 @@ def main() -> None:
     print(f"Scanning canonical artifacts in {NORMALIZED_DIR}...")
 
     json_files: list[Path] = list(NORMALIZED_DIR.glob("*.json"))
-    all_blocks = scan_files(json_files)
+
+    try:
+        all_blocks = scan_files(json_files)
+    except (OSError, ValueError, KeyError) as e:
+        print(
+            f"CRITICAL FAILURE: Chunk length analysis aborted abnormally: {e}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if not all_blocks:
         print("No blocks found. Check your directory path and JSON structure.")
@@ -197,8 +211,12 @@ def main() -> None:
     outliers.sort(key=operator.itemgetter("length"), reverse=True)
     standards.sort(key=operator.itemgetter("length"), reverse=True)
 
-    write_csv_report(OUTLIERS_CSV, outliers)
-    write_csv_report(STANDARD_CSV, standards)
+    try:
+        write_csv_report(OUTLIERS_CSV, outliers)
+        write_csv_report(STANDARD_CSV, standards)
+    except OSError as e:
+        print(f"CRITICAL FAILURE: Failed to write CSV reports: {e}", file=sys.stderr)
+        sys.exit(1)
 
     total_blocks: int = len(all_blocks)
     over_threshold: int = len(outliers)

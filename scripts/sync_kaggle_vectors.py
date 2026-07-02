@@ -560,7 +560,13 @@ class KaggleOrchestrator:
             shutil.rmtree(STAGING_DIR)
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Parses arguments and orchestrates the Kaggle ephemeral compute pipeline."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
     parser = argparse.ArgumentParser(description="RFC Atlas Cloud Sync Orchestrator")
     parser.add_argument(
         "--phase",
@@ -573,11 +579,16 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    orchestrator = KaggleOrchestrator()
-    if args.phase == "push":
-        orchestrator.push_pipeline()
-    elif args.phase == "poll":
-        orchestrator.poll_and_fetch_pipeline()
-    elif args.phase == "full":
-        orchestrator.push_pipeline()
-        orchestrator.poll_and_fetch_pipeline()
+    try:
+        orchestrator = KaggleOrchestrator()
+        if args.phase in {"push", "full"}:
+            orchestrator.push_pipeline()
+        if args.phase in {"poll", "full"}:
+            orchestrator.poll_and_fetch_pipeline()
+    except Exception:
+        logger.exception("CRITICAL FAILURE: Kaggle Cloud Sync aborted abnormally.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

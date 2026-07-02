@@ -3,6 +3,7 @@
 Manages multi-core scatter-gather execution for high-throughput processing.
 """
 
+import argparse
 import gc
 import logging
 import os
@@ -506,12 +507,34 @@ def run_chunking_pipeline(
     logger.info("====================================================")
 
 
-if __name__ == "__main__":
-    _data_dir = _PROJECT_ROOT / "data"
-
-    run_chunking_pipeline(
-        normalized_dir=_data_dir / "normalized",
-        chunks_dir=_data_dir / "chunks",
-        logs_dir=_data_dir / "logs",
-        tmp_dir=_data_dir / "chunks" / "tmp_workers",
+def main() -> None:
+    """Parses arguments and executes the multiprocess chunking pipeline."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
+    parser = argparse.ArgumentParser(description="RFC Atlas Chunking Pipeline.")
+    data_dir = _PROJECT_ROOT / "data"
+    parser.add_argument("--normalized-dir", type=Path, default=data_dir / "normalized")
+    parser.add_argument("--chunks-dir", type=Path, default=data_dir / "chunks")
+    parser.add_argument("--logs-dir", type=Path, default=data_dir / "logs")
+    parser.add_argument(
+        "--tmp-dir", type=Path, default=data_dir / "chunks" / "tmp_workers"
+    )
+    args = parser.parse_args()
+
+    try:
+        run_chunking_pipeline(
+            normalized_dir=args.normalized_dir,
+            chunks_dir=args.chunks_dir,
+            logs_dir=args.logs_dir,
+            tmp_dir=args.tmp_dir,
+        )
+    except Exception:
+        logger.exception("CRITICAL FAILURE: Chunking pipeline aborted abnormally.")
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

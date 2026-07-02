@@ -5,8 +5,10 @@ LanceDB tables to isolate new records, embeds them using local CPU compute,
 and appends them to the database. Idempotent and safe to run continuously.
 """
 
+import argparse
 import json
 import logging
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeAlias
 
@@ -31,11 +33,6 @@ JSONPrimitive: TypeAlias = str | int | float | bool | None
 JSONNode: TypeAlias = JSONPrimitive | list["JSONNode"] | dict[str, "JSONNode"]
 JSONDict: TypeAlias = dict[str, JSONNode]
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    datefmt="%Y-%m-%d %H:%M:%S",
-)
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE: int = 8
@@ -224,5 +221,24 @@ def run_incremental_sync() -> None:
     logger.info("==================================================")
 
 
+def main() -> None:
+    """Parses arguments and executes the incremental LanceDB vector ingestion."""
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+    )
+    parser = argparse.ArgumentParser(description="RFC Atlas Incremental Vector Forge.")
+    _ = parser.parse_args()
+
+    try:
+        run_incremental_sync()
+    except Exception:
+        logger.exception(
+            "CRITICAL FAILURE: Incremental vector forge aborted abnormally."
+        )
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    run_incremental_sync()
+    main()

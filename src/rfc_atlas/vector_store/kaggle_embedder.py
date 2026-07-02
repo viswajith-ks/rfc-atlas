@@ -452,7 +452,8 @@ def execute_pipeline(in_dir: Path, out_dir: Path, scratch_dir: Path) -> None:
         gc.collect()
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Parses arguments and executes the Kaggle vector forge pipeline."""
     logging.Formatter.converter = time.gmtime
     logging.basicConfig(
         level=logging.INFO,
@@ -485,9 +486,15 @@ if __name__ == "__main__":
     logger.info("📂 Source: %s", resolved_in)
     logger.info("💾 Target: %s", resolved_out)
     logger.info("=" * 75)
+    try:
+        execute_pipeline(resolved_in, resolved_out, resolved_scratch)
+        logger.info("\n%s", "=" * 75)
+        logger.info("🎉 ALL ASSIGNED VECTORS LOCKED.")
+        logger.info("=" * 75)
+    except Exception:
+        logger.exception("CRITICAL FAILURE: Kaggle Vector Forge aborted abnormally.")
+        sys.exit(1)
 
-    execute_pipeline(resolved_in, resolved_out, resolved_scratch)
 
-    logger.info("\n%s", "=" * 75)
-    logger.info("🎉 ALL ASSIGNED VECTORS LOCKED.")
-    logger.info("=" * 75)
+if __name__ == "__main__":
+    main()
