@@ -18,6 +18,7 @@ from typing import TYPE_CHECKING, TypeAlias
 
 from rfc_atlas.ingestion.manifest import DatasetManifest, TelemetryRecord
 from rfc_atlas.ingestion.orchestrator import process_document
+from rfc_atlas.metadata.index_parser import RFCIndexParser
 from rfc_atlas.normalization.tree_builder import CanonicalTreeBuilder
 from rfc_atlas.utils import atomic_write
 
@@ -40,6 +41,7 @@ class IncrementalConfig:
     raw_xml_dir: Path
     output_dir: Path
     manifest_dir: Path
+    raw_index_path: Path
     metadata_path: Path
     embedding_model: str
 
@@ -226,6 +228,22 @@ def run_incremental_ingest(config: IncrementalConfig) -> None:
         len(txt_queue),
     )
 
+    if not config.raw_index_path.exists():
+        logger.error("Raw RFC Index file not found at %s", config.raw_index_path)
+        sys.exit(1)
+
+    if (
+        not config.metadata_path.exists()
+        or config.metadata_path.stat().st_mtime < config.raw_index_path.stat().st_mtime
+    ):
+        logger.info(
+            "Metadata lookup cache is missing or stale. Compiling index ledger..."
+        )
+        index_parser = RFCIndexParser(config.raw_index_path, config.metadata_path)
+        index_parser.parse()
+    else:
+        logger.info("Metadata lookup cache is up-to-date. Skipping XML re-parsing.")
+
     builder = CanonicalTreeBuilder(config.metadata_path)
     new_telemetry: list[TelemetryRecord] = []
 
@@ -279,6 +297,11 @@ def main() -> None:
         "--manifest-dir", type=Path, default=_PROJECT_ROOT / "data" / "manifests"
     )
     parser.add_argument(
+        "--raw-index-path",
+        type=Path,
+        default=_PROJECT_ROOT / "data" / "raw" / "rfc_index" / "rfc-index.xml",
+    )
+    parser.add_argument(
         "--metadata-path",
         type=Path,
         default=_PROJECT_ROOT / "data" / "metadata" / "rfc_metadata_lookup.json",
@@ -294,6 +317,7 @@ def main() -> None:
             raw_xml_dir=args.raw_xml_dir,
             output_dir=args.output_dir,
             manifest_dir=args.manifest_dir,
+            raw_index_path=args.raw_index_path,
             metadata_path=args.metadata_path,
             embedding_model=args.embedding_model,
         )
