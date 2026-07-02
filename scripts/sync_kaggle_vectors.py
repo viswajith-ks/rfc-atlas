@@ -8,6 +8,7 @@ import argparse
 import builtins
 import fnmatch
 import json
+import logging
 import os
 import shutil
 import sys
@@ -27,6 +28,8 @@ from tenacity import (
     stop_after_attempt,
     wait_exponential,
 )
+
+logger = logging.getLogger(__name__)
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DATA_CHUNKS_DIR = _PROJECT_ROOT / "data" / "chunks"
@@ -216,8 +219,8 @@ class KaggleOrchestrator:
         """Authenticates the Kaggle API client via local tokens."""
         try:
             self.api.authenticate()
-        except (OSError, ValueError) as e:
-            print(f"\n[ERROR] Kaggle Authentication Failed! Details: {e}")
+        except (OSError, ValueError):
+            logger.exception("Kaggle Authentication Failed! Details")
             sys.exit(1)
 
     def _resolve_username(self) -> str:
@@ -230,7 +233,7 @@ class KaggleOrchestrator:
             "KAGGLE_USERNAME"
         )
         if not username:
-            print("[ERROR] Could not resolve Kaggle username.")
+            logger.error("Could not resolve Kaggle username.")
             sys.exit(1)
         return str(username)
 
@@ -256,9 +259,9 @@ class KaggleOrchestrator:
         Args:
             bundle_path (Path): Target path for the output ZIP file.
         """
-        print(
-            f"[*] Compiling source code and chunks into secure bundle: "
-            f"{bundle_path.name}"
+        logger.info(
+            "[*] Compiling source code and chunks into secure bundle: %s",
+            bundle_path.name,
         )
         with zipfile.ZipFile(bundle_path, "w", compression=zipfile.ZIP_DEFLATED) as z:
             for path in _PROJECT_ROOT.rglob("*"):
@@ -269,9 +272,9 @@ class KaggleOrchestrator:
             if LOCAL_EMBEDDINGS_DIR.exists():
                 parquets = list(LOCAL_EMBEDDINGS_DIR.rglob("*.parquet"))
                 if parquets:
-                    print(
-                        f"[*] Cloud Resume: Bundling {len(parquets)} existing "
-                        "Parquet shards..."
+                    logger.info(
+                        "[*] Cloud Resume: Bundling %d existing Parquet shards...",
+                        len(parquets),
                     )
                     for pq in parquets:
                         z.write(pq, arcname=f"resume_state/parquet_vectors/{pq.name}")
@@ -328,19 +331,21 @@ class KaggleOrchestrator:
         Args:
             dataset_stage (Path): Path to the compiled dataset staging directory.
         """
-        print(f"[*] Initializing new ephemeral dataset: {self.ds_slug}...")
+        logger.info("[*] Initializing new ephemeral dataset: %s...", self.ds_slug)
         self.api.dataset_create_new(str(dataset_stage), quiet=True)
-        print("[+] Successfully pushed ephemeral dataset.")
+        logger.info("[+] Successfully pushed ephemeral dataset.")
 
     def push_pipeline(self) -> None:
         """Coordinates the full cloud-bridge deployment and starts the remote engine."""
-        print(f"[*] Starting Cloud-Bridge Push Sequence for tenant: {self.username}")
+        logger.info(
+            "[*] Starting Cloud-Bridge Push Sequence for tenant: %s", self.username
+        )
         dataset_stage = self.prepare_dataset_staging()
         self.prepare_kernel_staging()
 
         self.push_dataset_with_retry(dataset_stage)
 
-        print("[*] Waiting for Kaggle backend to mount ephemeral dataset...")
+        logger.info("[*] Waiting for Kaggle backend to mount ephemeral dataset...")
         while True:
             try:
                 status_raw = self.api.dataset_status(  # pyright: ignore[reportUnknownMemberType]
@@ -353,26 +358,30 @@ class KaggleOrchestrator:
                 ConnectionError,
                 TimeoutError,
             ) as e:
-                print(f"[*] Transient error tracking dataset status: {e}")
+                logger.warning("[*] Transient error tracking dataset status: %s", e)
                 time.sleep(15)
                 continue
 
             status = str(status_raw).lower()
             if status == "ready":
-                print("[+] Dataset target status flipped to READY.")
+                logger.info("[+] Dataset target status flipped to READY.")
                 break
             if status == "error":
-                print("[ERROR] Kaggle storage processing failed.")
+                logger.error("Kaggle storage processing failed.")
                 sys.exit(1)
 
             time.sleep(15)
 
-        print("[*] Dataset ready. Allowing 30 seconds for IAM backend propagation...")
+        logger.info(
+            "[*] Dataset ready. Allowing 30 seconds for IAM backend propagation..."
+        )
         time.sleep(30)
 
-        print(f"[*] Igniting compute execution pool for kernel: {self.kernel_slug}")
+        logger.info(
+            "[*] Igniting compute execution pool for kernel: %s", self.kernel_slug
+        )
         self.api.kernels_push(str(STAGING_DIR / "kernel"))
-        print("[+++] Headless Dual-T4 Forge Engine successfully activated.")
+        logger.info("[+++] Headless Dual-T4 Forge Engine successfully activated.")
 
     def _fetch_and_print_crash_logs(self) -> None:
         """Attempts to retrieve the traceback of a fatally crashed remote execution."""
@@ -381,24 +390,26 @@ class KaggleOrchestrator:
         try:
             self.api.kernels_output(self.kernel_slug, path=str(LOCAL_EMBEDDINGS_DIR))
         except (ApiException, OSError, ValueError, ConnectionError, TimeoutError) as e:
-            print(f"[-] Could not fetch crash logs: {e}")
+            logger.warning("[-] Could not fetch crash logs: %s", e)
             return
 
         error_log = LOCAL_EMBEDDINGS_DIR / "fatal_error.log"
         if error_log.exists():
-            print("\n\n==================================================")
-            print("💥 FATAL EXCEPTION DETECTED ON KAGGLE SERVERS 💥")
-            print("==================================================\n")
-            print(error_log.read_text())
-            print("==================================================\n\n")
+            logger.error("\n\n==================================================")
+            logger.error("💥 FATAL EXCEPTION DETECTED ON KAGGLE SERVERS 💥")
+            logger.error("==================================================\n")
+            logger.error(error_log.read_text())
+            logger.error("==================================================\n\n")
             error_log.unlink()
         else:
-            print(f"[+] Downloaded the crashed notebook. Check {LOCAL_EMBEDDINGS_DIR}")
+            logger.info(
+                "[+] Downloaded the crashed notebook. Check %s", LOCAL_EMBEDDINGS_DIR
+            )
 
     def poll_and_fetch_pipeline(self) -> None:
         """Monitors kernel execution state and pulls completed Parquet vectors."""
-        print(
-            f"\n[*] Initiating Stakeout Sequence for remote engine: {self.kernel_slug}"
+        logger.info(
+            "[*] Initiating Stakeout Sequence for remote engine: %s", self.kernel_slug
         )
 
         @retry(
@@ -434,20 +445,21 @@ class KaggleOrchestrator:
                 OSError,
                 ValueError,
             ) as e:
-                print(
-                    f"[!] Warning: Status tracking transient error: "
-                    f"{type(e).__name__}. Retrying loop..."
+                logger.warning(
+                    "[!] Warning: Status tracking transient error: "
+                    "%s. Retrying loop...",
+                    type(e).__name__,
                 )
                 time.sleep(30)
                 continue
 
-            print(f"[*] Current Cloud Status: {status.upper()}")
+            logger.info("[*] Current Cloud Status: %s", status.upper())
 
             if "complete" in status:
                 LOCAL_EMBEDDINGS_DIR.mkdir(parents=True, exist_ok=True)
 
-                print(
-                    "\n[*] 📥 Initiating massive payload download. This may take "
+                logger.info(
+                    "[*] 📥 Initiating massive payload download. This may take "
                     "several minutes depending on your network speed..."
                 )
                 self.api.kernels_output(
@@ -456,34 +468,34 @@ class KaggleOrchestrator:
 
                 parquets = list(LOCAL_EMBEDDINGS_DIR.rglob("*.parquet"))
                 if not parquets:
-                    print(
-                        "[ERROR] Execution marked complete, but no parquet "
+                    logger.error(
+                        "Execution marked complete, but no parquet "
                         "files were generated."
                     )
-                    print("[*] Checking for crash logs...")
+                    logger.info("[*] Checking for crash logs...")
                     self._fetch_and_print_crash_logs()
                     self._cleanup_ephemeral_assets()
                     sys.exit(1)
 
-                print(
+                logger.info(
                     "[+] Valid Parquet artifacts detected! Dual-T4 run "
                     "successfully finished."
                 )
                 break
 
             if "error" in status or "cancel" in status:
-                print(
-                    f"[ERROR] Remote GPU execution died with terminating state: "
-                    f"{status.upper()}"
+                logger.error(
+                    "Remote GPU execution died with terminating state: %s",
+                    status.upper(),
                 )
-                print("[*] Attempting to pull crash logs from Kaggle...")
+                logger.info("[*] Attempting to pull crash logs from Kaggle...")
                 self._fetch_and_print_crash_logs()
                 self._cleanup_ephemeral_assets()
                 sys.exit(1)
 
             time.sleep(60)
 
-        print(
+        logger.info(
             "[+++] Transfer sequence complete. Local embeddings space is synchronized."
         )
 
@@ -492,13 +504,11 @@ class KaggleOrchestrator:
         if downloaded_log.exists():
             target_log = LOCAL_LOG_DIR / f"cloud_forge_{int(time.time())}.log"
             shutil.move(str(downloaded_log), str(target_log))
-            print("[*] Cloud telemetry recovered and routed to logs.")
-
-        self._cleanup_ephemeral_assets()
+            logger.info("[*] Cloud telemetry recovered and routed to logs.")
 
     def _cleanup_ephemeral_assets(self) -> None:
         """Automates the destruction of ephemeral cloud datasets and kernels."""
-        print("\n[*] Initiating ephemeral cloud asset cleanup...")
+        logger.info("[*] Initiating ephemeral cloud asset cleanup...")
 
         original_input = builtins.input
         builtins.input = lambda _="": "y"
@@ -507,7 +517,9 @@ class KaggleOrchestrator:
             try:
                 if hasattr(self.api, "dataset_delete"):
                     self.api.dataset_delete(self.username, self.dataset_id)
-                    print(f"[+] Ephemeral dataset {self.ds_slug} wiped from Kaggle.")
+                    logger.info(
+                        "[+] Ephemeral dataset %s wiped from Kaggle.", self.ds_slug
+                    )
             except (
                 ApiException,
                 OSError,
@@ -515,15 +527,19 @@ class KaggleOrchestrator:
                 ConnectionError,
                 TimeoutError,
             ) as e:
-                print(
-                    f"[-] Non-fatal warning: Could not cleanly delete dataset "
-                    f"{self.ds_slug}. Reason: {e}"
+                logger.warning(
+                    "[-] Non-fatal warning: Could not cleanly delete dataset "
+                    "%s. Reason: %s",
+                    self.ds_slug,
+                    e,
                 )
 
             try:
                 if hasattr(self.api, "kernels_delete"):
                     self.api.kernels_delete(self.kernel_slug, no_confirm=True)
-                    print(f"[+] Ephemeral kernel {self.kernel_slug} wiped from Kaggle.")
+                    logger.info(
+                        "[+] Ephemeral kernel %s wiped from Kaggle.", self.kernel_slug
+                    )
             except (
                 ApiException,
                 OSError,
@@ -531,9 +547,11 @@ class KaggleOrchestrator:
                 ConnectionError,
                 TimeoutError,
             ) as e:
-                print(
-                    f"[-] Non-fatal warning: Could not cleanly delete kernel "
-                    f"{self.kernel_slug}. Reason: {e}"
+                logger.warning(
+                    "[-] Non-fatal warning: Could not cleanly delete kernel "
+                    "%s. Reason: %s",
+                    self.kernel_slug,
+                    e,
                 )
         finally:
             builtins.input = original_input
