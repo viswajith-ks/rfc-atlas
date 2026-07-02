@@ -49,7 +49,6 @@ def mock_parquet_dir(tmp_path: Path) -> Path:
 def test_lancedb_bootstrapping_and_indexing(
     mock_parquet_dir: Path, tmp_path: Path
 ) -> None:
-    """Asserts that LanceDB constructs tables and applies BM25 indices correctly."""
     db_dir = tmp_path / "lancedb"
 
     # 1. Execute the builder

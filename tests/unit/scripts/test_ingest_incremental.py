@@ -90,7 +90,6 @@ def mock_jsonl_file(tmp_path: Path) -> Path:
 
 
 def test_columnar_set_difference(mock_lancedb: lancedb.DBConnection) -> None:
-    """Asserts that _get_existing_ids successfully extracts all IDs via PyArrow."""
     table = mock_lancedb.open_table("prose")
     existing_ids = _get_existing_ids(table)
 
@@ -103,7 +102,6 @@ def test_sync_single_table_skips_duplicates(
     mock_lancedb: lancedb.DBConnection,
     mock_jsonl_file: Path,
 ) -> None:
-    """Asserts that the sync logic drops duplicates and only embeds new chunks."""
     # 1. Setup the mocked SentenceTransformer instance directly
     mock_model_instance = MagicMock()
 

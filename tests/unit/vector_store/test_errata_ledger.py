@@ -50,21 +50,18 @@ def mock_errata_file(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def _reset_ledger() -> None:  # pyright: ignore[reportUnusedFunction]
-    """Fixture to ensure the Singleton state is wiped clean before each test."""
     ErrataLedger._is_instantiated = False  # pyright: ignore[reportPrivateUsage]
     ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
     ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]
 
 
 def test_errata_ledger_singleton_physics() -> None:
-    """Asserts that secondary instantiation raises a SingletonViolationError."""
     _ = ErrataLedger()
     with pytest.raises(SingletonViolationError):
         _ = ErrataLedger()
 
 
 def test_errata_parsing_and_filtering(mock_errata_file: Path) -> None:
-    """Asserts that IDs are correctly stripped, cast, and statuses are filtered."""
     ErrataLedger.force_reload(mock_errata_file)
 
     records_1234 = ErrataLedger.get_errata(1234)
@@ -80,7 +77,6 @@ def test_errata_parsing_and_filtering(mock_errata_file: Path) -> None:
 
 
 def test_errata_missing_or_corrupted_file(tmp_path: Path) -> None:
-    """Asserts that bad files degrade gracefully without crashing the pipeline."""
     missing_file = tmp_path / "does_not_exist.json"
 
     ErrataLedger.force_reload(missing_file)
@@ -94,7 +90,6 @@ def test_errata_missing_or_corrupted_file(tmp_path: Path) -> None:
 
 
 def test_format_errata_for_llm(mock_errata_file: Path) -> None:
-    """Asserts that the text injection string is perfectly formatted for Gemini."""
     ErrataLedger.force_reload(mock_errata_file)
 
     injection_string = ErrataLedger.format_errata_for_llm(1234)

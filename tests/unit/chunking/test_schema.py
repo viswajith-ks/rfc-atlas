@@ -1,4 +1,4 @@
-from typing import get_args
+from typing import Any, get_args
 
 import pytest
 from pydantic import ValidationError
@@ -45,27 +45,27 @@ def test_chunk_record_validation_success() -> None:
     assert record.sourcecode_type is None
 
 
-def test_chunk_record_validation_failure_bad_types() -> None:
-    with pytest.raises(ValidationError):
-        ChunkRecord(
-            chunk_id=12345,  # pyright: ignore[reportArgumentType]
-            rfc_number=1234,
-            block_type="paragraph",
-            table_route="prose",
-            hierarchy_path="1. Introduction",
-            text_payload=["Not", "a", "string"],  # pyright: ignore[reportArgumentType]
-            parsing_confidence=0.95,
-        )
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"chunk_id": 12345, "text_payload": ["Not", "a", "string"]},
+        {"parsing_confidence": 1.5},
+        {"parsing_confidence": -0.1},
+    ],
+    ids=["bad_types", "confidence_too_high", "confidence_too_low"],
+)
+def test_chunk_record_validation_failures(overrides: dict[str, Any]) -> None:
+    """Asserts that invalid ChunkRecord data strictly raises ValidationErrors."""
+    base_data: dict[str, Any] = {
+        "chunk_id": "1234-sec1-01",
+        "rfc_number": 1234,
+        "block_type": "paragraph",
+        "table_route": "prose",
+        "hierarchy_path": "1. Introduction",
+        "text_payload": "This is a test chunk.",
+        "parsing_confidence": 0.95,
+    }
+    base_data.update(overrides)
 
-
-def test_chunk_record_validation_failure_bad_confidence() -> None:
     with pytest.raises(ValidationError):
-        ChunkRecord(
-            chunk_id="1234-sec1-01",
-            rfc_number=1234,
-            block_type="paragraph",
-            table_route="prose",
-            hierarchy_path="1. Introduction",
-            text_payload="Testing confidence bound.",
-            parsing_confidence=1.5,
-        )
+        ChunkRecord(**base_data)

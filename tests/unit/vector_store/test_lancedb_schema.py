@@ -12,7 +12,6 @@ from rfc_atlas.vector_store.schema import (
 
 
 def test_safe_required_int() -> None:
-    """Ensures required integers are strictly coerced or fallback to -1."""
     assert _safe_required_int(404) == 404
     assert _safe_required_int("404") == 404
     assert _safe_required_int(math.pi) == 3
@@ -24,7 +23,6 @@ def test_safe_required_int() -> None:
 
 
 def test_safe_optional_int() -> None:
-    """Ensures optional integers are strictly coerced or fallback to None."""
     assert _safe_optional_int(404) == 404
     assert _safe_optional_int("404") == 404
     assert _safe_optional_int(math.pi) == 3
@@ -36,7 +34,6 @@ def test_safe_optional_int() -> None:
 
 
 def test_build_lance_table() -> None:
-    """Tests the zero-copy conversion of Python dicts to PyArrow columnar tables."""
     # 1. Create a dummy record with missing optional fields
     records = [
         {
