@@ -89,7 +89,16 @@ def _build_existing_state(normalized_dir: Path) -> dict[int, str]:
 
         rfc_num = metadata.get("rfc_number")
         src_type = metadata.get("source_type")
+        status = metadata.get("status")
+        title = metadata.get("title")
+
         if isinstance(rfc_num, int) and isinstance(src_type, str):
+            if status == "UNKNOWN" and title == f"RFC {rfc_num}":
+                logger.info(
+                    "Detected placeholder metadata in %s. Forcing reprocessing.",
+                    json_file.name,
+                )
+                continue
             state[rfc_num] = src_type
 
     return state
@@ -209,6 +218,22 @@ def run_incremental_ingest(config: IncrementalConfig) -> None:
     config.output_dir.mkdir(parents=True, exist_ok=True)
     config.manifest_dir.mkdir(parents=True, exist_ok=True)
 
+    if not config.raw_index_path.exists():
+        logger.error("Raw RFC Index file not found at %s", config.raw_index_path)
+        sys.exit(1)
+
+    if (
+        not config.metadata_path.exists()
+        or config.metadata_path.stat().st_mtime < config.raw_index_path.stat().st_mtime
+    ):
+        logger.info(
+            "Metadata lookup cache is missing or stale. Compiling index ledger..."
+        )
+        index_parser = RFCIndexParser(config.raw_index_path, config.metadata_path)
+        index_parser.parse()
+    else:
+        logger.info("Metadata lookup cache is up-to-date. Skipping XML re-parsing.")
+
     logger.info("Scanning existing normalized artifacts...")
     existing_state = _build_existing_state(config.output_dir)
     logger.info("Found %d existing normalized documents.", len(existing_state))
@@ -227,22 +252,6 @@ def run_incremental_ingest(config: IncrementalConfig) -> None:
         len(xml_queue),
         len(txt_queue),
     )
-
-    if not config.raw_index_path.exists():
-        logger.error("Raw RFC Index file not found at %s", config.raw_index_path)
-        sys.exit(1)
-
-    if (
-        not config.metadata_path.exists()
-        or config.metadata_path.stat().st_mtime < config.raw_index_path.stat().st_mtime
-    ):
-        logger.info(
-            "Metadata lookup cache is missing or stale. Compiling index ledger..."
-        )
-        index_parser = RFCIndexParser(config.raw_index_path, config.metadata_path)
-        index_parser.parse()
-    else:
-        logger.info("Metadata lookup cache is up-to-date. Skipping XML re-parsing.")
 
     builder = CanonicalTreeBuilder(config.metadata_path)
     new_telemetry: list[TelemetryRecord] = []
