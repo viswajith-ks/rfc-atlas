@@ -60,7 +60,10 @@ except StopIteration:
 
 KAGGLE_IN_DIR = _resolved_in
 KAGGLE_OUT_DIR.mkdir(parents=True, exist_ok=True)
-LOG_FILE = KAGGLE_OUT_DIR / "embedder_telemetry.log"
+LOG_FILE = (
+    Path(os.environ.get("RFC_ATLAS_LOG_DIR", "/kaggle/working"))
+    / "embedder_telemetry.log"
+)
 
 logger = logging.getLogger(__name__)
 
@@ -464,6 +467,10 @@ def main() -> None:
             logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8"),
         ],
     )
+
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
 
     verify_network_ingress()
     parser = argparse.ArgumentParser(description="RFC Atlas Kaggle Vector Forge.")

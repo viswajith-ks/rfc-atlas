@@ -406,37 +406,65 @@ class KaggleOrchestrator:
                 "[+] Downloaded the crashed notebook. Check %s", LOCAL_EMBEDDINGS_DIR
             )
 
+    @retry(
+        reraise=True,
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=2, min=4, max=30),
+        retry=retry_if_exception_type((
+            ApiException,
+            ConnectionError,
+            TimeoutError,
+            OSError,
+            ValueError,
+        )),
+    )
+    def _check_status(self) -> ApiGetKernelSessionStatusResponse:
+        """Pings the Kaggle API for the latest kernel execution status.
+
+        Returns:
+            ApiGetKernelSessionStatusResponse: The kernel status payload.
+        """
+        return self.api.kernels_status(  # pyright: ignore[reportUnknownMemberType]
+            self.kernel_slug
+        )
+
+    def _archive_cloud_logs(self) -> None:
+        """Moves telemetry and logs from the payload into the local log directory."""
+        LOCAL_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        downloaded_log = LOCAL_EMBEDDINGS_DIR / "embedder_telemetry.log"
+
+        if downloaded_log.exists():
+            target_log = LOCAL_LOG_DIR / f"cloud_forge_{int(time.time())}.log"
+            shutil.move(str(downloaded_log), str(target_log))
+            logger.info("[*] Cloud python telemetry recovered and routed to logs.")
+        else:
+            fallback_log = (
+                LOCAL_EMBEDDINGS_DIR / "parquet_vectors" / "embedder_telemetry.log"
+            )
+            if fallback_log.exists():
+                target_log = LOCAL_LOG_DIR / f"cloud_forge_{int(time.time())}.log"
+                shutil.move(str(fallback_log), str(target_log))
+                logger.info(
+                    "[*] Cloud telemetry recovered from fallback and routed to logs."
+                )
+
+        kernel_log = LOCAL_EMBEDDINGS_DIR / f"{self.kernel_id}.log"
+        if kernel_log.exists():
+            target_kernel_log = (
+                LOCAL_LOG_DIR / f"kaggle_kernel_stdout_{int(time.time())}.log"
+            )
+            shutil.move(str(kernel_log), str(target_kernel_log))
+            logger.info("[*] Kaggle native stdout log recovered and routed to logs.")
+
     def poll_and_fetch_pipeline(self) -> None:
         """Monitors kernel execution state and pulls completed Parquet vectors."""
         logger.info(
             "[*] Initiating Stakeout Sequence for remote engine: %s", self.kernel_slug
         )
 
-        @retry(
-            reraise=True,
-            stop=stop_after_attempt(6),
-            wait=wait_exponential(multiplier=2, min=4, max=30),
-            retry=retry_if_exception_type((
-                ApiException,
-                ConnectionError,
-                TimeoutError,
-                OSError,
-                ValueError,
-            )),
-        )
-        def _check_status() -> ApiGetKernelSessionStatusResponse:
-            """Pings the Kaggle API for the latest kernel execution status.
-
-            Returns:
-                ApiGetKernelSessionStatusResponse: The kernel status payload.
-            """
-            return self.api.kernels_status(  # pyright: ignore[reportUnknownMemberType]
-                self.kernel_slug
-            )
-
         while True:
             try:
-                response = _check_status()
+                response = self._check_status()
                 status = str(response.status).lower()
             except (
                 ApiException,
@@ -498,13 +526,7 @@ class KaggleOrchestrator:
         logger.info(
             "[+++] Transfer sequence complete. Local embeddings space is synchronized."
         )
-
-        LOCAL_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        downloaded_log = LOCAL_EMBEDDINGS_DIR / "embedder_telemetry.log"
-        if downloaded_log.exists():
-            target_log = LOCAL_LOG_DIR / f"cloud_forge_{int(time.time())}.log"
-            shutil.move(str(downloaded_log), str(target_log))
-            logger.info("[*] Cloud telemetry recovered and routed to logs.")
+        self._archive_cloud_logs()
 
     def _cleanup_ephemeral_assets(self) -> None:
         """Automates the destruction of ephemeral cloud datasets and kernels."""
