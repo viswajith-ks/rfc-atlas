@@ -471,6 +471,7 @@ def main() -> None:
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.WARNING)
     logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     verify_network_ingress()
     parser = argparse.ArgumentParser(description="RFC Atlas Kaggle Vector Forge.")

@@ -145,7 +145,8 @@ def _generate_notebook_payload(ds_slug: str) -> dict[str, Any]:
         "    print('[*] Installing project dependencies (silently)...')\n",
         "    subprocess.run([\n",
         "        sys.executable, '-m',\n",
-        "        'pip', 'install', '-qq', '-e', '.[vector-store]'\n",
+        "        'pip', 'install', '-qq', '--progress-bar', 'off',\n",
+        "        '-e', '.[vector-store]'\n",
         "    ], cwd=workdir, check=True)\n\n",
         "    gpus_available = [f'cuda:{i}' for i in range(gpu_count)]\n",
         "    print('[*] Patching embedder dynamically for hardware...')\n",
@@ -347,6 +348,7 @@ class KaggleOrchestrator:
 
         logger.info("[*] Waiting for Kaggle backend to mount ephemeral dataset...")
         while True:
+            time.sleep(15)
             try:
                 status_raw = self.api.dataset_status(  # pyright: ignore[reportUnknownMemberType]
                     self.ds_slug
@@ -359,7 +361,6 @@ class KaggleOrchestrator:
                 TimeoutError,
             ) as e:
                 logger.warning("[*] Transient error tracking dataset status: %s", e)
-                time.sleep(15)
                 continue
 
             status = str(status_raw).lower()

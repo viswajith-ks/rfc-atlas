@@ -232,6 +232,7 @@ def main() -> None:
     logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
     logging.getLogger("transformers").setLevel(logging.WARNING)
     logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
     parser = argparse.ArgumentParser(description="RFC Atlas Incremental Vector Forge.")
     _ = parser.parse_args()
