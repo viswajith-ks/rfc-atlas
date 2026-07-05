@@ -1,6 +1,7 @@
 """Hierarchy-aware chunking pipeline using Pebble.
 
 Manages multi-core scatter-gather execution for high-throughput processing.
+Outputs a unified monolithic JSONL file for global smart-batching.
 """
 
 import argparse
@@ -46,7 +47,7 @@ class BatchChunker:
         self.tmp_dir = tmp_dir
         self.blocks_processed: int = 0
         self.chunks_generated: int = 0
-        self.handles: dict[str, TextIO] = {}
+        self.master_handle: TextIO | None = None
 
     @staticmethod
     def split_text_with_overlap(text: str) -> list[str]:
@@ -127,11 +128,7 @@ class BatchChunker:
         h_path: list[str],
         rfc_metadata: RFCMetadata,
     ) -> None:
-        """Chunks a document block and writes it to the appropriate isolated table log.
-
-        Extracts the payload, determines the table routing (e.g., 'prose',
-        'sourcecode'), generates the sliding window fragments, and serializes them to
-        disk. Applies a containment filter to ensure highly localized block metadata.
+        """Chunks a document block and appends it to the unified worker file.
 
         Args:
             block (Block): The strictly validated Pydantic block from the
@@ -178,7 +175,8 @@ class BatchChunker:
                 updated_by=rfc_metadata.updated_by,
             )
 
-            self.handles[target_table].write(chunk_obj.model_dump_json() + "\n")
+            if self.master_handle is not None:
+                self.master_handle.write(chunk_obj.model_dump_json() + "\n")
             self.chunks_generated += 1
 
         self.blocks_processed += 1
@@ -196,11 +194,10 @@ class BatchChunker:
                 - 'chunks': Total overlapping chunks generated in this batch.
         """
         with ExitStack() as stack:
-            for table_name in sorted(set(TABLE_ROUTING_MAP.values())):
-                tmp_file = self.tmp_dir / f"{table_name}_batch_{self.batch_id}.jsonl"
-                self.handles[table_name] = stack.enter_context(
-                    tmp_file.open("w", encoding="utf-8")
-                )
+            tmp_file = self.tmp_dir / f"master_batch_{self.batch_id}.jsonl"
+            self.master_handle = stack.enter_context(
+                tmp_file.open("w", encoding="utf-8")
+            )
 
             try:
                 for filepath in file_paths:
@@ -211,14 +208,13 @@ class BatchChunker:
 
             finally:
                 gc.collect()
-                for handle in self.handles.values():
-                    try:
-                        handle.flush()
-                        os.fsync(handle.fileno())
-                    except OSError:
-                        logger.exception(
-                            "[Batch %s] I/O failure during flush/fsync", self.batch_id
-                        )
+                try:
+                    self.master_handle.flush()
+                    os.fsync(self.master_handle.fileno())
+                except OSError:
+                    logger.exception(
+                        "[Batch %s] I/O failure during flush/fsync", self.batch_id
+                    )
 
         return {"blocks": self.blocks_processed, "chunks": self.chunks_generated}
 
@@ -287,47 +283,42 @@ def gather_files(
             execution log.
     """
     logger.info(
-        "Gather Phase: Concatenating worker chunks and logs into master files..."
+        "Gather Phase: Concatenating worker chunks and logs into the master file..."
     )
 
-    unique_tables = set(TABLE_ROUTING_MAP.values())
+    master_path = chunks_dir / "master_chunks.jsonl"
 
-    for table_name in unique_tables:
-        master_path = chunks_dir / f"{table_name}.jsonl"
+    with atomic_write(master_path, mode="wb") as master_file:
+        for batch_id in range(total_batches):
+            worker_tmp_path = tmp_dir / f"master_batch_{batch_id}.jsonl"
+            marker_path = tmp_dir / f"batch_{batch_id}.success"
 
-        with atomic_write(master_path, mode="wb") as master_file:
-            for batch_id in range(total_batches):
-                worker_tmp_path = tmp_dir / f"{table_name}_batch_{batch_id}.jsonl"
-                marker_path = tmp_dir / f"batch_{batch_id}.success"
+            if worker_tmp_path.exists() and marker_path.exists():
+                with worker_tmp_path.open("rb") as tmp_file:
+                    shutil.copyfileobj(tmp_file, master_file)
+            else:
+                logger.warning(
+                    "Batch %s truncated or failed — skipping corrupted fragment.",
+                    batch_id,
+                )
 
-                if worker_tmp_path.exists() and marker_path.exists():
-                    with worker_tmp_path.open("rb") as tmp_file:
-                        shutil.copyfileobj(tmp_file, master_file)
-                else:
-                    logger.warning(
-                        "Batch %s truncated or failed for table '%s' — "
-                        "skipping corrupted fragment.",
-                        batch_id,
-                        table_name,
-                    )
+    master_log_path = logs_dir / "chunking_pipeline.log"
 
-        master_log_path = logs_dir / "chunking_pipeline.log"
+    with atomic_write(master_log_path, mode="wb") as master_log:
+        orch_log = tmp_dir / "orchestrator_errors.log"
+        if orch_log.exists():
+            with orch_log.open("rb") as f:
+                shutil.copyfileobj(f, master_log)
 
-        with atomic_write(master_log_path, mode="wb") as master_log:
-            orch_log = tmp_dir / "orchestrator_errors.log"
-            if orch_log.exists():
-                with orch_log.open("rb") as f:
+        for batch_id in range(total_batches):
+            worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
+            if worker_tmp_log.exists():
+                with worker_tmp_log.open("rb") as f:
                     shutil.copyfileobj(f, master_log)
-
-            for batch_id in range(total_batches):
-                worker_tmp_log = tmp_dir / f"batch_{batch_id}_errors.log"
-                if worker_tmp_log.exists():
-                    with worker_tmp_log.open("rb") as f:
-                        shutil.copyfileobj(f, master_log)
 
     shutil.rmtree(tmp_dir)
     logger.info(
-        "Gather complete. Temporary files wiped. Master tables locked atomically."
+        "Gather complete. Temporary files wiped. Master JSONL locked atomically."
     )
 
 
@@ -457,8 +448,7 @@ def run_chunking_pipeline(
 
     Args:
         normalized_dir (Path): Directory containing the canonical JSON input files.
-        chunks_dir (Path): Target directory for the generated LanceDB JSONL
-            chunk tables.
+        chunks_dir (Path): Target directory for the generated master JSONL chunk file.
         logs_dir (Path): Target directory for the final execution logs.
         tmp_dir (Path): Intermediate workspace for isolated worker file descriptors.
     """

@@ -73,8 +73,8 @@ def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) 
         ],
     )
 
-    output_file: Path = tmp_path / "prose_batch_1.jsonl"
-    chunker.handles["prose"] = output_file.open("w", encoding="utf-8")
+    output_file: Path = tmp_path / "master_batch_1.jsonl"
+    chunker.master_handle = output_file.open("w", encoding="utf-8")
 
     chunker._chunk_and_route(  # pyright: ignore[reportPrivateUsage]
         block=fake_block,
@@ -83,7 +83,7 @@ def test_metadata_conservation_integrity(chunker: BatchChunker, tmp_path: Path) 
         rfc_metadata=RFCMetadata(rfc_number=9999, title="test", source_type="xml"),
     )
 
-    chunker.handles["prose"].close()
+    chunker.master_handle.close()
 
     results: list[dict[str, Any]] = [
         json.loads(line)

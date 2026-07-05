@@ -1,7 +1,7 @@
 """Automated Quality Assurance Auditor for Chunking phase.
 
 Validates chunk boundary limits and verifies the conservation of mass
-between normalized JSON artifacts and generated LanceDB JSONL chunks.
+between normalized JSON artifacts and the unified JSONL master chunk file.
 """
 
 import argparse
@@ -62,14 +62,16 @@ def _scan_single_jsonl(
     chunk_mass: defaultdict[str, int],
     anomalies: list[str],
     distribution: dict[str, int],
+    unique_routes: set[str],
 ) -> int:
-    """Scans a single LanceDB JSONL chunk table file.
+    """Scans a single JSONL chunk file.
 
     Args:
         jsonl_path (Path): Path to the `.jsonl` file.
         chunk_mass (defaultdict[str, int]): Accumulator for character mass.
         anomalies (list[str]): Accumulator for corrupted lines or boundary warnings.
         distribution (dict[str, int]): Accumulator for length distribution buckets.
+        unique_routes (set[str]): Tracks unique LanceDB table routes discovered.
 
     Returns:
         int: Number of valid chunks processed in this specific file.
@@ -95,6 +97,10 @@ def _scan_single_jsonl(
 
                 chunk = raw_chunk
                 rfc: str = str(chunk.get("rfc_number", "unknown"))
+
+                route: str = str(chunk.get("table_route", "unknown"))
+                if route != "unknown":
+                    unique_routes.add(route)
 
                 payload_node = chunk.get("text_payload", "")
                 text: str = str(payload_node) if payload_node else ""
@@ -133,7 +139,7 @@ def scan_chunk_tables(
     list[str],
     dict[str, int],
 ]:
-    """Scans LanceDB JSONL chunk tables to calculate mass and identify boundaries.
+    """Scans the master JSONL chunk table to calculate mass and identify boundaries.
 
     Args:
         chunks_dir (Path): The directory containing the output `.jsonl` files.
@@ -141,22 +147,28 @@ def scan_chunk_tables(
     Returns:
         tuple[defaultdict[str, int], int, int, list[str], dict[str, int]]:
             A tuple containing chunk mass dictionary, total chunk count,
-            tables scanned, anomalies, and length distribution dictionary.
+            tables identified via routes, anomalies, and length distribution dictionary.
     """
     chunk_mass: defaultdict[str, int] = defaultdict(int)
     anomalies: list[str] = []
     total_chunks: int = 0
-    tables_scanned: int = 0
+    unique_routes: set[str] = set()
 
     distribution: dict[str, int] = {label: 0 for _, label in DISTRIBUTION_BUCKETS}
     distribution[OVERFLOW_BUCKET] = 0
 
-    for jsonl_path in chunks_dir.glob("*.jsonl"):
-        tables_scanned += 1
+    master_path = chunks_dir / "master_chunks.jsonl"
+
+    if master_path.exists():
         total_chunks += _scan_single_jsonl(
-            jsonl_path, chunk_mass, anomalies, distribution
+            master_path, chunk_mass, anomalies, distribution, unique_routes
+        )
+    else:
+        anomalies.append(
+            f"[FATAL] Unified master chunks file missing at {master_path.name}"
         )
 
+    tables_scanned = len(unique_routes)
     return chunk_mass, total_chunks, tables_scanned, anomalies, distribution
 
 
