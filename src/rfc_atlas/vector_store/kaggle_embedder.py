@@ -1,7 +1,7 @@
 """RFC Atlas — Kaggle Vector Forge.
 
-Deterministic, fault-tolerant Matryoshka embedding across all chunk tables.
-Operates on dual Kaggle T4 GPUs via SentenceTransformer multi-process pool.
+Deterministic, fault-tolerant Matryoshka embedding across the master chunk table.
+Operates on dual Kaggle T4 GPUs via Isolated Zero-IPC multiprocessing workers.
 Relies on Pydantic schema contracts for pristine primitive types.
 """
 
@@ -11,6 +11,7 @@ import datetime
 import gc
 import json
 import logging
+import multiprocessing as mp
 import os
 import shutil
 import socket
@@ -18,10 +19,11 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, TypeAlias
+from typing import TYPE_CHECKING, TypeAlias
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+import torch
 from sentence_transformers import SentenceTransformer
 
 from rfc_atlas.vector_store.schema import (
@@ -60,6 +62,7 @@ except StopIteration:
 
 KAGGLE_IN_DIR = _resolved_in
 KAGGLE_OUT_DIR.mkdir(parents=True, exist_ok=True)
+
 LOG_FILE = (
     Path(os.environ.get("RFC_ATLAS_LOG_DIR", "/kaggle/working"))
     / "embedder_telemetry.log"
@@ -75,8 +78,6 @@ class ForgeContext:
     out_dir: Path
     scratch_dir: Path
     schema: pa.Schema
-    model: SentenceTransformer
-    pool: dict[Literal["input", "output", "processes"], object]
 
 
 def verify_network_ingress() -> None:
@@ -91,281 +92,208 @@ def verify_network_ingress() -> None:
         sys.exit(1)
 
 
-def get_final_chunk_id_of_parquet(parquet_path: Path) -> str | None:
-    """Extracts the trailing chunk_id from a locked Parquet shard via O(1) seek.
+def _get_existing_chunk_ids(out_dir: Path) -> set[str]:
+    """Scans all Parquet shards to compile a global set of completed chunk IDs.
 
     Args:
-        parquet_path (Path): Path to the target Parquet shard.
+        out_dir (Path): The output directory containing completed Parquet shards.
 
     Returns:
-        str | None: The final chunk_id found in the file, or None if the file
-            is empty or structurally corrupted.
+        set[str]: A set containing all chunk_id strings successfully read.
     """
-    try:
-        pf = pq.ParquetFile(parquet_path)
-
-        if pf.num_row_groups > 0:  # pyright: ignore[reportUnknownMemberType]
-            last_rg: pa.Table = pf.read_row_group(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-                int(pf.num_row_groups) - 1,  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-                columns=["chunk_id"],
-            )
-
-            if last_rg.num_rows > 0:  # pyright: ignore[reportUnknownMemberType]
-                return str(last_rg["chunk_id"][-1].as_py())  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-
-    except (
-        OSError,
-        ValueError,
-        pa.ArrowInvalid,
-        TypeError,
-        KeyError,
-        IndexError,
-        pa.ArrowException,
-        AttributeError,
-        RuntimeError,
-        EOFError,
-    ):
-        pass
-
-    return None
+    existing_ids: set[str] = set()
+    for pq_file in out_dir.glob("*.parquet"):
+        with contextlib.suppress(OSError, pa.ArrowInvalid, pa.ArrowException):
+            table = pq.read_table(pq_file, columns=["chunk_id"])  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+            existing_ids.update(table["chunk_id"].to_pylist())  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
+    return existing_ids
 
 
-def flush_buffer(
-    records: list[JSONDict],
-    writer: pq.ParquetWriter,
-    model: SentenceTransformer,
-    schema: pa.Schema,
-    multigpu_pool: dict[Literal["input", "output", "processes"], object],
-) -> None:
-    """Transforms a dict buffer into PyArrow memory and writes to disk.
+def _get_next_shard_idx(worker_id: int, out_dir: Path) -> int:
+    """Determines the next safe Parquet shard index for a specific worker.
 
     Args:
-        records (list[JSONDict]): The buffer of parsed JSONL chunk records.
-        writer (pq.ParquetWriter): The active Parquet file writer instance.
-        model (SentenceTransformer): The embedding model instance.
-        schema (pa.Schema): The strictly enforced PyArrow schema.
-        multigpu_pool (dict): The sentence-transformers multiprocessing pool.
-    """
-    if not records:
-        return
-
-    texts = [f"search_document: {r['text_payload']}" for r in records]
-
-    raw_embeddings: npt.NDArray[np.float32] = model.encode(  # pyright: ignore[reportUnknownMemberType]
-        texts,
-        pool=multigpu_pool,
-        batch_size=BATCH_SIZE,
-        convert_to_numpy=True,
-        show_progress_bar=True,
-    )
-
-    vector_arrow_array = normalize_and_convert_vectors(raw_embeddings)
-
-    pa_table = build_lance_table(records, vector_arrow_array, schema=schema)
-    writer.write_table(pa_table)  # pyright: ignore[reportUnknownMemberType]
-
-    del (
-        raw_embeddings,
-        vector_arrow_array,
-        pa_table,
-    )
-    gc.collect()
-
-
-def _commit_shard(
-    writer: pq.ParquetWriter,
-    local_scratch: Path,
-    dest_parquet: Path,
-    shard_idx: int,
-    total_embedded: int,
-) -> None:
-    """Closes and persists a completed Parquet shard.
-
-    Args:
-        writer (pq.ParquetWriter): The active Parquet file writer.
-        local_scratch (Path): Temporary scratch path of the active shard.
-        dest_parquet (Path): Final destination path for the completed shard.
-        shard_idx (int): The sequential index of the shard.
-        total_embedded (int): Running total of vectors embedded so far.
-    """
-    writer.close()
-    shutil.copy2(local_scratch, dest_parquet)
-    local_scratch.unlink()
-    logger.info(
-        "🔒 Shard #%04d secured. (%s vectors done).",
-        shard_idx,
-        f"{total_embedded:,}",
-    )
-
-
-def _find_resume_point(table_name: str, out_dir: Path) -> tuple[int, str | None]:
-    """Scans existing shards to find the exact resumption chunk ID.
-
-    Args:
-        table_name (str): Base name of the table being processed.
-        out_dir (Path): Output directory containing completed shards.
+        worker_id (int): The ID of the worker process.
+        out_dir (Path): The output directory containing completed Parquet shards.
 
     Returns:
-        tuple[int, str | None]: The next shard index and the ID of the last
-            processed chunk (if any).
+        int: The next available sequential integer for a new shard.
     """
-    shard_idx = 0
-    last_known_id = None
-    while True:
-        dest_parquet = out_dir / f"{table_name}_shard_{shard_idx:04d}.parquet"
-        if not dest_parquet.exists():
-            break
-
-        cid = get_final_chunk_id_of_parquet(dest_parquet)
-        if cid is None:
-            logger.warning(
-                "⚠️ [FRONTIER WARN] Shard #%04d corrupted or empty! Overwriting.",
-                shard_idx,
-            )
-            break
-
-        last_known_id = cid
-        logger.info(
-            "⏩ [IDEMPOTENCY] Shard #%04d locked. (Tail ID: '%s')",
-            shard_idx,
-            last_known_id,
-        )
-        shard_idx += 1
-
-    return shard_idx, last_known_id
+    existing = list(out_dir.glob(f"atlas_worker_{worker_id}_shard_*.parquet"))
+    if not existing:
+        return 0
+    idxs: list[int] = []
+    for f in existing:
+        with contextlib.suppress(IndexError, ValueError):
+            idxs.append(int(f.stem.split("_shard_")[1]))
+    return max(idxs) + 1 if idxs else 0
 
 
-def _load_records(jsonl_path: Path, start_id: str | None) -> list[JSONDict]:
-    """Loads the entire JSONL file into System RAM, skipping processed records.
+def _setup_worker_logging(worker_id: int) -> logging.Logger:
+    """Configures isolated logging for a worker process.
 
     Args:
-        jsonl_path (Path): Path to the target JSONL file.
-        start_id (str | None): Chunk ID to resume from, or None to read all.
+        worker_id (int): The ID of the current worker.
 
     Returns:
-        list[JSONDict]: A length-sorted list of unprocessed record dicts.
+        logging.Logger: The configured worker-specific logger.
     """
-    seeking = start_id is not None
-    records: list[JSONDict] = []
-    search_token = f'"chunk_id": "{start_id}"' if seeking else ""
+    logging.Formatter.converter = time.gmtime
+    logging.basicConfig(
+        level=logging.INFO,
+        format=f"%(asctime)s [%(levelname)s] [Worker {worker_id}] %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler(LOG_FILE, mode="a", encoding="utf-8"),
+        ],
+    )
+    logging.getLogger("sentence_transformers").setLevel(logging.WARNING)
+    logging.getLogger("transformers").setLevel(logging.WARNING)
+    logging.getLogger("huggingface_hub").setLevel(logging.WARNING)
+    logging.getLogger("httpx").setLevel(logging.WARNING)
 
-    with jsonl_path.open(encoding="utf-8") as f:
+    return logging.getLogger(__name__)
+
+
+def _load_and_shard_records(
+    target_file: Path,
+    existing_ids: set[str],
+    worker_id: int,
+    worker_logger: logging.Logger,
+) -> list[JSONDict]:
+    """Loads, filters, sorts, and shards the unified JSONL into worker memory.
+
+    Args:
+        target_file (Path): Path to the master JSONL chunks file.
+        existing_ids (set[str]): Set of already embedded chunk IDs to skip.
+        worker_id (int): The ID of the current worker.
+        worker_logger (logging.Logger): Logger for output tracking.
+
+    Returns:
+        list[JSONDict]: The interleaved slice of records assigned to this worker.
+    """
+    worker_logger.info("📦 Loading master_chunks.jsonl directly into Worker RAM...")
+    all_records: list[JSONDict] = []
+    with target_file.open("r", encoding="utf-8") as f:
         for line in f:
             if not line.strip():
                 continue
-
-            if seeking and search_token not in line:
-                continue
-
-            if seeking:
-                with contextlib.suppress(json.JSONDecodeError):
-                    if json.loads(line).get("chunk_id") == start_id:
-                        logger.info("🎯 SEEKER MATCH! Dropping lock; resuming.")
-                        seeking = False
-                continue
-
             with contextlib.suppress(json.JSONDecodeError):
-                record: JSONDict = json.loads(line)
-                records.append(record)
+                rec = json.loads(line)
+                if rec["chunk_id"] not in existing_ids:
+                    all_records.append(rec)
 
-    logger.info("🧠 Applying Smart Batching (Sorting by text length)...")
-    records.sort(key=lambda x: len(str(x.get("text_payload", ""))))
+    worker_logger.info(
+        "🧠 Applying Smart Batching (Sorting %s records by length)...",
+        f"{len(all_records):,}",
+    )
+    all_records.sort(key=lambda x: len(str(x.get("text_payload", ""))), reverse=True)
 
-    return records
+    worker_records: list[JSONDict] = []
+    for i in range(0, len(all_records), BATCH_SIZE):
+        if (i // BATCH_SIZE) % 2 == worker_id:
+            worker_records.extend(all_records[i : i + BATCH_SIZE])
+
+    del all_records
+    gc.collect()
+
+    return worker_records
 
 
-def _ensure_writer(
-    writer: pq.ParquetWriter | None,
-    scratch_path: Path,
-    schema: pa.Schema,
-) -> pq.ParquetWriter:
-    """Instantiates a snappy ParquetWriter on demand if one is not already open.
+def _worker_process(
+    worker_id: int,
+    device: str,
+    target_file: Path,
+    existing_ids: set[str],
+    ctx: ForgeContext,
+) -> None:
+    """Isolated, Zero-IPC worker process for loading, sorting, slicing, and embedding.
 
-    Args:
-        writer (pq.ParquetWriter | None): Existing writer or None.
-        scratch_path (Path): Location to create the Parquet file.
-        schema (pa.Schema): PyArrow schema to enforce.
-
-    Returns:
-        pq.ParquetWriter: A ready-to-use ParquetWriter instance.
+    This function operates in a totally isolated memory space.
     """
-    if writer is None:
-        return pq.ParquetWriter(scratch_path, schema, compression="snappy")
-    return writer
+    worker_logger = _setup_worker_logging(worker_id)
+    worker_records = _load_and_shard_records(
+        target_file, existing_ids, worker_id, worker_logger
+    )
+    total_to_process = len(worker_records)
 
+    if total_to_process == 0:
+        worker_logger.info("⏭️ No assigned records remaining. Shutting down gracefully.")
+        return
 
-def _process_single_table(jsonl_path: Path, ctx: ForgeContext) -> None:
-    """Isolates the ingestion and vectorization loop for a single JSONL table.
+    worker_logger.info(
+        "⚡ Initializing SentenceTransformer directly on %s (FP16)...", device
+    )
+    model = SentenceTransformer(
+        "nomic-ai/nomic-embed-text-v1.5",
+        trust_remote_code=True,
+        device=device,
+        model_kwargs={"torch_dtype": torch.float16},
+    )
 
-    Args:
-        jsonl_path (Path): The path to the source JSONL table.
-        ctx (ForgeContext): The global context providing schema and models.
-    """
-    table_name = jsonl_path.stem
-    logger.info("\n%s", "=" * 75)
-    logger.info("🚀 INITIATING FORGE FOR TABLE: [%s]", table_name.upper())
-    logger.info("=" * 75)
+    shard_idx = _get_next_shard_idx(worker_id, ctx.out_dir)
+    worker_logger.info(
+        "Assigned %s records. Starting at shard index %04d.",
+        f"{total_to_process:,}",
+        shard_idx,
+    )
 
-    shard_idx, last_known_id = _find_resume_point(table_name, ctx.out_dir)
-    dest_parquet = ctx.out_dir / f"{table_name}_shard_{shard_idx:04d}.parquet"
+    dest_parquet = (
+        ctx.out_dir / f"atlas_worker_{worker_id}_shard_{shard_idx:04d}.parquet"
+    )
     local_scratch = ctx.scratch_dir / dest_parquet.name
 
     shard_writer: pq.ParquetWriter | None = None
-
-    if last_known_id:
-        logger.info(
-            "🔎 FORENSIC SEEKER ENGAGED: Fast-forwarding to ID '%s'...",
-            last_known_id,
-        )
-
-    logger.info("📦 Loading entire JSONL table into System RAM...")
-    all_records = _load_records(jsonl_path, last_known_id)
-    total_to_process = len(all_records)
-
-    if total_to_process == 0:
-        logger.info("⏭️ No new records to process for [%s].", table_name.upper())
-        return
-
-    logger.info(
-        "✅ Successfully buffered %s records into memory.", f"{total_to_process:,}"
-    )
-
     rows_in_current_shard = 0
     total_embedded = 0
 
     try:
         for i in range(0, total_to_process, FLUSH_BUFFER_ROWS):
-            records_buffer = all_records[i : i + FLUSH_BUFFER_ROWS]
+            buffer = worker_records[i : i + FLUSH_BUFFER_ROWS]
 
-            shard_writer = _ensure_writer(shard_writer, local_scratch, ctx.schema)
+            if shard_writer is None:
+                shard_writer = pq.ParquetWriter(
+                    local_scratch, ctx.schema, compression="snappy"
+                )
 
-            logger.info("⚙️ Encoding buffer of %s rows...", f"{len(records_buffer):,}")
-            flush_buffer(
-                records_buffer,
-                shard_writer,
-                ctx.model,
-                ctx.schema,
-                ctx.pool,
+            worker_logger.info("⚙️ Encoding batch of %s rows...", f"{len(buffer):,}")
+
+            texts = [f"search_document: {r['text_payload']}" for r in buffer]
+            raw_embeddings: npt.NDArray[np.float32] = model.encode(  # pyright: ignore[reportUnknownMemberType]
+                texts,
+                batch_size=BATCH_SIZE,
+                convert_to_numpy=True,
+                show_progress_bar=False,
             )
 
-            batch_size_actual = len(records_buffer)
+            vector_arrow_array = normalize_and_convert_vectors(raw_embeddings)
+            pa_table = build_lance_table(buffer, vector_arrow_array, schema=ctx.schema)
+            shard_writer.write_table(pa_table)  # pyright: ignore[reportUnknownMemberType]
+
+            del raw_embeddings, vector_arrow_array, pa_table
+            gc.collect()
+
+            batch_size_actual = len(buffer)
             rows_in_current_shard += batch_size_actual
             total_embedded += batch_size_actual
 
             if rows_in_current_shard >= SHARD_FILE_ROWS:
-                _commit_shard(
-                    shard_writer,
-                    local_scratch,
-                    dest_parquet,
+                shard_writer.close()
+                shutil.copy2(local_scratch, dest_parquet)
+                local_scratch.unlink()
+                worker_logger.info(
+                    "🔒 Shard #%04d secured. (%s vectors done).",
                     shard_idx,
-                    total_embedded,
+                    f"{total_embedded:,}",
                 )
-                shard_writer = None
 
+                shard_writer = None
                 shard_idx += 1
                 rows_in_current_shard = 0
                 dest_parquet = (
-                    ctx.out_dir / f"{table_name}_shard_{shard_idx:04d}.parquet"
+                    ctx.out_dir
+                    / f"atlas_worker_{worker_id}_shard_{shard_idx:04d}.parquet"
                 )
                 local_scratch = ctx.scratch_dir / dest_parquet.name
 
@@ -373,86 +301,75 @@ def _process_single_table(jsonl_path: Path, ctx: ForgeContext) -> None:
         if shard_writer is not None:
             with contextlib.suppress(Exception):
                 shard_writer.close()
+            if local_scratch.exists():
+                shutil.copy2(local_scratch, dest_parquet)
+                local_scratch.unlink()
+                worker_logger.info(
+                    "🔒 Final Shard #%04d secured. (%s vectors done).",
+                    shard_idx,
+                    f"{total_embedded:,}",
+                )
 
-    if local_scratch.exists():
-        shutil.copy2(local_scratch, dest_parquet)
-        local_scratch.unlink()
-
-    logger.info(
-        "🏁 TABLE [%s] SUCCESS: %s Vectors Forged",
-        table_name.upper(),
-        f"{total_embedded:,}",
+    worker_logger.info(
+        "🏁 WORKER %s SUCCESS: %s Vectors Forged", worker_id, f"{total_embedded:,}"
     )
-
-    del all_records
-    gc.collect()
 
 
 def execute_pipeline(in_dir: Path, out_dir: Path, scratch_dir: Path) -> None:
-    """Coordinates fault-tolerant streaming transformation across ALL target tables.
-
-    Args:
-        in_dir (Path): Source directory containing the JSONL text chunks.
-        out_dir (Path): Destination directory for the finished Parquet shards.
-        scratch_dir (Path): Temporary workspace for active Parquet writers.
-    """
+    """Coordinates the dual-GPU Zero-IPC execution framework."""
     out_dir.mkdir(parents=True, exist_ok=True)
     scratch_dir.mkdir(parents=True, exist_ok=True)
+
     schema = LANCE_CHUNK_SCHEMA.with_metadata({
         "embedding_model": "nomic-ai/nomic-embed-text-v1.5",
         "vector_dimensions": str(VECTOR_DIMENSIONS),
         "matryoshka_truncated": "true",
         "task_prefix": "search_document: ",
         "execution_environment": "kaggle",
-        "pipeline_version": "v8.0-strict-contract",
+        "pipeline_version": "v9.0-zero-ipc-forge",
         "forged_at": datetime.datetime.now(datetime.UTC).isoformat(),
     })
 
-    target_files = sorted(in_dir.glob("*.jsonl"))
-
-    if not target_files:
+    target_file = in_dir / "master_chunks.jsonl"
+    if not target_file.exists():
         logger.error(
-            "❌ CRITICAL FATAL: No .jsonl tables discovered inside [%s]!", in_dir
+            "❌ CRITICAL FATAL: master_chunks.jsonl not found in [%s]!", in_dir
         )
         sys.exit(1)
 
-    logger.info("🌍 Discovered %d tables queued for ingestion.", len(target_files))
-    logger.info("📥 Loading nomic-embed-text-v1.5 weights into CPU shared memory...")
-
-    model = SentenceTransformer(
-        "nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True, device="cpu"
+    logger.info("🌍 Discovering existing chunk IDs to resume gracefully...")
+    existing_ids = _get_existing_chunk_ids(out_dir)
+    logger.info(
+        "✅ Found %s existing IDs in output directory.", f"{len(existing_ids):,}"
     )
 
-    if not hasattr(model, "start_multi_process_pool"):
+    ctx = ForgeContext(out_dir=out_dir, scratch_dir=scratch_dir, schema=schema)
+    logger.info("⚡ Spawning isolated CUDA worker processes (Zero IPC)...")
+    ctx_mp = mp.get_context("spawn")
+
+    p0 = ctx_mp.Process(
+        target=_worker_process, args=(0, "cuda:0", target_file, existing_ids, ctx)
+    )
+    p1 = ctx_mp.Process(
+        target=_worker_process, args=(1, "cuda:1", target_file, existing_ids, ctx)
+    )
+
+    p0.start()
+    p1.start()
+
+    p0.join()
+    p1.join()
+
+    if p0.exitcode != 0 or p1.exitcode != 0:
         logger.error(
-            "CRITICAL: API mismatch — ST release missing start_multi_process_pool!"
+            "❌ CRITICAL FATAL: One or more GPU workers failed. "
+            "Exit codes: Worker 0 (%s), Worker 1 (%s)",
+            p0.exitcode,
+            p1.exitcode,
         )
         sys.exit(1)
 
-    target_devices = ["cuda:0", "cuda:1"]
-    logger.info("⚡ Spawning independent CUDA worker pool across %s...", target_devices)
-
-    multigpu_pool: dict[Literal["input", "output", "processes"], object] = (
-        model.start_multi_process_pool(target_devices=target_devices)
-    )
-
-    ctx = ForgeContext(
-        out_dir=out_dir,
-        scratch_dir=scratch_dir,
-        schema=schema,
-        model=model,
-        pool=multigpu_pool,
-    )
-
-    try:
-        for jsonl_path in target_files:
-            _process_single_table(jsonl_path, ctx)
-    finally:
-        logger.info("🛑 Shutting down independent CUDA multiprocessing worker pool...")
-        model.stop_multi_process_pool(multigpu_pool)
-
-        time.sleep(3)
-        gc.collect()
+    logger.info("🎉 Dual-GPU Forge successfully merged all worker processes.")
 
 
 def main() -> None:
@@ -460,7 +377,7 @@ def main() -> None:
     logging.Formatter.converter = time.gmtime
     logging.basicConfig(
         level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        format="%(asctime)s [%(levelname)s] [ORCHESTRATOR] %(message)s",
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.StreamHandler(sys.stdout),
@@ -490,10 +407,11 @@ def main() -> None:
     )
 
     logger.info("\n%s", "=" * 75)
-    logger.info("🔥 IGNITING KAGGLE VECTOR FORGE (STRICT CONTRACT)")
+    logger.info("🔥 IGNITING KAGGLE VECTOR FORGE (ZERO-IPC BATCHING)")
     logger.info("📂 Source: %s", resolved_in)
     logger.info("💾 Target: %s", resolved_out)
     logger.info("=" * 75)
+
     try:
         execute_pipeline(resolved_in, resolved_out, resolved_scratch)
         logger.info("\n%s", "=" * 75)

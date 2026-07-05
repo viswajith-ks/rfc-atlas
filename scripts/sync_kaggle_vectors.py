@@ -528,13 +528,14 @@ class KaggleOrchestrator:
             "[+++] Transfer sequence complete. Local embeddings space is synchronized."
         )
         self._archive_cloud_logs()
+        self._cleanup_ephemeral_assets()
 
     def _cleanup_ephemeral_assets(self) -> None:
         """Automates the destruction of ephemeral cloud datasets and kernels."""
         logger.info("[*] Initiating ephemeral cloud asset cleanup...")
 
         original_input = builtins.input
-        builtins.input = lambda _="": "y"
+        builtins.input = lambda _="": "yes"
 
         try:
             try:
