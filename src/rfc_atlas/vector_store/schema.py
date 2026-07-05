@@ -18,8 +18,8 @@ LANCE_CHUNK_SCHEMA = pa.schema([
     pa.field("rfc_year", pa.int16(), nullable=True),
     pa.field("rfc_month", pa.int8(), nullable=True),
     pa.field("stream", pa.string(), nullable=True),
-    pa.field("obsoletes", pa.list_(pa.int32()), nullable=False),
-    pa.field("updated_by", pa.list_(pa.int32()), nullable=False),
+    pa.field("obsoletes", pa.list_(pa.field("element", pa.int32())), nullable=False),
+    pa.field("updated_by", pa.list_(pa.field("element", pa.int32())), nullable=False),
     pa.field("block_type", pa.string(), nullable=False),
     pa.field("table_route", pa.string(), nullable=False),
     pa.field("hierarchy_path", pa.string(), nullable=False),
@@ -27,7 +27,11 @@ LANCE_CHUNK_SCHEMA = pa.schema([
     pa.field("sourcecode_type", pa.string(), nullable=True),
     pa.field("parsing_confidence", pa.float32(), nullable=False),
     pa.field("normative_statements_json", pa.string(), nullable=False),
-    pa.field("vector", pa.list_(pa.float32(), VECTOR_DIMENSIONS), nullable=False),
+    pa.field(
+        "vector",
+        pa.list_(pa.field("element", pa.float32()), VECTOR_DIMENSIONS),
+        nullable=False,
+    ),
 ])
 
 
