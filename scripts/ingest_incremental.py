@@ -1,21 +1,21 @@
 """RFC Atlas — Autonomous Incremental Vector Forge.
 
-Scans all local JSONL chunk files, performs a set-difference against the existing
-LanceDB tables to isolate new records, embeds them using local CPU compute,
-and appends them to the database. Idempotent and safe to run continuously.
+Scans the unified master JSONL chunk file, performs a global set-difference
+against the existing LanceDB tables to isolate new records, embeds them using
+local CPU compute, and dynamically routes them to their specific tables.
+Idempotent and safe to run continuously.
 """
 
 import argparse
 import json
 import logging
 import sys
+from collections import defaultdict
 from pathlib import Path
 from typing import TYPE_CHECKING, TypeAlias
 
 import lancedb
-import pyarrow as pa
 from lancedb import DBConnection
-from lancedb.table import Table as LanceTable
 from sentence_transformers import SentenceTransformer
 from tqdm.auto import tqdm
 
@@ -43,42 +43,45 @@ CHUNKS_DIR = _PROJECT_ROOT / "data" / "chunks"
 DB_DIR = _PROJECT_ROOT / "data" / "lancedb"
 
 
-def _get_existing_ids(table: LanceTable) -> set[str]:
-    """Extracts all existing chunk_ids from LanceDB via ultra-fast columnar read.
+def _get_all_existing_ids(db: DBConnection) -> set[str]:
+    """Extracts all existing chunk_ids across all LanceDB tables via fast columnar read.
 
     Args:
-        table (LanceTable): The active LanceDB table.
+        db (DBConnection): The active LanceDB connection.
 
     Returns:
-        set[str]: A set containing all chunk_id strings currently present in the table.
+        set[str]: A set of all chunk_id strings currently present in the database.
     """
-    logger.info("Extracting existing ID manifest from LanceDB...")
+    logger.info("Extracting existing ID manifest from all LanceDB tables...")
+    existing_ids: set[str] = set()
 
-    total_rows: int = table.count_rows()
-    if total_rows == 0:
-        return set()
+    for table_name in db.list_tables().tables:
+        table = db.open_table(table_name)
+        if table.count_rows() > 0:
+            arrow_tbl = table.to_lance().to_table(columns=["chunk_id"])  # pyright: ignore[reportUnknownMemberType]
+            existing_ids.update(arrow_tbl["chunk_id"].to_pylist())
 
-    arrow_tbl = table.to_lance().to_table(columns=["chunk_id"])  # pyright: ignore[reportUnknownMemberType]
-
-    return set(arrow_tbl["chunk_id"].to_pylist())
+    return existing_ids
 
 
-def _flush_and_append(
+def _flush_and_route(
     records: list[JSONDict],
-    lance_table: LanceTable,
+    db: DBConnection,
     model: SentenceTransformer,
-    schema: pa.Schema,
-) -> None:
-    """Embeds a buffer of new records and appends them to LanceDB.
+) -> set[str]:
+    """Embeds a buffer of new records and routes them to their specific LanceDB tables.
 
     Args:
         records (list[JSONDict]): The buffer of parsed JSONL chunk records.
-        lance_table (LanceTable): The target LanceDB table for ingestion.
+        db (DBConnection): Active LanceDB connection.
         model (SentenceTransformer): The loaded embedding model instance.
-        schema (pa.Schema): The PyArrow schema to validate and enforce.
+
+    Returns:
+        set[str]: A set of table names that received new chunks during this flush.
     """
+    updated_tables: set[str] = set()
     if not records:
-        return
+        return updated_tables
 
     texts = [f"search_document: {r['text_payload']}" for r in records]
 
@@ -86,13 +89,37 @@ def _flush_and_append(
         texts,
         batch_size=BATCH_SIZE,
         convert_to_numpy=True,
-        show_progress_bar=False,
+        show_progress_bar=True,
     )
 
-    vector_arrow_array = normalize_and_convert_vectors(raw_embeddings)
+    table_groups: defaultdict[str, list[tuple[JSONDict, int]]] = defaultdict(list)
+    for idx, r in enumerate(records):
+        table_groups[str(r.get("table_route", "prose"))].append((r, idx))
 
-    pa_table = build_lance_table(records, vector_arrow_array, schema=schema)
-    lance_table.add(pa_table)  # pyright: ignore[reportUnknownMemberType]
+    available_tables = set(db.list_tables().tables)
+
+    for table_name, items in table_groups.items():
+        if table_name not in available_tables:
+            logger.warning(
+                "⚠️ Table '%s' does not exist in LanceDB. Skipping.", table_name
+            )
+            continue
+
+        group_records = [x[0] for x in items]
+        group_indices = [x[1] for x in items]
+
+        group_embeddings = raw_embeddings[group_indices]
+        vector_arrow_array = normalize_and_convert_vectors(group_embeddings)
+
+        lance_table = db.open_table(table_name)
+        schema = LANCE_CHUNK_SCHEMA.with_metadata(lance_table.schema.metadata or {})
+
+        pa_table = build_lance_table(group_records, vector_arrow_array, schema=schema)
+        lance_table.add(pa_table)  # pyright: ignore[reportUnknownMemberType]
+
+        updated_tables.add(table_name)
+
+    return updated_tables
 
 
 def _ensure_model(model: SentenceTransformer | None) -> SentenceTransformer:
@@ -105,117 +132,120 @@ def _ensure_model(model: SentenceTransformer | None) -> SentenceTransformer:
         SentenceTransformer: A ready-to-use embedding model instance.
     """
     if model is None:
-        logger.info("📥 Loading Nomic embedding model...")
+        logger.info("📥 Loading Nomic embedding model into CPU memory...")
         return SentenceTransformer(
             "nomic-ai/nomic-embed-text-v1.5", trust_remote_code=True
         )
     return model
 
 
-def _sync_single_table(
-    jsonl_path: Path, db: DBConnection, model: SentenceTransformer | None
-) -> tuple[int, SentenceTransformer | None]:
-    """Synchronizes a single JSONL table with its LanceDB counterpart.
+def _validate_environment(master_jsonl_path: Path) -> bool:
+    """Validates that necessary directories and files exist before syncing.
 
     Args:
-        jsonl_path (Path): Path to the JSONL chunk file.
-        db (DBConnection): Active LanceDB connection.
-        model (SentenceTransformer | None): The current SentenceTransformer model
-            instance, or None if it has not yet been loaded.
+        master_jsonl_path (Path): Path to the master JSONL chunk file.
 
     Returns:
-        tuple[int, SentenceTransformer | None]: A tuple containing the number of
-            new chunks appended, and the model instance.
+        bool: True if all required directories and the master JSONL file exist.
     """
-    table_name = jsonl_path.stem
-
-    if table_name not in db.list_tables().tables:
-        logger.warning("⚠️ Table '%s' does not exist in LanceDB. Skipping.", table_name)
-        return 0, model
-
-    lance_table = db.open_table(table_name)
-    table_schema = LANCE_CHUNK_SCHEMA.with_metadata(lance_table.schema.metadata or {})
-    existing_ids = _get_existing_ids(lance_table)
-
-    logger.info(
-        "📂 Scanning %s (Found %s existing IDs)...",
-        jsonl_path.name,
-        f"{len(existing_ids):,}",
-    )
-
-    records_buffer: list[JSONDict] = []
-    table_new_chunks: int = 0
-
-    with jsonl_path.open("r", encoding="utf-8") as f:
-        for line in tqdm(f, desc=f"Checking {table_name}", unit=" lines", leave=False):
-            if not line.strip():
-                continue
-
-            try:
-                record: JSONDict = json.loads(line)
-            except json.JSONDecodeError:
-                logger.warning("Skipping malformed line in %s", jsonl_path.name)
-                continue
-
-            if str(record.get("chunk_id")) not in existing_ids:
-                records_buffer.append(record)
-                table_new_chunks += 1
-
-                if len(records_buffer) >= FLUSH_BUFFER_ROWS:
-                    model = _ensure_model(model)
-                    _flush_and_append(records_buffer, lance_table, model, table_schema)
-                    records_buffer.clear()
-
-    if records_buffer:
-        model = _ensure_model(model)
-        _flush_and_append(records_buffer, lance_table, model, table_schema)
-
-    if table_new_chunks == 0:
-        logger.info("⏭️ %s: No new chunks to add.", table_name)
-    else:
-        logger.info("🧹 Compacting storage fragments & healing HNSW graph...")
-        lance_table.optimize()
-        logger.info(
-            "✅ %s: Appended %s new chunks.", table_name, f"{table_new_chunks:,}"
-        )
-
-    return table_new_chunks, model
-
-
-def run_incremental_sync() -> None:
-    """Scans all JSONL files, isolates deltas, and appends them to LanceDB."""
-    logger.info("==================================================")
-    logger.info("🔄 INITIATING AUTONOMOUS INCREMENTAL SYNC")
-    logger.info("==================================================")
-
     if not CHUNKS_DIR.exists() or not DB_DIR.exists():
         logger.error(
             "❌ Required directories missing. Ensure %s and %s exist.",
             CHUNKS_DIR,
             DB_DIR,
         )
-        return
+        return False
 
-    jsonl_files = sorted(CHUNKS_DIR.glob("*.jsonl"))
-    if not jsonl_files:
-        logger.info("No .jsonl files found. Exiting.")
+    if not master_jsonl_path.exists():
+        logger.info("No master_chunks.jsonl file found. Exiting.")
+        return False
+
+    return True
+
+
+def _process_jsonl_stream(
+    master_jsonl_path: Path, existing_ids: set[str], db: DBConnection
+) -> tuple[int, set[str]]:
+    """Reads the master chunk JSONL, batches new records, and flushes to LanceDB.
+
+    Args:
+        master_jsonl_path (Path): Path to the master JSONL chunk file.
+        existing_ids (set[str]): A set of chunk IDs already present in the database.
+        db (DBConnection): The active LanceDB connection.
+
+    Returns:
+        tuple[int, set[str]]: A tuple containing the total number of newly inserted
+             chunks and a set of LanceDB table names that were modified and require
+             optimization.
+    """
+    records_buffer: list[JSONDict] = []
+    total_new_chunks: int = 0
+    tables_to_optimize: set[str] = set()
+    model: SentenceTransformer | None = None
+
+    with master_jsonl_path.open("r", encoding="utf-8") as f:
+        for line in tqdm(
+            f, desc="Checking master_chunks.jsonl", unit=" lines", leave=False
+        ):
+            if not line.strip():
+                continue
+
+            try:
+                record: JSONDict = json.loads(line)
+            except json.JSONDecodeError:
+                logger.warning("Skipping malformed line in %s", master_jsonl_path.name)
+                continue
+
+            if str(record.get("chunk_id")) not in existing_ids:
+                records_buffer.append(record)
+                total_new_chunks += 1
+
+                if len(records_buffer) >= FLUSH_BUFFER_ROWS:
+                    model = _ensure_model(model)
+                    updated = _flush_and_route(records_buffer, db, model)
+                    tables_to_optimize.update(updated)
+                    records_buffer.clear()
+
+    if records_buffer:
+        model = _ensure_model(model)
+        updated = _flush_and_route(records_buffer, db, model)
+        tables_to_optimize.update(updated)
+
+    return total_new_chunks, tables_to_optimize
+
+
+def run_incremental_sync() -> None:
+    """Scans the master JSONL file, isolates deltas, and appends them to LanceDB."""
+    logger.info("==================================================")
+    logger.info("🔄 INITIATING AUTONOMOUS INCREMENTAL SYNC")
+    logger.info("==================================================")
+
+    master_jsonl_path = CHUNKS_DIR / "master_chunks.jsonl"
+    if not _validate_environment(master_jsonl_path):
         return
 
     db: DBConnection = lancedb.connect(str(DB_DIR))
+    existing_ids = _get_all_existing_ids(db)
 
-    model: SentenceTransformer | None = None
-    total_new_chunks: int = 0
+    logger.info(
+        "📂 Scanning %s (Found %s existing IDs)...",
+        master_jsonl_path.name,
+        f"{len(existing_ids):,}",
+    )
 
-    for jsonl_path in jsonl_files:
-        new_chunks, model = _sync_single_table(jsonl_path, db, model)
-        total_new_chunks += new_chunks
+    total_new_chunks, tables_to_optimize = _process_jsonl_stream(
+        master_jsonl_path, existing_ids, db
+    )
 
     logger.info("==================================================")
     if total_new_chunks == 0:
         logger.info("🎉 Database is already completely up to date.")
     else:
+        logger.info("🧹 Compacting storage fragments & healing HNSW graphs...")
+        for t_name in tables_to_optimize:
+            db.open_table(t_name).optimize()
         logger.info(
-            "🎉 INCREMENTAL SYNC COMPLETE. Added %s total chunks.",
+            "🎉 INCREMENTAL SYNC COMPLETE. Routed and added %s total chunks.",
             f"{total_new_chunks:,}",
         )
     logger.info("==================================================")

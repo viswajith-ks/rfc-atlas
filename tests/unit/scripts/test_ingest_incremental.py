@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import lancedb
 import numpy as np
@@ -14,8 +14,8 @@ from rfc_atlas.vector_store.schema import (
     build_lance_table,
 )
 from scripts.ingest_incremental import (
-    _get_existing_ids,  # pyright: ignore[reportPrivateUsage]
-    _sync_single_table,  # pyright: ignore[reportPrivateUsage]
+    _get_all_existing_ids,  # pyright: ignore[reportPrivateUsage]
+    _process_jsonl_stream,  # pyright: ignore[reportPrivateUsage]
 )
 
 
@@ -24,36 +24,41 @@ def mock_lancedb(tmp_path: Path) -> lancedb.DBConnection:
     db_dir = tmp_path / "lancedb"
     db = lancedb.connect(str(db_dir))
 
-    records: list[dict[str, Any]] = [
-        {
-            "chunk_id": f"chunk-00{i}",
-            "rfc_number": 1000,
-            "block_type": "paragraph",
-            "table_route": "prose",
-            "hierarchy_path": "Root",
-            "text_payload": f"Existing payload {i}",
-            "parsing_confidence": 1.0,
-            "obsoletes": [],
-            "updated_by": [],
-            "normative_statements": [],
-        }
-        for i in range(1, 3)  # Creates chunk-001 and chunk-002
-    ]
+    def create_fake_table(name: str, ids: list[str]) -> None:
+        records: list[dict[str, Any]] = [
+            {
+                "chunk_id": cid,
+                "rfc_number": 1000,
+                "block_type": "paragraph" if name == "prose" else "abnf",
+                "table_route": name,
+                "hierarchy_path": "Root",
+                "text_payload": f"Existing payload {cid}",
+                "parsing_confidence": 1.0,
+                "obsoletes": [],
+                "updated_by": [],
+                "normative_statements": [],
+            }
+            for cid in ids
+        ]
 
-    fake_vectors = np.random.rand(2, VECTOR_DIMENSIONS).astype(np.float32)
-    vector_array = pa.FixedSizeListArray.from_arrays(
-        pa.array(fake_vectors.ravel(), type=pa.float32()), VECTOR_DIMENSIONS
-    )
+        fake_vectors = np.random.rand(len(ids), VECTOR_DIMENSIONS).astype(np.float32)
+        vector_array = pa.FixedSizeListArray.from_arrays(
+            pa.array(fake_vectors.ravel(), type=pa.float32()), VECTOR_DIMENSIONS
+        )
 
-    table = build_lance_table(records, vector_array)
-    db.create_table("prose", data=table, schema=LANCE_CHUNK_SCHEMA)  # pyright: ignore[reportUnknownMemberType]
+        table = build_lance_table(records, vector_array)
+        db.create_table(name, data=table, schema=LANCE_CHUNK_SCHEMA)  # pyright: ignore[reportUnknownMemberType]
+
+    # Create multiple tables to test global extraction and dynamic routing
+    create_fake_table("prose", ["chunk-001", "chunk-002"])
+    create_fake_table("abnf", ["chunk-a01"])
 
     return db
 
 
 @pytest.fixture
-def mock_jsonl_file(tmp_path: Path) -> Path:
-    jsonl_path = tmp_path / "prose.jsonl"
+def mock_master_jsonl(tmp_path: Path) -> Path:
+    jsonl_path = tmp_path / "master_chunks.jsonl"
 
     records: list[dict[str, Any]] = [
         {
@@ -62,7 +67,7 @@ def mock_jsonl_file(tmp_path: Path) -> Path:
             "block_type": "paragraph",
             "table_route": "prose",
             "hierarchy_path": "Root",
-            "text_payload": "Duplicate",
+            "text_payload": "Duplicate prose",
             "parsing_confidence": 1.0,
             "obsoletes": [],
             "updated_by": [],
@@ -74,7 +79,19 @@ def mock_jsonl_file(tmp_path: Path) -> Path:
             "block_type": "paragraph",
             "table_route": "prose",
             "hierarchy_path": "Root",
-            "text_payload": "New chunk!",
+            "text_payload": "New prose chunk!",
+            "parsing_confidence": 1.0,
+            "obsoletes": [],
+            "updated_by": [],
+            "normative_statements": [],
+        },
+        {
+            "chunk_id": "chunk-a02",
+            "rfc_number": 1000,
+            "block_type": "abnf",
+            "table_route": "abnf",
+            "hierarchy_path": "Root",
+            "text_payload": "New abnf chunk!",
             "parsing_confidence": 1.0,
             "obsoletes": [],
             "updated_by": [],
@@ -89,44 +106,55 @@ def mock_jsonl_file(tmp_path: Path) -> Path:
     return jsonl_path
 
 
-def test_columnar_set_difference(mock_lancedb: lancedb.DBConnection) -> None:
-    table = mock_lancedb.open_table("prose")
-    existing_ids = _get_existing_ids(table)
+def test_global_set_difference(mock_lancedb: lancedb.DBConnection) -> None:
+    existing_ids = _get_all_existing_ids(mock_lancedb)
 
-    assert len(existing_ids) == 2
+    assert len(existing_ids) == 3
     assert "chunk-001" in existing_ids
     assert "chunk-002" in existing_ids
+    assert "chunk-a01" in existing_ids
 
 
-def test_sync_single_table_skips_duplicates(
+@patch("scripts.ingest_incremental.SentenceTransformer")
+def test_process_jsonl_stream_skips_duplicates_and_routes(
+    mock_st_class: MagicMock,
     mock_lancedb: lancedb.DBConnection,
-    mock_jsonl_file: Path,
+    mock_master_jsonl: Path,
 ) -> None:
     # 1. Setup the mocked SentenceTransformer instance directly
     mock_model_instance = MagicMock()
+    mock_st_class.return_value = mock_model_instance
 
     # Nomic natively outputs 768 dimensions before we truncate it to 256.
-    # We must mock it to return an array of shape (N, 768)
     def fake_encode(texts: list[str], **_: list[Any]) -> np.ndarray:
         return np.random.rand(len(texts), 768).astype(np.float32)
 
     mock_model_instance.encode.side_effect = fake_encode
 
-    # 2. Run the sync (which will pass the mock jsonl containing chunk 2 and 3)
-    new_chunks, _ = _sync_single_table(
-        mock_jsonl_file, mock_lancedb, mock_model_instance
+    # 2. Get existing IDs and Run the sync
+    existing_ids = _get_all_existing_ids(mock_lancedb)
+    new_chunks, tables_to_optimize = _process_jsonl_stream(
+        mock_master_jsonl, existing_ids, mock_lancedb
     )
 
     # 3. Assertions
-    # It should have skipped chunk-002 and ONLY processed chunk-003
-    assert new_chunks == 1
+    # It should have skipped chunk-002 and ONLY processed chunk-003 (prose) and chunk-a02 (abnf)
+    assert new_chunks == 2
+    assert "prose" in tables_to_optimize
+    assert "abnf" in tables_to_optimize
 
-    # Verify the database now contains exactly 3 rows (chunk 1, 2, 3)
-    table = mock_lancedb.open_table("prose")
-    assert table.count_rows() == 3
+    # Verify the PROSE table now contains 3 rows (chunk 1, 2, 3)
+    prose_table = mock_lancedb.open_table("prose")
+    assert prose_table.count_rows() == 3
 
-    # Verify the encode method was only called ONCE with exactly ONE text payload
+    # Verify the ABNF table now contains 2 rows (chunk a01, a02)
+    abnf_table = mock_lancedb.open_table("abnf")
+    assert abnf_table.count_rows() == 2
+
+    # Verify the encode method was called with exactly TWO text payloads
     mock_model_instance.encode.assert_called_once()
     passed_texts = mock_model_instance.encode.call_args[0][0]
-    assert len(passed_texts) == 1
-    assert "search_document: New chunk!" in passed_texts[0]
+
+    assert len(passed_texts) == 2
+    assert "search_document: New prose chunk!" in passed_texts
+    assert "search_document: New abnf chunk!" in passed_texts

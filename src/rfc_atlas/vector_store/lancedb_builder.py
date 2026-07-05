@@ -1,6 +1,7 @@
 """LanceDB Table Construction & Indexing Engine.
 
-Executes strictly typed PyArrow ingestion of Gold Parquet chunks into LanceDB.
+Executes strictly typed PyArrow ingestion of unified Parquet chunks into LanceDB.
+Leverages PyArrow Dataset push-down filters for zero-copy table segregation.
 Compiles Tantivy BM25 sparse lexical indices and trains IVF-PQ dense vector clusters.
 """
 
@@ -10,11 +11,13 @@ import shutil
 import sys
 import time
 from pathlib import Path
+from typing import get_args
 
 import lancedb
-import pyarrow.parquet as pq
+import pyarrow.dataset as ds
 from lancedb.table import Table as LanceTable
 
+from rfc_atlas.chunking.schema import LanceTableRoute
 from rfc_atlas.vector_store.schema import LANCE_CHUNK_SCHEMA
 
 logger = logging.getLogger(__name__)
@@ -64,22 +67,18 @@ def _build_indices(lance_table: LanceTable, total_rows: int) -> None:
 
 
 def construct_database(source_dir: Path, db_dir: Path) -> None:
-    """Ingests Parquet shards into LanceDB using streaming appends.
+    """Ingests monolithic Parquet shards into segregated LanceDB tables.
 
-    Iterates over partitioned Parquet shard files within the source directory,
-    creates corresponding LanceDB tables, and sequentially streams the data in.
-    Subsequently compiles indices for dense and sparse vector retrieval.
+    Mounts the entire folder of parquet shards as a single PyArrow Dataset.
+    Uses zero-copy push-down filters to stream route-specific slices
+    into their respective independent LanceDB tables.
 
     Args:
-        source_dir (Path): The directory containing the input `.parquet` shard files.
+        source_dir (Path): The directory containing the monolithic `.parquet` shards.
         db_dir (Path): The target directory to initialize and build the LanceDB tables.
-
-    Raises:
-        RuntimeError: If a LanceDB table fails to initialize during streaming.
     """
     logger.info("Initializing LanceDB Serverless Instance at: %s", db_dir)
     db = lancedb.connect(str(db_dir))
-    schema = LANCE_CHUNK_SCHEMA
 
     if not source_dir.exists():
         logger.error("FATAL: Source directory does not exist: %s", source_dir)
@@ -90,69 +89,37 @@ def construct_database(source_dir: Path, db_dir: Path) -> None:
         logger.error("FATAL: No Parquet files found in %s", source_dir)
         sys.exit(1)
 
-    table_groups: dict[str, list[Path]] = {}
-    for p in parquets:
-        table_name = p.stem.split("_shard_")[0]
-        table_groups.setdefault(table_name, []).append(p)
+    logger.info("Mounting unified PyArrow Dataset from %s shards...", len(parquets))
+    dataset = ds.dataset(source_dir, format="parquet")  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
-    for table_name, file_paths in table_groups.items():
-        file_paths.sort()
+    parquet_meta: dict[bytes, bytes] = dataset.schema.metadata or {}  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+    enriched_schema = LANCE_CHUNK_SCHEMA.with_metadata(parquet_meta)
 
+    for table_name in sorted(get_args(LanceTableRoute)):
         logger.info("\n==================================================")
         logger.info("BUILDING TABLE: [%s]", table_name.upper())
         logger.info("==================================================")
 
-        logger.info("Streaming %s shards into LanceDB...", len(file_paths))
+        condition = ds.field("table_route") == table_name  # pyright: ignore[reportUnknownVariableType, reportPrivateImportUsage, reportUnknownMemberType]
+        scanner = dataset.scanner(filter=condition)  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
 
-        pf = pq.ParquetFile(file_paths[0])
-        parquet_meta: dict[bytes, bytes] = pf.schema_arrow.metadata or {}  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        total_rows: int = scanner.count_rows()  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
 
-        enriched_schema = LANCE_CHUNK_SCHEMA.with_metadata(parquet_meta)
-
-        total_rows: int = 0
-        lance_table: LanceTable | None = None
-
-        for i, shard in enumerate(file_paths):
-            logger.info(
-                "Loading shard %d/%d: %s",
-                i + 1,
-                len(file_paths),
-                shard.name,
-            )
-
-            tbl = pq.read_table(  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-                shard,
-                schema=schema,
-                memory_map=True,
-            )
-
-            total_rows += tbl.num_rows  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
-
-            if i == 0:
-                lance_table = db.create_table(  # pyright: ignore[reportUnknownMemberType]
-                    table_name,
-                    data=tbl,  # pyright: ignore[reportUnknownArgumentType]
-                    schema=enriched_schema,
-                    mode="overwrite",
-                )
-            elif lance_table is not None:
-                lance_table.add(tbl)  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
-            else:
-                msg = f"Failed to initialize LanceDB table: {table_name}"
-                raise RuntimeError(msg)
-
-            del tbl
-
-        if lance_table is None:
-            logger.warning("No data processed for table: %s. Skipping.", table_name)
+        if total_rows == 0:
+            logger.warning("No data found for table route: %s. Skipping.", table_name)
             continue
 
-        logger.info(
-            "Total vectors in %s: %s",
+        logger.info("Streaming %s matching chunks into LanceDB...", f"{total_rows:,}")
+
+        reader = scanner.to_reader()  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
+        lance_table = db.create_table(  # pyright: ignore[reportUnknownMemberType]
             table_name,
-            f"{total_rows:,}",
+            data=reader,  # pyright: ignore[reportUnknownArgumentType]
+            schema=enriched_schema,
+            mode="overwrite",
         )
 
+        logger.info("Total vectors in %s: %s", table_name, f"{total_rows:,}")
         _build_indices(lance_table, total_rows)  # pyright: ignore[reportUnknownArgumentType]
 
     logger.info("\nLANCEDB CONSTRUCTION COMPLETE!")
