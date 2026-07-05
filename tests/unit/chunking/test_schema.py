@@ -55,7 +55,6 @@ def test_chunk_record_validation_success() -> None:
     ids=["bad_types", "confidence_too_high", "confidence_too_low"],
 )
 def test_chunk_record_validation_failures(overrides: dict[str, Any]) -> None:
-    """Asserts that invalid ChunkRecord data strictly raises ValidationErrors."""
     base_data: dict[str, Any] = {
         "chunk_id": "1234-sec1-01",
         "rfc_number": 1234,
