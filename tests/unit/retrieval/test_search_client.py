@@ -109,7 +109,7 @@ def test_search_multiple_no_truncation(
 
     # Simulate 'prose' returning 3 results, and 'security' returning 3 results
     def mock_table_return(
-        _query: str, table_name: str, _limit: int
+        _query: str, table_name: str, **_kwargs: object
     ) -> list[RetrievalResult]:
         if table_name == "prose":
             return [

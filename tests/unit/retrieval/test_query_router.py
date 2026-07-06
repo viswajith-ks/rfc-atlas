@@ -16,7 +16,7 @@ from rfc_atlas.retrieval.query_router import QueryRouter
         ),
         (
             "Show me the state machine diagram for TLS.",
-            {"visual_structure"},
+            {"visual_structure", "security_analysis"},
         ),
         (
             "Are there any security vulnerabilities or threats in OAuth?",
