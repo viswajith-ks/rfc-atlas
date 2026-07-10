@@ -31,6 +31,10 @@ vector-store = [
     "tantivy==0.26.0",
     "transformers==5.12.1",
 ]
+synthesis = [
+    "google-genai==2.10.0",
+    "python-dotenv==1.2.2",
+]
 dev = [
     "poethepoet==0.47.0",
     "pyright==1.1.410",
