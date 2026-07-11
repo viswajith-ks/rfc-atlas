@@ -136,6 +136,7 @@ class SemanticReranker:
                 "Falling back to base hybrid retrieval scores.",
                 e,
             )
+            candidates.sort(key=lambda x: x.score, reverse=True)
             return candidates[:top_k]
 
         pairs = [[query, chunk.text_payload] for chunk in candidates]

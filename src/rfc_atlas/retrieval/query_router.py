@@ -39,7 +39,7 @@ class QueryRouter:
     # Identifies threat modeling, encryption, and authorization queries
     # to ensure the dedicated 'security' considerations table is searched.
     _SECURITY_KEYWORDS = re.compile(
-        r"\b(security|attack|vulnerability|threat|mitigation|tls|crypto|encryption|auth|hack)\b",
+        r"\b(security|attack|vulnerabilit\w*|threat|mitigation|tls|crypto|encryption|oauth|auth\w*|hack)\b",
         re.IGNORECASE,
     )
 
@@ -53,7 +53,7 @@ class QueryRouter:
     # Detects queries about the lifecycle, obsoletion, or historical context
     # of a standard, bringing the 'references' table into scope alongside prose.
     _HISTORY_KEYWORDS = re.compile(
-        r"\b(history|obsolete|update|older|version|previous|deprecated|superseded)\b",
+        r"\b(history|obsolet\w*|updat\w*|older|version|previous|deprecated|superseded)\b",
         re.IGNORECASE,
     )
 
@@ -98,23 +98,16 @@ class QueryRouter:
                 of tables to execute the hybrid search against.
         """
         intents = cls.classify_intents(query)
-        tables: set[LanceTableRoute] = set()
+        tables: set[LanceTableRoute] = {"prose"}
 
         for intent in intents:
-            if intent == "conceptual_explanation":
-                tables.add("prose")
-            elif intent == "syntax_grammar":
+            if intent == "syntax_grammar":
                 tables.update(["abnf", "sourcecode"])
             elif intent == "visual_structure":
                 tables.update(["artwork", "table"])
             elif intent == "security_analysis":
-                tables.update(["security", "prose"])
-            elif intent == "normative_query":
-                tables.update(["prose", "abnf"])
+                tables.add("security")
             elif intent == "protocol_history":
-                tables.update(["prose", "references"])
-
-        if not tables:
-            tables.add("prose")
+                tables.add("references")
 
         return sorted(tables)

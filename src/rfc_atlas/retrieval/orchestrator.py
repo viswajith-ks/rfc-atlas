@@ -63,11 +63,19 @@ class RetrievalOrchestrator:
         if not raw_candidates:
             logger.warning("No candidates found in LanceDB for query.")
             return ContextBuilder.format_context([])
-        logger.info("🎯 Retrieved %d raw candidates from LanceDB.", len(raw_candidates))
 
-        enriched_candidates = ContextInterceptor.enrich_results(raw_candidates)
-        final_candidates = self.reranker.rerank(query, enriched_candidates, top_k=top_k)
+        capped_candidates = raw_candidates[: top_k * 5]
+
+        logger.info("🎯 Reranking %d raw candidates...", len(capped_candidates))
+        reranked_candidates = self.reranker.rerank(
+            query, capped_candidates, top_k=top_k
+        )
+
+        logger.info("🧵 Stitching adjacent block contexts...")
+        stitched_candidates = self.search_client.stitch_neighbors(reranked_candidates)
+
+        logger.info("🛡️ Intercepting payload for lineage and errata checks...")
+        enriched_candidates = ContextInterceptor.enrich_results(stitched_candidates)
 
         logger.info("✅ Context assembly complete. Returning Top %d chunks.", top_k)
-
-        return ContextBuilder.format_context(final_candidates)
+        return ContextBuilder.format_context(enriched_candidates)

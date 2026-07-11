@@ -55,11 +55,11 @@ class ContextInterceptor:
 
             if orig_text in chunk.text_payload:
                 chunk.has_errata = True
-                status = erratum.get("errata_status_code", "Unknown")
+                status = str(erratum.get("errata_status_code", "Unknown"))
                 correction = str(erratum.get("correct_text", "")).strip()
 
                 injection = (
-                    f"⚠️ [VERIFIED IETF ERRATA ({status})] The text above contains a "
+                    f"⚠️ [IETF ERRATA ({status.upper()})] The text above contains a "
                     f"known error. Replace:\n'{orig_text}'\nWITH:\n'{correction}'"
                 )
                 applied_corrections.append(injection)

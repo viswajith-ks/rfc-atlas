@@ -70,6 +70,12 @@ class GeminiClient:
             config=self._build_config(system_instruction),
         )
 
+        if not response.text:
+            return (
+                "⚠️ The model returned an empty response. "
+                "This may be due to safety filters or a generation error."
+            )
+
         return str(response.text)
 
     def generate_stream(

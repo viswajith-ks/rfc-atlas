@@ -40,8 +40,8 @@ def test_search_table_missing(tmp_path: Path) -> None:
     client._db = MagicMock()  # pyright: ignore[reportPrivateUsage]
     client._db.list_tables.return_value.tables = ["prose"]  # pyright: ignore[reportPrivateUsage]
 
-    # 'abnf' doesn't exist, so it should gracefully return an empty list without crashing
-    results = client.search_table("query", "abnf")
+    # Pass [0.1] * 256 to satisfy the query_vector argument
+    results = client.search_table("query", [0.1] * 256, "abnf")
     assert results == []
 
 
@@ -88,7 +88,7 @@ def test_search_table_success(mock_encode: MagicMock, tmp_path: Path) -> None:
 
     client._db.open_table.return_value = mock_table  # pyright: ignore[reportPrivateUsage]
 
-    results = client.search_table("TCP", "prose", limit=2)
+    results = client.search_table("TCP", [0.1] * 256, "prose", limit=2)
 
     assert len(results) == 2
     assert isinstance(results[0], RetrievalResult)

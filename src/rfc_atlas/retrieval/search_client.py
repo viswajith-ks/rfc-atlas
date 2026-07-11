@@ -6,6 +6,7 @@ retrieval across specified table routes.
 """
 
 import logging
+import re
 from pathlib import Path
 from typing import Any
 
@@ -96,12 +97,17 @@ class HybridSearchClient:
         return (sliced / norm).tolist()
 
     def search_table(
-        self, query: str, table_name: LanceTableRoute, limit: int = 15
+        self,
+        query: str,
+        query_vector: list[float],
+        table_name: LanceTableRoute,
+        limit: int = 15,
     ) -> list[RetrievalResult]:
         """Executes a hybrid search against a single LanceDB table.
 
         Args:
             query (str): The raw user query.
+            query_vector (list[float]): The encoded L2-normalized float array.
             table_name (LanceTableRoute): The target LanceDB table (e.g., 'prose').
             limit (int): Maximum number of chunks to retrieve.
 
@@ -116,16 +122,16 @@ class HybridSearchClient:
         if table.count_rows() == 0:
             return []
 
-        query_vector = self._encode_query(query)
+        rfc_match = re.search(r"(?i)\brfc\s*(\d+)\b", query)
 
         try:
+            search_op = table.search(query_type="hybrid")  # pyright: ignore[reportUnknownMemberType]
+
+            if rfc_match:
+                search_op = search_op.where(f"rfc_number = {int(rfc_match.group(1))}")
+
             raw_results: list[dict[str, Any]] = (  # pyright: ignore[reportUnknownVariableType]
-                table
-                .search(query_type="hybrid")  # pyright: ignore[reportUnknownMemberType]
-                .vector(query_vector)
-                .text(query)
-                .limit(limit)
-                .to_list()
+                search_op.vector(query_vector).text(query).limit(limit).to_list()  # pyright: ignore[reportUnknownMemberType]
             )
         except (ValueError, TypeError, RuntimeError, OSError):
             logger.exception("Hybrid search failed on table '%s'", table_name)
@@ -135,7 +141,6 @@ class HybridSearchClient:
         for row in raw_results:
             try:
                 score = float(row.get("_score", 0.0))
-
                 parsed_results.append(
                     RetrievalResult(
                         chunk_id=str(row["chunk_id"]),
@@ -170,12 +175,70 @@ class HybridSearchClient:
             list[RetrievalResult]: The combined un-truncated candidate pool.
         """
         combined_results: list[RetrievalResult] = []
-
         target_tables = sorted(set(tables))
 
-        for table_name in target_tables:
-            results = self.search_table(query, table_name, limit=limit)
-            combined_results.extend(results)
-        combined_results.sort(key=lambda x: x.score, reverse=True)
+        try:
+            query_vector = self._encode_query(query)
+        except (ValueError, RuntimeError, OSError, TypeError) as e:
+            logger.warning("Query encoding failed: %s. Aborting search.", e)
+            return []
 
+        for table_name in target_tables:
+            results = self.search_table(query, query_vector, table_name, limit=limit)
+            combined_results.extend(results)
+
+        combined_results.sort(key=lambda x: x.score, reverse=True)
         return combined_results
+
+    def stitch_neighbors(self, chunks: list[RetrievalResult]) -> list[RetrievalResult]:
+        """Expands context by fetching adjacent blocks (blk-1, blk+1) across tables.
+
+        Args:
+            chunks (list[RetrievalResult]): The reranked candidate chunks.
+
+        Returns:
+            list[RetrievalResult]: The candidates with newly stitched text payloads.
+        """
+        if not chunks:
+            return []
+
+        all_tables = self._db.list_tables().tables
+
+        for chunk in chunks:
+            match = re.match(
+                r"^(rfc\d+-sec[a-zA-Z0-9_.-]+)-blk(\d+)-chunk", chunk.chunk_id
+            )
+            if not match:
+                continue
+
+            prefix = match.group(1)
+            blk_idx = int(match.group(2))
+
+            prev_prefix = f"{prefix}-blk{blk_idx - 1}-"
+            next_prefix = f"{prefix}-blk{blk_idx + 1}-"
+
+            reconstructed: dict[str, str] = {chunk.chunk_id: chunk.text_payload}
+
+            for t_name in all_tables:
+                try:
+                    tbl = self._db.open_table(t_name)
+                    query_str = (
+                        f"chunk_id LIKE '{prev_prefix}%' "
+                        f"OR chunk_id LIKE '{next_prefix}%'"
+                    )
+                    raw_res: list[dict[str, Any]] = (  # pyright: ignore[reportUnknownVariableType]
+                        tbl
+                        .search()  # pyright: ignore[reportUnknownMemberType]
+                        .where(query_str)
+                        .limit(20)
+                        .to_list()
+                    )
+                    for r in raw_res:
+                        reconstructed[str(r["chunk_id"])] = str(r["text_payload"])
+                except (ValueError, OSError, RuntimeError) as e:
+                    logger.debug("Failed to stitch adjacent block in %s: %s", t_name, e)
+
+            sorted_texts = [reconstructed[k] for k in sorted(reconstructed.keys())]
+            chunk.text_payload = "\n\n".join(sorted_texts)
+
+        return chunks

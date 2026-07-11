@@ -18,24 +18,24 @@ LOGS_DIR = _PROJECT_ROOT / "data" / "logs"
 
 TEST_BATTERY = [
     (
-        "How does the TLS 1.3 handshake work?",
-        "Standard Prose Retrieval",
+        "As of RFC 793, what are the exact states in the TCP connection progression?",
+        "Explicit Metadata Routing (Forces the engine to filter by RFC 793)",
     ),
     (
-        "What is the ABNF grammar for the HTTP Host header?",
-        "Syntax & Grammar Routing",
+        "What is the ABNF syntax for the absolute-URI in HTTP/1.1?",
+        "Cross-Table Fragmentation Test (Forces stitching prose and ABNF together)",
     ),
     (
-        "Show me the state machine diagram for the TCP protocol.",
-        "Visual & Artwork Routing",
+        "Explain the SPF (Shortest Path First) calculation for OSPF routing.",
+        "Acronym Collision & Dense Semantic Ambiguity",
     ),
     (
-        "What are the security considerations for OAuth 2.0?",
-        "Security Routing",
+        "How does the QUIC crypto handshake differ from TLS 1.3?",
+        "Multi-Document Synthesis (Requires retrieving from multiple distinct RFCs)",
     ),
     (
-        "How does RFC 2616 define HTTP caching?",
-        "Temporal Lineage Expansion (RFC 2616 is Obsolete)",
+        "What does RFC 8446 say about 0-RTT data security?",
+        "Deep Section Retrieval with Metadata Filter",
     ),
 ]
 
@@ -84,8 +84,7 @@ def run_audit() -> None:
             f.write(f"LATENCY: {elapsed:.2f} seconds\n")
             f.write("PAYLOAD SAMPLE:\n")
 
-            sample = context_payload[:1000] + "\n...[TRUNCATED FOR AUDIT]..."
-            f.write(f"{sample}\n")
+            f.write(f"{context_payload}\n")
             f.write("\n" + "=" * 50 + "\n\n")
 
     print(f"✅ Audit complete. Review {report_file} for formatting and lineage checks.")
