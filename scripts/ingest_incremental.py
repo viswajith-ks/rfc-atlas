@@ -58,8 +58,10 @@ def _get_all_existing_ids(db: DBConnection) -> set[str]:
     for table_name in db.list_tables().tables:
         table = db.open_table(table_name)
         if table.count_rows() > 0:
-            arrow_tbl = table.to_lance().to_table(columns=["chunk_id"])  # pyright: ignore[reportUnknownMemberType]
-            existing_ids.update(arrow_tbl["chunk_id"].to_pylist())
+            lance_ds = table.to_lance()  # pyright: ignore[reportUnknownMemberType]
+            scanner = lance_ds.scanner(columns=["chunk_id"])  # pyright: ignore[reportUnknownMemberType]
+            for batch in scanner.to_batches():  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+                existing_ids.update(batch["chunk_id"].to_pylist())  # pyright: ignore[reportUnknownMemberType, reportUnknownArgumentType]
 
     return existing_ids
 
@@ -241,9 +243,11 @@ def run_incremental_sync() -> None:
     if total_new_chunks == 0:
         logger.info("🎉 Database is already completely up to date.")
     else:
-        logger.info("🧹 Compacting storage fragments & healing HNSW graphs...")
+        logger.info("🧹 Compacting storage fragments & healing indices...")
         for t_name in tables_to_optimize:
-            db.open_table(t_name).optimize()
+            tbl = db.open_table(t_name)
+            tbl.optimize()
+            tbl.create_fts_index("text_payload", replace=True)
         logger.info(
             "🎉 INCREMENTAL SYNC COMPLETE. Routed and added %s total chunks.",
             f"{total_new_chunks:,}",

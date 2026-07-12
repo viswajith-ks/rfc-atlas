@@ -44,30 +44,12 @@ def test_classify_intents(query: str, expected_intents: set[str]) -> None:
 @pytest.mark.parametrize(
     ("query", "expected_tables"),
     [
-        (
-            "Explain how TCP works.",
-            ["prose"],  # Fallback conceptual
-        ),
-        (
-            "What is the ABNF grammar?",
-            ["abnf", "sourcecode"],  # Syntax
-        ),
-        (
-            "Show me the diagram.",
-            ["artwork", "table"],  # Visual
-        ),
-        (
-            "What are the security threats?",
-            ["prose", "security"],  # Security (Notice it is alphabetically sorted)
-        ),
-        (
-            "When MUST it happen?",
-            ["abnf", "prose"],  # Normative (Alphabetically sorted)
-        ),
-        (
-            "What is the history of this obsolete protocol?",
-            ["prose", "references"],  # History (Alphabetically sorted)
-        ),
+        ("Explain how TCP works.", ["prose"]),
+        ("What is the ABNF grammar?", ["abnf", "prose", "sourcecode"]),
+        ("Show me the diagram.", ["artwork", "prose", "table"]),
+        ("What are the security threats?", ["prose", "security"]),
+        ("When MUST it happen?", ["abnf", "prose"]),
+        ("What is the history of this obsolete protocol?", ["prose", "references"]),
         (
             "Show the ABNF grammar and the security diagram.",
             ["abnf", "artwork", "prose", "security", "sourcecode", "table"],
@@ -77,13 +59,8 @@ def test_classify_intents(query: str, expected_intents: set[str]) -> None:
 def test_route_query_deterministic_sorting(
     query: str, expected_tables: list[str]
 ) -> None:
-    # 1. Execute the router
     tables = QueryRouter.route_query(query)
-
-    # 2. Assert all expected tables are present
     assert tables == expected_tables
-
-    # 3. Mathematically prove the output is strictly sorted (fixing the truncation bug)
     assert tables == sorted(tables), (
         "CRITICAL: Router output is not deterministically sorted!"
     )

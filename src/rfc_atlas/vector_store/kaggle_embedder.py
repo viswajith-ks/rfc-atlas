@@ -53,16 +53,6 @@ KAGGLE_OUT_DIR = Path(
 KAGGLE_SCRATCH_DIR = Path(
     os.environ.get("RFC_ATLAS_SCRATCH_DIR", "/kaggle/working/scratch_parquet")
 )
-_BASE_INPUT = Path(os.environ.get("RFC_ATLAS_IN_DIR", "/kaggle/input"))
-
-try:
-    _resolved_in = next(_BASE_INPUT.rglob("*.jsonl")).parent
-except StopIteration:
-    _resolved_in = _BASE_INPUT
-
-KAGGLE_IN_DIR = _resolved_in
-KAGGLE_OUT_DIR.mkdir(parents=True, exist_ok=True)
-
 LOG_FILE = (
     Path(os.environ.get("RFC_ATLAS_LOG_DIR", "/kaggle/working"))
     / "embedder_telemetry.log"
@@ -181,7 +171,7 @@ def _load_and_shard_records(
                 continue
             with contextlib.suppress(json.JSONDecodeError):
                 rec = json.loads(line)
-                if rec["chunk_id"] not in existing_ids:
+                if rec.get("chunk_id") not in existing_ids:
                     all_records.append(rec)
 
     worker_logger.info(
@@ -381,7 +371,7 @@ def main() -> None:
         datefmt="%Y-%m-%d %H:%M:%S",
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler(LOG_FILE, mode="w", encoding="utf-8"),
+            logging.FileHandler(LOG_FILE, mode="a", encoding="utf-8"),
         ],
     )
 
@@ -400,7 +390,15 @@ def main() -> None:
 
     args = parser.parse_args()
 
-    resolved_in = Path(args.in_dir) if args.in_dir else KAGGLE_IN_DIR
+    resolved_in = (
+        Path(args.in_dir)
+        if args.in_dir
+        else Path(os.environ.get("RFC_ATLAS_IN_DIR", "/kaggle/input"))
+    )
+    if not args.in_dir:
+        with contextlib.suppress(StopIteration):
+            resolved_in = next(resolved_in.rglob("*.jsonl")).parent
+
     resolved_out = Path(args.out_dir) if args.out_dir else KAGGLE_OUT_DIR
     resolved_scratch = (
         Path(args.scratch_dir) if args.scratch_dir else KAGGLE_SCRATCH_DIR

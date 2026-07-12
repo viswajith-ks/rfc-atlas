@@ -42,16 +42,22 @@ def _safe_required_int(val: object) -> int:
         val (object): The raw parsed value from the JSON record.
 
     Returns:
-        int: The safely cast integer, or -1 if the value is missing or invalid.
+        int: The safely cast integer.
+
+    Raises:
+        ValueError: If the value is missing, None, or fails to cast.
     """
     if val is None:
-        return -1
+        e = "Required integer field is missing (None)"
+        raise ValueError(e)
     if isinstance(val, (int, float, str)):
         try:
             return int(val)
-        except ValueError:
-            return -1
-    return -1
+        except ValueError as e:
+            err = f"Cannot cast '{val}' to int"
+            raise ValueError(err) from e
+    e = f"Invalid type for required integer: {type(val)}"
+    raise ValueError(e)
 
 
 def _safe_optional_int(val: object) -> int | None:
@@ -129,10 +135,12 @@ def build_lance_table(
         ),
         pa.array([r.get("stream") for r in records], type=pa.string()),
         pa.array(
-            [r.get("obsoletes") or [] for r in records], type=pa.list_(pa.int32())
+            [r.get("obsoletes") or [] for r in records],
+            type=pa.list_(pa.field("element", pa.int32())),
         ),
         pa.array(
-            [r.get("updated_by") or [] for r in records], type=pa.list_(pa.int32())
+            [r.get("updated_by") or [] for r in records],
+            type=pa.list_(pa.field("element", pa.int32())),
         ),
         pa.array([r["block_type"] for r in records], type=pa.string()),
         pa.array([r["table_route"] for r in records], type=pa.string()),

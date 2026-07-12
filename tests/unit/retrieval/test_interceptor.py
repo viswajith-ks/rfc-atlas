@@ -92,7 +92,6 @@ def test_errata_correction_injection(
 ) -> None:
     mock_graph.format_lineage_warning.return_value = None
 
-    # Simulate an erratum matching RFC 2000
     def mock_errata(rfc_num: int) -> list[dict[str, Any]]:
         if rfc_num == 2000:
             return [
@@ -108,13 +107,10 @@ def test_errata_correction_injection(
 
     enriched = ContextInterceptor.enrich_results(mock_results)
 
-    # 1. Verify chunk 2 was flagged and mutated
     assert enriched[1].has_errata is True
     assert "TCP port 80." in enriched[1].text_payload
-    assert "⚠️ [VERIFIED IETF ERRATA (Verified)]" in enriched[1].text_payload
+    assert "⚠️ [IETF ERRATA (VERIFIED)]" in enriched[1].text_payload
     assert "TCP port 443." in enriched[1].text_payload
-
-    # 2. Verify chunk 1 was untouched
     assert enriched[0].has_errata is False
 
 
@@ -143,6 +139,5 @@ def test_errata_no_match(
 
     enriched = ContextInterceptor.enrich_results(mock_results)
 
-    # 1. Verify chunk 1 was NOT flagged because the text didn't match the payload
     assert enriched[0].has_errata is False
     assert "VERIFIED IETF ERRATA" not in enriched[0].text_payload

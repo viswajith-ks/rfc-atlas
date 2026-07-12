@@ -139,12 +139,21 @@ def main() -> None:
     parser.add_argument("--db-dir", type=Path, default=LOCAL_DB_DIR)
     args = parser.parse_args()
 
+    tmp_db_dir = args.db_dir.with_name(f"{args.db_dir.name}_tmp")
+
+    if tmp_db_dir.exists():
+        shutil.rmtree(tmp_db_dir)
+
     try:
+        construct_database(args.in_dir, tmp_db_dir)
+
         if args.db_dir.exists():
             shutil.rmtree(args.db_dir)
-        construct_database(args.in_dir, args.db_dir)
+        tmp_db_dir.rename(args.db_dir)
     except Exception:
         logger.exception("CRITICAL FAILURE: LanceDB construction aborted abnormally.")
+        if tmp_db_dir.exists():
+            shutil.rmtree(tmp_db_dir)
         sys.exit(1)
 
 

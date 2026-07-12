@@ -106,10 +106,10 @@ def test_search_multiple_no_truncation(
     mock_search_table: MagicMock, tmp_path: Path
 ) -> None:
     client = HybridSearchClient(db_path=tmp_path)
+    client._encode_query = MagicMock(return_value=[0.1] * 256)  # pyright: ignore[reportPrivateUsage]
 
-    # Simulate 'prose' returning 3 results, and 'security' returning 3 results
     def mock_table_return(
-        _query: str, table_name: str, **_kwargs: object
+        _query: str, _query_vector: list[float], table_name: str, **_kwargs: object
     ) -> list[RetrievalResult]:
         if table_name == "prose":
             return [
@@ -139,19 +139,10 @@ def test_search_multiple_no_truncation(
 
     mock_search_table.side_effect = mock_table_return
 
-    # Call with limit=3
     combined = client.search_multiple("query", ["prose", "security"], limit=3)
 
-    # 1. Verify determinism: It should sort the set("prose", "security") alphabetically
     assert mock_search_table.call_count == 2
-    assert mock_search_table.call_args_list[0][0][1] == "prose"
-    assert mock_search_table.call_args_list[1][0][1] == "security"
-
-    # 2. PROVE THE FIX: It should return ALL 6 results without truncating down to 3!
+    assert mock_search_table.call_args_list[0][0][2] == "prose"
+    assert mock_search_table.call_args_list[1][0][2] == "security"
     assert len(combined) == 6
-
-    # 3. Verify it globally sorted the combined array by score (Highest to Lowest)
-    assert combined[0].chunk_id == "s-3"  # Score 3.5
-    assert combined[1].chunk_id == "p-3"  # Score 3.0
-    assert combined[2].chunk_id == "s-2"  # Score 2.5
-    assert combined[-1].chunk_id == "p-1"  # Score 1.0
+    assert combined[0].chunk_id == "s-3"

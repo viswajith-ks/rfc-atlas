@@ -2,6 +2,7 @@ import math
 
 import numpy as np
 import pyarrow as pa
+import pytest
 
 from rfc_atlas.vector_store.schema import (
     VECTOR_DIMENSIONS,
@@ -16,10 +17,14 @@ def test_safe_required_int() -> None:
     assert _safe_required_int("404") == 404
     assert _safe_required_int(math.pi) == 3
 
-    # Garbage / Missing traps
-    assert _safe_required_int("bad_string") == -1
-    assert _safe_required_int(None) == -1
-    assert _safe_required_int([]) == -1
+    with pytest.raises(ValueError, match="Cannot cast 'bad_string' to int"):
+        _safe_required_int("bad_string")
+    with pytest.raises(ValueError, match=r"Required integer field is missing \(None\)"):
+        _safe_required_int(None)
+    with pytest.raises(
+        ValueError, match="Invalid type for required integer: <class 'list'>"
+    ):
+        _safe_required_int([])
 
 
 def test_safe_optional_int() -> None:

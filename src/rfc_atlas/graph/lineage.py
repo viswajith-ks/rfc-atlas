@@ -6,6 +6,7 @@ and historical lineage directly in Python memory for RAG context injection.
 
 import json
 import logging
+from collections import deque
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, TypeAlias
@@ -215,10 +216,10 @@ class TemporalLineageGraph:
 
         modern_rfcs: set[int] = set()
         visited: set[int] = {rfc_number}
-        queue: list[int] = list(node.obsoleted_by)
+        queue: deque[int] = deque(node.obsoleted_by)
 
         while queue:
-            current_id = queue.pop(0)
+            current_id = queue.popleft()
             if current_id in visited:
                 continue
             visited.add(current_id)

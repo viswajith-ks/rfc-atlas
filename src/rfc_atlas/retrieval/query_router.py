@@ -107,6 +107,8 @@ class QueryRouter:
                 tables.update(["artwork", "table"])
             elif intent == "security_analysis":
                 tables.add("security")
+            elif intent == "normative_query":
+                tables.add("abnf")
             elif intent == "protocol_history":
                 tables.add("references")
 
