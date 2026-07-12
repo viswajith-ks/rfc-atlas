@@ -1,4 +1,5 @@
 import json
+from collections.abc import Generator
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +13,12 @@ pytestmark = pytest.mark.usefixtures("_reset_graph")
 
 
 @pytest.fixture
-def _reset_graph() -> None:  # pyright: ignore[reportUnusedFunction]
-    TemporalLineageGraph._is_instantiated = False  # pyright: ignore[reportPrivateUsage]
+def _reset_graph() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+    TemporalLineageGraph.is_instantiated = False
+    TemporalLineageGraph._graph.clear()  # pyright: ignore[reportPrivateUsage]
+    TemporalLineageGraph._is_loaded = False  # pyright: ignore[reportPrivateUsage]
+    yield
+    TemporalLineageGraph.is_instantiated = False
     TemporalLineageGraph._graph.clear()  # pyright: ignore[reportPrivateUsage]
     TemporalLineageGraph._is_loaded = False  # pyright: ignore[reportPrivateUsage]
 
@@ -154,3 +159,15 @@ def test_missing_or_corrupted_file(tmp_path: Path) -> None:
 
     TemporalLineageGraph.force_reload(corrupt_file)
     assert TemporalLineageGraph.get_node(1234) is None
+
+
+def test_lazy_load_path_execution(
+    mock_metadata_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "rfc_atlas.graph.lineage.DEFAULT_METADATA_PATH", mock_metadata_file
+    )
+    node = TemporalLineageGraph.get_node(1000)
+    assert node is not None
+    assert node.rfc_number == 1000
+    assert TemporalLineageGraph._is_loaded is True  # pyright: ignore[reportPrivateUsage]

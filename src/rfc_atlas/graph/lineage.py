@@ -11,7 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar, TypeAlias
 
-from rfc_atlas.utils.exceptions import SingletonViolationError
+from rfc_atlas.utils.patterns import StaticSingleton
 
 logger = logging.getLogger(__name__)
 
@@ -35,23 +35,11 @@ class LineageNode:
     updated_by: set[int] = field(default_factory=set[int])
 
 
-class TemporalLineageGraph:
+class TemporalLineageGraph(StaticSingleton):
     """Singleton graph engine for resolving standard lifecycles dynamically."""
 
-    _is_instantiated: ClassVar[bool] = False
     _graph: ClassVar[dict[int, LineageNode]] = {}
     _is_loaded: ClassVar[bool] = False
-
-    def __init__(self) -> None:
-        """Enforces strict singleton instantiation.
-
-        Raises:
-            SingletonViolationError: If an attempt is made to instantiate a
-                strict Singleton twice.
-        """
-        if TemporalLineageGraph._is_instantiated:
-            raise SingletonViolationError(self.__class__.__name__)
-        TemporalLineageGraph._is_instantiated = True
 
     @classmethod
     def _get_or_create_node(cls, rfc_number: int) -> LineageNode:
@@ -123,9 +111,6 @@ class TemporalLineageGraph:
 
             for target in node.updates:
                 cls._get_or_create_node(target).updated_by.add(rfc_num)
-
-            for target in node.updated_by:
-                cls._get_or_create_node(target).updates.add(rfc_num)
 
     @classmethod
     def load(cls, filepath: Path | str = DEFAULT_METADATA_PATH) -> None:

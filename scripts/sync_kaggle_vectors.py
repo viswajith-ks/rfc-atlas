@@ -5,7 +5,6 @@ tracking for remote GPU-accelerated embedding generation.
 """
 
 import argparse
-import builtins
 import fnmatch
 import json
 import logging
@@ -16,6 +15,7 @@ import time
 import zipfile
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 from kaggle.api.kaggle_api_extended import KaggleApi
 from kaggle.cli import ApiException
@@ -112,58 +112,60 @@ def _generate_notebook_payload(ds_slug: str) -> dict[str, Any]:
     Returns:
         dict[str, Any]: The Kaggle-compliant ipynb structured dictionary.
     """
-    source_cells = [
-        "import os, subprocess, sys, zipfile, shutil\n",
-        "from pathlib import Path\n\n",
-        "try:\n",
-        "    print('==== KAGGLE BOOT SEQUENCE ====')\n",
-        "    import torch\n",
-        "    gpu_count = torch.cuda.device_count()\n",
-        "    if gpu_count < 2:\n",
-        "        print(f'🛑 FATAL: Expected Dual T4s, but Kaggle '\n",
-        "              f'allocated {gpu_count} GPU(s).')\n",
-        "        sys.exit(1)\n\n",
-        "    print(f'[*] Hardware Discovery: Found {gpu_count} '\n",
-        "          'GPU(s). Proceeding with execution.')\n",
-        "    bundle_path = next(Path('/kaggle/input').rglob('source_bundle.pack'))\n",
-        "    workdir = Path('/tmp/project')\n",
-        "    workdir.mkdir(parents=True, exist_ok=True)\n\n",
-        "    print(f'[*] Extracting secure payload to {workdir}...')\n",
-        "    with zipfile.ZipFile(bundle_path, 'r') as z:\n",
-        "        z.extractall(workdir)\n\n",
-        "    resume_dir = workdir / 'resume_state' / 'parquet_vectors'\n",
-        "    target_out = Path('/kaggle/working/parquet_vectors')\n",
-        "    if resume_dir.exists():\n",
-        "        parquets = list(resume_dir.rglob('*.parquet'))\n",
-        "        if parquets:\n",
-        "            print(f'[*] Cloud Resume: Restoring '\n",
-        "                  f'{len(parquets)} previous shards to '\n",
-        "                  'Kaggle output directory...')\n",
-        "            target_out.mkdir(parents=True, exist_ok=True)\n",
-        "            for pq in parquets:\n",
-        "                shutil.copy2(pq, target_out / pq.name)\n\n",
-        "    print('[*] Installing project dependencies (silently)...')\n",
-        "    subprocess.run([\n",
-        "        sys.executable, '-m',\n",
-        "        'pip', 'install', '-qq', '--progress-bar', 'off',\n",
-        "        '-e', '.[vector-store]'\n",
-        "    ], cwd=workdir, check=True)\n\n",
-        "    print('[*] Igniting Kaggle Embedder Pipeline...')\n",
-        "    subprocess.run(\n",
-        f"        [sys.executable, '-m', '{REMOTE_ENTRY_MODULE}',\n",
-        "         '--in-dir', 'data/chunks'], cwd=workdir, check=True\n",
-        "    )\n",
-        "    print('[+] Kaggle Vector Forge completed successfully.')\n",
-        "except SystemExit:\n",
-        "    pass\n",
-        "except Exception as e:\n",
-        "    import traceback\n",
-        "    traceback.print_exc()\n",
-        "    Path('/kaggle/working/fatal_error.log').write_text(\n",
-        "        traceback.format_exc()\n",
-        "    )\n",
-        "    sys.exit(1)\n",
-    ]
+    script = """
+import os, subprocess, sys, zipfile, shutil
+from pathlib import Path
+
+try:
+    print("==== KAGGLE BOOT SEQUENCE ====")
+    import torch
+    gpu_count = torch.cuda.device_count()
+    if gpu_count < 2:
+        print(f"🛑 FATAL: Expected Dual T4s, but Kaggle allocated {gpu_count} GPU(s).")
+        sys.exit(1)
+
+    print(f"[*] Hardware Discovery: "
+    f"Found {gpu_count} GPU(s). Proceeding with execution.")
+    bundle_path = next(Path("/kaggle/input").rglob("source_bundle.pack"))
+    workdir = Path("/tmp/project")
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    print(f"[*] Extracting secure payload to {workdir}...")
+    with zipfile.ZipFile(bundle_path, "r") as z:
+        z.extractall(workdir)
+
+    resume_dir = workdir / "resume_state" / "parquet_vectors"
+    target_out = Path("/kaggle/working/parquet_vectors")
+    if resume_dir.exists():
+        parquets = list(resume_dir.rglob("*.parquet"))
+        if parquets:
+            print(f"[*] Cloud Resume: Restoring {len(parquets)} "
+            "previous shards to Kaggle output directory...")
+            target_out.mkdir(parents=True, exist_ok=True)
+            for pq in parquets:
+                shutil.copy2(pq, target_out / pq.name)
+
+    print("[*] Installing project dependencies (silently)...")
+    subprocess.run([
+        sys.executable, "-m",
+        "pip", "install", "-qq", "--progress-bar", "off",
+        "-e", ".[vector-store]"
+    ], cwd=workdir, check=True)
+
+    print("[*] Igniting Kaggle Embedder Pipeline...")
+    subprocess.run(
+        [sys.executable, "-m", "rfc_atlas.vector_store.kaggle_embedder",
+         "--in-dir", "data/chunks"], cwd=workdir, check=True
+    )
+    print("[+] Kaggle Vector Forge completed successfully.")
+except SystemExit:
+    pass
+except Exception:
+    import traceback
+    traceback.print_exc()
+    Path("/kaggle/working/fatal_error.log").write_text(traceback.format_exc())
+    sys.exit(1)
+"""
 
     return {
         "cells": [
@@ -172,7 +174,7 @@ def _generate_notebook_payload(ds_slug: str) -> dict[str, Any]:
                 "execution_count": None,
                 "metadata": {},
                 "outputs": [],
-                "source": source_cells,
+                "source": [line + "\n" for line in script.split("\n")],
             }
         ],
         "metadata": {
@@ -525,10 +527,7 @@ class KaggleOrchestrator:
         """Automates the destruction of ephemeral cloud datasets and kernels."""
         logger.info("[*] Initiating ephemeral cloud asset cleanup...")
 
-        original_input = builtins.input
-        builtins.input = lambda _="": "yes"
-
-        try:
+        with patch("builtins.input", return_value="yes"):
             try:
                 if hasattr(self.api, "dataset_delete"):
                     self.api.dataset_delete(self.username, self.dataset_id)
@@ -568,8 +567,6 @@ class KaggleOrchestrator:
                     self.kernel_slug,
                     e,
                 )
-        finally:
-            builtins.input = original_input
 
         if STAGING_DIR.exists():
             shutil.rmtree(STAGING_DIR)

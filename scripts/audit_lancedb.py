@@ -15,12 +15,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def run_audit() -> None:
-    """Executes the integrity audit and FTS test on the local LanceDB instance.
-
-    Scans all available `.lance` tables within the database directory, logs their
-    total row counts, and runs a test Tantivy BM25 Full-Text Search against the
-    'prose' table to guarantee search functionality.
-    """
+    """Executes the integrity audit and FTS test on the local LanceDB instance."""
     db_path = _PROJECT_ROOT / "data" / "lancedb"
     if not db_path.exists():
         print(f"❌ ERROR: LanceDB not found at {db_path}")
@@ -41,7 +36,7 @@ def run_audit() -> None:
             count: int = tbl.count_rows()
             total_rows += count
             print(f"[{table_name.upper():<12}] {count:>10,} rows")
-        except (ValueError, OSError, RuntimeError) as e:
+        except (ValueError, OSError, RuntimeError, FileNotFoundError) as e:
             print(f"[{table_name.upper():<12}] ❌ ERROR: {e}")
 
     print("-" * 50)
@@ -66,7 +61,11 @@ def run_audit() -> None:
             .to_list()
         )
 
-    except (ValueError, OSError, RuntimeError) as e:
+        if not results:
+            print("❌ FTS Query Failed: 0 results. Index may be missing or corrupt.")
+            return
+
+    except (ValueError, OSError, RuntimeError, FileNotFoundError) as e:
         print(f"❌ FTS Query Failed: {e}")
         return
 
@@ -85,11 +84,11 @@ def run_audit() -> None:
 def main() -> None:
     """Parses arguments and executes the LanceDB integrity audit."""
     parser = argparse.ArgumentParser(description="RFC Atlas LanceDB Integrity Audit.")
-    _ = parser.parse_args()
+    parser.parse_args()  # Call it directly to validate inputs/help flag
 
     try:
         run_audit()
-    except (OSError, ValueError, RuntimeError) as e:
+    except (ValueError, OSError, RuntimeError, FileNotFoundError) as e:
         print(
             f"CRITICAL FAILURE: LanceDB Audit aborted abnormally: {e}", file=sys.stderr
         )

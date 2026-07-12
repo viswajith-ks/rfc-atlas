@@ -1,4 +1,5 @@
 import json
+from collections.abc import Generator
 from pathlib import Path
 
 import pytest
@@ -28,9 +29,17 @@ MOCK_ERRATA_DATA = [
     },
     {
         "doc-id": "RFC1234",
+        "errata_status_code": "Held for Document Update",
+        "errata_type_code": "Editorial",
+        "section": "3.0",
+        "orig_text": "old data",
+        "correct_text": "new data",
+    },
+    {
+        "doc-id": "RFC1234",
         "errata_status_code": "Rejected",
         "errata_type_code": "Technical",
-        "section": "3.0",
+        "section": "4.0",
         "orig_text": "Bad claim",
         "correct_text": "Worse claim",
     },
@@ -49,8 +58,12 @@ def mock_errata_file(tmp_path: Path) -> Path:
 
 
 @pytest.fixture
-def _reset_ledger() -> None:  # pyright: ignore[reportUnusedFunction]
-    ErrataLedger._is_instantiated = False  # pyright: ignore[reportPrivateUsage]
+def _reset_ledger() -> Generator[None, None, None]:  # pyright: ignore[reportUnusedFunction]
+    ErrataLedger.is_instantiated = False
+    ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
+    ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]
+    yield
+    ErrataLedger.is_instantiated = False
     ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
     ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]
 
@@ -68,11 +81,12 @@ def test_errata_parsing_and_filtering(mock_errata_file: Path) -> None:
     records_9999 = ErrataLedger.get_errata(9999)
 
     assert records_9999 == []
-    assert len(records_1234) == 2
+    assert len(records_1234) == 3
 
     statuses = [r["errata_status_code"] for r in records_1234]
     assert "Verified" in statuses
     assert "Reported" in statuses
+    assert "Held for Document Update" in statuses
     assert "Rejected" not in statuses
 
 
@@ -86,6 +100,12 @@ def test_errata_missing_or_corrupted_file(tmp_path: Path) -> None:
     corrupt_file.write_text("THIS IS NOT JSON", encoding="utf-8")
 
     ErrataLedger.force_reload(corrupt_file)
+    assert ErrataLedger.get_errata(1234) == []
+
+    # Test the OSError permanent failure branch by mapping a directory over a file path
+    os_error_path = tmp_path / "bad_dir"
+    os_error_path.mkdir()
+    ErrataLedger.force_reload(os_error_path)
     assert ErrataLedger.get_errata(1234) == []
 
 

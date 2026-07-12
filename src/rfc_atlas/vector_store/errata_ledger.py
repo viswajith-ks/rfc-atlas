@@ -9,7 +9,7 @@ import logging
 from pathlib import Path
 from typing import ClassVar, TypeAlias
 
-from rfc_atlas.utils.exceptions import SingletonViolationError
+from rfc_atlas.utils.patterns import StaticSingleton
 
 logger = logging.getLogger(__name__)
 
@@ -20,23 +20,11 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_ERRATA_PATH = _PROJECT_ROOT / "data" / "metadata" / "errata.json"
 
 
-class ErrataLedger:
+class ErrataLedger(StaticSingleton):
     """Singleton ledger that loads and normalizes IETF errata into memory."""
 
-    _is_instantiated: ClassVar[bool] = False
     _ledger: ClassVar[dict[int, list[dict[str, JSONNode]]]] = {}
     _is_loaded: ClassVar[bool] = False
-
-    def __init__(self) -> None:
-        """Enforces strict singleton instantiation.
-
-        Raises:
-            SingletonViolationError: If an attempt is made to instantiate a
-                strict Singleton twice.
-        """
-        if ErrataLedger._is_instantiated:
-            raise SingletonViolationError(self.__class__.__name__)
-        ErrataLedger._is_instantiated = True
 
     @classmethod
     def _process_entry(cls, entry: dict[str, JSONNode]) -> None:
@@ -97,12 +85,12 @@ class ErrataLedger:
             cls._is_loaded = True
             return
         except OSError:
-            logger.warning(
-                "Transient I/O failure reading %s. Will retry on next access.",
+            logger.critical(
+                "I/O failure reading %s. Errata injection permanently disabled.",
                 path,
                 exc_info=True,
             )
-            cls._is_loaded = False
+            cls._is_loaded = True
             return
 
         if isinstance(raw_data, list):

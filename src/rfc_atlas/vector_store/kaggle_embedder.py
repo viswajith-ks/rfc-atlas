@@ -43,7 +43,7 @@ JSONDict: TypeAlias = dict[str, JSONNode]
 
 os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
 
-BATCH_SIZE: int = 8
+BATCH_SIZE: int = 32
 FLUSH_BUFFER_ROWS: int = 65_536
 SHARD_FILE_ROWS: int = 131_072
 
@@ -53,6 +53,9 @@ KAGGLE_OUT_DIR = Path(
 KAGGLE_SCRATCH_DIR = Path(
     os.environ.get("RFC_ATLAS_SCRATCH_DIR", "/kaggle/working/scratch_parquet")
 )
+_BASE_INPUT = Path(os.environ.get("RFC_ATLAS_IN_DIR", "/kaggle/input"))
+KAGGLE_IN_DIR = _BASE_INPUT
+
 LOG_FILE = (
     Path(os.environ.get("RFC_ATLAS_LOG_DIR", "/kaggle/working"))
     / "embedder_telemetry.log"
@@ -93,7 +96,9 @@ def _get_existing_chunk_ids(out_dir: Path) -> set[str]:
     """
     existing_ids: set[str] = set()
     for pq_file in out_dir.glob("*.parquet"):
-        with contextlib.suppress(OSError, pa.ArrowInvalid, pa.ArrowException):
+        with contextlib.suppress(
+            OSError, pa.ArrowInvalid, pa.ArrowException, KeyError, ValueError
+        ):
             table = pq.read_table(pq_file, columns=["chunk_id"])  # pyright: ignore[reportUnknownVariableType, reportUnknownMemberType]
             existing_ids.update(table["chunk_id"].to_pylist())  # pyright: ignore[reportUnknownArgumentType, reportUnknownMemberType]
     return existing_ids
@@ -312,7 +317,7 @@ def execute_pipeline(in_dir: Path, out_dir: Path, scratch_dir: Path) -> None:
 
     schema = LANCE_CHUNK_SCHEMA.with_metadata({
         "embedding_model": "nomic-ai/nomic-embed-text-v1.5",
-        "vector_dimensions": str(VECTOR_DIMENSIONS),
+        "vector_dimensions": f"{VECTOR_DIMENSIONS}",
         "matryoshka_truncated": "true",
         "task_prefix": "search_document: ",
         "execution_environment": "kaggle",
