@@ -56,9 +56,12 @@ def build_rag_prompt(query: str, context_blocks: str) -> str:
         str: The final text payload ready to be sent to Gemini.
     """
     return (
-        f"### USER QUERY:\n{query}\n\n"
-        f"### RETRIEVED CONTEXT:\n{context_blocks}\n\n"
-        f"### INSTRUCTIONS:\n"
-        f"Answer the query using ONLY the context above. Enforce all citations and "
-        f"warnings as defined in your system instructions."
+        "Answer the user query strictly using the provided context. Enforce all "
+        "citations and warnings as defined in your system instructions.\n\n"
+        "<context>\n"
+        f"{context_blocks}\n"
+        "</context>\n\n"
+        "<user_query>\n"
+        f"{query}\n"
+        "</user_query>"
     )

@@ -53,6 +53,24 @@ class GeminiClient:
             system_instruction=system_instruction,
             temperature=0.2,
             top_p=0.8,
+            safety_settings=[
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_HARASSMENT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+                types.SafetySetting(
+                    category=types.HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+                    threshold=types.HarmBlockThreshold.BLOCK_NONE,
+                ),
+            ],
         )
 
     def generate_response(self, prompt: str, system_instruction: str) -> str:
@@ -79,6 +97,10 @@ class GeminiClient:
         except APIError as e:
             logger.exception("Gemini API Error")
             raise SynthesisError(e) from e
+
+        if response.candidates and response.candidates[0].finish_reason != "STOP":
+            reason = response.candidates[0].finish_reason
+            return f"⚠️ Generation halted prematurely. Finish reason: {reason}"
 
         if not response.text:
             return (

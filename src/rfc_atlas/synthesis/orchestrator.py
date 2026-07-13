@@ -32,6 +32,33 @@ class SynthesisOrchestrator:
         logger.info("Booting Gemini Synthesis Engine...")
         self.llm_client = GeminiClient()
 
+    def _prepare_payload(self, query_text: str, top_k: int) -> str | None:
+        """Validates inputs, retrieves context, and formats the LLM payload.
+
+        Args:
+            query_text (str): The raw text query.
+            top_k (int): Number of context chunks.
+
+        Returns:
+            str | None: The formatted payload, or None if no context was found.
+
+        Raises:
+            ValueError: If top_k is zero or negative.
+        """
+        if top_k <= 0:
+            e = f"top_k must be a positive integer. Received: {top_k}"
+            raise ValueError(e)
+
+        context_markdown = self.retrieval_engine.retrieve_context(
+            query=query_text, top_k=top_k
+        )
+
+        if "No relevant context found" in context_markdown:
+            logger.info("Local short-circuit triggered: LanceDB returned no results.")
+            return None
+
+        return build_rag_prompt(query=query_text, context_blocks=context_markdown)
+
     def query(self, query_text: str, top_k: int = 10) -> str:
         """Executes a complete RAG query, returning the final synthesized answer.
 
@@ -44,12 +71,12 @@ class SynthesisOrchestrator:
         """
         logger.info("Executing End-to-End RAG Pipeline for query: '%s'", query_text)
 
-        context_markdown = self.retrieval_engine.retrieve_context(
-            query=query_text, top_k=top_k
-        )
-        rag_payload = build_rag_prompt(
-            query=query_text, context_blocks=context_markdown
-        )
+        rag_payload = self._prepare_payload(query_text, top_k)
+        if not rag_payload:
+            return (
+                "The RFC Atlas database does not contain "
+                "enough information to answer this query."
+            )
 
         return self.llm_client.generate_response(
             prompt=rag_payload, system_instruction=SYSTEM_INSTRUCTION
@@ -60,8 +87,6 @@ class SynthesisOrchestrator:
     ) -> Generator[str, None, None]:
         """Executes a complete RAG query, streaming the LLM response back in chunks.
 
-        Ideal for CLI or WebSocket UI implementations to reduce perceived latency.
-
         Args:
             query_text (str): The natural language question from the user.
             top_k (int): Number of context chunks to retrieve and inject.
@@ -71,12 +96,13 @@ class SynthesisOrchestrator:
         """
         logger.info("Executing Streaming RAG Pipeline for query: '%s'", query_text)
 
-        context_markdown = self.retrieval_engine.retrieve_context(
-            query=query_text, top_k=top_k
-        )
-        rag_payload = build_rag_prompt(
-            query=query_text, context_blocks=context_markdown
-        )
+        rag_payload = self._prepare_payload(query_text, top_k)
+        if not rag_payload:
+            yield (
+                "The RFC Atlas database does not contain "
+                "enough information to answer this query."
+            )
+            return
 
         yield from self.llm_client.generate_stream(
             prompt=rag_payload, system_instruction=SYSTEM_INSTRUCTION
