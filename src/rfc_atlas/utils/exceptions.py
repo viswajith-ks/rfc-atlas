@@ -107,3 +107,14 @@ class MissingTelemetryLogError(RFCAtlasError, FileNotFoundError):
             f"Error: Target log file '{log_path}' could not be discovered. "
             f"Verify that you successfully ran the ingestion pipeline framework first."
         )
+
+
+# --- 4. Synthesis & LLM Errors ---
+
+
+class SynthesisError(RFCAtlasError):
+    """Raised when the LLM synthesis layer encounters an API or generation failure."""
+
+    def __init__(self, reason: Exception | str) -> None:
+        """Initializes the exception."""
+        super().__init__(f"LLM Synthesis failed: {reason}")

@@ -9,9 +9,9 @@ import logging
 import sys
 
 from dotenv import load_dotenv
-from google.genai.errors import APIError
 
 from rfc_atlas.synthesis.orchestrator import SynthesisOrchestrator
+from rfc_atlas.utils.exceptions import SynthesisError
 
 load_dotenv()
 
@@ -86,8 +86,10 @@ def main() -> None:
         except (KeyboardInterrupt, EOFError):
             print("\n\nShutting down RFC Atlas. Goodbye! 👋\n")
             break
+        except SynthesisError as e:
+            print(f"\n\n❌ SYNTHESIS ERROR: {e}")
+            print("-" * 57)
         except (
-            APIError,
             ConnectionError,
             TimeoutError,
             OSError,
