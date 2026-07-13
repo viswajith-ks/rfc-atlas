@@ -24,12 +24,15 @@ class ContextInterceptor:
         Args:
             chunk (RetrievalResult): The mutable retrieved chunk object.
         """
+        if "[TEMPORAL" in chunk.text_payload:
+            return
+
+        node = TemporalLineageGraph.get_node(chunk.rfc_number)
+        if node and node.obsoleted_by:
+            chunk.is_obsolete = True
+
         warning_msg = TemporalLineageGraph.format_lineage_warning(chunk.rfc_number)
-
         if warning_msg:
-            if "OBSOLETE" in warning_msg:
-                chunk.is_obsolete = True
-
             chunk.text_payload = f"{warning_msg}\n\n{chunk.text_payload}"
 
     @staticmethod
@@ -42,18 +45,24 @@ class ContextInterceptor:
         Args:
             chunk (RetrievalResult): The mutable retrieved chunk object.
         """
+        if chunk.has_errata or "[IETF ERRATA" in chunk.text_payload:
+            return
+
         active_errata = ErrataLedger.get_errata(chunk.rfc_number)
         if not active_errata:
             return
 
         applied_corrections: list[str] = []
+        payload_clean = " ".join(chunk.text_payload.split())
 
         for erratum in active_errata:
             orig_text = str(erratum.get("orig_text", "")).strip()
             if not orig_text:
                 continue
 
-            if orig_text in chunk.text_payload:
+            orig_clean = " ".join(orig_text.split())
+
+            if orig_clean in payload_clean:
                 chunk.has_errata = True
                 status = str(erratum.get("errata_status_code", "Unknown"))
                 correction = str(erratum.get("correct_text", "")).strip()
@@ -63,6 +72,10 @@ class ContextInterceptor:
                     f"known error. Replace:\n'{orig_text}'\nWITH:\n'{correction}'"
                 )
                 applied_corrections.append(injection)
+
+        if applied_corrections:
+            correction_block = "\n\n".join(applied_corrections)
+            chunk.text_payload = f"{chunk.text_payload}\n\n{correction_block}"
 
         if applied_corrections:
             correction_block = "\n\n".join(applied_corrections)

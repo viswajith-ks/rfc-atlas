@@ -9,6 +9,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import TextIO
 
 from rfc_atlas.retrieval.orchestrator import RetrievalOrchestrator
 from rfc_atlas.retrieval.query_router import QueryRouter
@@ -16,9 +17,11 @@ from rfc_atlas.retrieval.query_router import QueryRouter
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 LOGS_DIR = _PROJECT_ROOT / "data" / "logs"
 
+_TRUNCATE_LIMIT = 1000
+
 TEST_BATTERY = [
     (
-        "As of RFC 793, what are the exact states in the TCP connection progression?",
+        "In RFC 793, what are the exact states in the TCP connection progression?",
         "Explicit Metadata Routing (Forces the engine to filter by RFC 793)",
     ),
     (
@@ -38,6 +41,49 @@ TEST_BATTERY = [
         "Deep Section Retrieval with Metadata Filter",
     ),
 ]
+
+
+def _audit_single_query(
+    query: str,
+    description: str,
+    orchestrator: RetrievalOrchestrator,
+    file_handle: TextIO,
+) -> None:
+    """Executes and logs the retrieval process for a single audit query.
+
+    Args:
+        query (str): The natural language query to test.
+        description (str): Human-readable intent of the test.
+        orchestrator (RetrievalOrchestrator): The active retrieval pipeline.
+        file_handle (TextIO): The open log file handle.
+    """
+    intents = QueryRouter.classify_intents(query)
+    tables = QueryRouter.route_query(query)
+    print(f"  Intents Triggered : {', '.join(intents)}")
+    print(f"  Routed Tables     : {', '.join(tables)}")
+
+    file_handle.write(f"TEST: {description}\n")
+    file_handle.write(f"QUERY: {query}\n")
+    file_handle.write(f"INTENTS: {', '.join(intents)}\n")
+    file_handle.write(f"TABLES: {', '.join(tables)}\n")
+
+    start_query = time.time()
+    context_payload = orchestrator.retrieve_context(query, top_k=2)
+    elapsed = time.time() - start_query
+
+    print(f"  [+] Retrieval completed in {elapsed:.2f} seconds.")
+    print("-" * 50)
+
+    file_handle.write(f"LATENCY: {elapsed:.2f} seconds\n")
+    file_handle.write("PAYLOAD SAMPLE:\n")
+
+    if len(context_payload) > _TRUNCATE_LIMIT:
+        sample = context_payload[:_TRUNCATE_LIMIT] + "\n...[TRUNCATED FOR AUDIT]..."
+    else:
+        sample = context_payload
+
+    file_handle.write(f"{sample}\n")
+    file_handle.write("\n" + "=" * 50 + "\n\n")
 
 
 def run_audit() -> None:
@@ -64,28 +110,21 @@ def run_audit() -> None:
             print(f"▶ Testing: {description}")
             print(f"  Query: '{query}'")
 
-            intents = QueryRouter.classify_intents(query)
-            tables = QueryRouter.route_query(query)
-            print(f"  Intents Triggered : {', '.join(intents)}")
-            print(f"  Routed Tables     : {', '.join(tables)}")
-
-            f.write(f"TEST: {description}\n")
-            f.write(f"QUERY: {query}\n")
-            f.write(f"INTENTS: {', '.join(intents)}\n")
-            f.write(f"TABLES: {', '.join(tables)}\n")
-
-            start_query = time.time()
-            context_payload = orchestrator.retrieve_context(query, top_k=2)
-            elapsed = time.time() - start_query
-
-            print(f"  [+] Retrieval completed in {elapsed:.2f} seconds.")
-            print("-" * 50)
-
-            f.write(f"LATENCY: {elapsed:.2f} seconds\n")
-            f.write("PAYLOAD SAMPLE:\n")
-
-            f.write(f"{context_payload}\n")
-            f.write("\n" + "=" * 50 + "\n\n")
+            try:
+                _audit_single_query(query, description, orchestrator, f)
+            except (
+                ValueError,
+                TypeError,
+                RuntimeError,
+                OSError,
+                KeyError,
+                ImportError,
+            ) as e:
+                err_msg = f"  [!] Query Failed: {e}"
+                print(err_msg)
+                print("-" * 50)
+                f.write(f"ERROR: {e}\n")
+                f.write("\n" + "=" * 50 + "\n\n")
 
     print(f"✅ Audit complete. Review {report_file} for formatting and lineage checks.")
 

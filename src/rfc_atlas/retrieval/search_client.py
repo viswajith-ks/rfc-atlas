@@ -35,6 +35,10 @@ class RetrievalResult(BaseModel):
     score: float = Field(
         description="The hybrid relevance score (Dense + Sparse combination)."
     )
+    hybrid_score: float | None = Field(
+        default=None,
+        description="Preserved LanceDB score if overwritten by cross-encoder rerank.",
+    )
 
     has_errata: bool = False
     is_obsolete: bool = False

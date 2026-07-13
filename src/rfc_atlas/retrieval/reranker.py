@@ -153,6 +153,7 @@ class SemanticReranker:
             return candidates[:top_k]
 
         for chunk, new_score in zip(candidates, all_scores, strict=True):
+            chunk.hybrid_score = chunk.score
             chunk.score = new_score
 
         candidates.sort(key=lambda x: x.score, reverse=True)
