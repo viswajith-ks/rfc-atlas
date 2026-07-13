@@ -100,11 +100,7 @@ class SemanticReranker:
 
                 logits = self._model(**inputs, return_dict=True).logits.view(-1)
                 scores = logits.float().cpu().tolist()
-
-                if isinstance(scores, float):
-                    all_scores.append(scores)
-                else:
-                    all_scores.extend(scores)
+                all_scores.extend(scores)
 
         return all_scores
 
@@ -143,6 +139,11 @@ class SemanticReranker:
 
         try:
             all_scores = self._compute_scores(pairs)
+
+            for chunk, new_score in zip(candidates, all_scores, strict=True):
+                chunk.hybrid_score = chunk.score
+                chunk.score = new_score
+
         except (RuntimeError, ValueError, OSError) as e:
             logger.warning(
                 "⚠️ DEGRADED MODE: Reranker forward-pass failed (%s). "
@@ -151,10 +152,6 @@ class SemanticReranker:
             )
             candidates.sort(key=lambda x: x.score, reverse=True)
             return candidates[:top_k]
-
-        for chunk, new_score in zip(candidates, all_scores, strict=True):
-            chunk.hybrid_score = chunk.score
-            chunk.score = new_score
 
         candidates.sort(key=lambda x: x.score, reverse=True)
         return candidates[:top_k]

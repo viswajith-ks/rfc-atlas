@@ -32,7 +32,8 @@ class ContextBuilder:
                 f"Path: {chunk.hierarchy_path}]"
             )
 
-            block = f"{header}\n{chunk.text_payload.strip()}"
+            safe_payload = chunk.text_payload.replace("### [SOURCE", "--- [SOURCE")
+            block = f"{header}\n{safe_payload.strip()}"
             context_blocks.append(block)
 
         separator = "\n\n" + ("-" * 65) + "\n\n"

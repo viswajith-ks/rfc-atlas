@@ -20,6 +20,8 @@ logger = logging.getLogger(__name__)
 class RetrievalOrchestrator:
     """Coordinates the end-to-end execution of a context retrieval request."""
 
+    _OVERFETCH_MULTIPLIER: int = 5
+
     def __init__(self, db_path: Path | str | None = None) -> None:
         """Initializes the underlying search client and reranking engines.
 
@@ -55,7 +57,7 @@ class RetrievalOrchestrator:
         target_tables = QueryRouter.route_query(query)
         logger.info("🛤️ Routed query to tables: %s", target_tables)
 
-        fetch_limit = top_k * 5
+        fetch_limit = top_k * self._OVERFETCH_MULTIPLIER
         raw_candidates = self.search_client.search_multiple(
             query, tables=target_tables, limit=fetch_limit
         )
@@ -64,7 +66,7 @@ class RetrievalOrchestrator:
             logger.warning("No candidates found in LanceDB for query.")
             return ContextBuilder.format_context([])
 
-        capped_candidates = raw_candidates[: top_k * 5]
+        capped_candidates = raw_candidates[:fetch_limit]
 
         logger.info("🎯 Reranking %d raw candidates...", len(capped_candidates))
         reranked_candidates = self.reranker.rerank(

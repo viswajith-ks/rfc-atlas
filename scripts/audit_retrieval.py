@@ -48,7 +48,7 @@ def _audit_single_query(
     description: str,
     orchestrator: RetrievalOrchestrator,
     file_handle: TextIO,
-) -> None:
+) -> bool:
     """Executes and logs the retrieval process for a single audit query.
 
     Args:
@@ -56,6 +56,9 @@ def _audit_single_query(
         description (str): Human-readable intent of the test.
         orchestrator (RetrievalOrchestrator): The active retrieval pipeline.
         file_handle (TextIO): The open log file handle.
+
+    Returns:
+        bool: True if the audit query succeeds and returns context, False otherwise.
     """
     intents = QueryRouter.classify_intents(query)
     tables = QueryRouter.route_query(query)
@@ -71,6 +74,14 @@ def _audit_single_query(
     context_payload = orchestrator.retrieve_context(query, top_k=2)
     elapsed = time.time() - start_query
 
+    if "No relevant context found" in context_payload:
+        err_msg = "Search returned empty results."
+        print(f"  [!] Query Failed: {err_msg}")
+        print("-" * 50)
+        file_handle.write(f"ERROR: {err_msg}\n")
+        file_handle.write("\n" + "=" * 50 + "\n\n")
+        return False
+
     print(f"  [+] Retrieval completed in {elapsed:.2f} seconds.")
     print("-" * 50)
 
@@ -84,10 +95,15 @@ def _audit_single_query(
 
     file_handle.write(f"{sample}\n")
     file_handle.write("\n" + "=" * 50 + "\n\n")
+    return True
 
 
-def run_audit() -> None:
-    """Executes the retrieval audit and writes a comprehensive report to disk."""
+def run_audit() -> int:
+    """Executes the retrieval audit and writes a comprehensive report to disk.
+
+    Returns:
+        int: The number of queries that failed or returned empty results.
+    """
     LOGS_DIR.mkdir(parents=True, exist_ok=True)
     report_file = LOGS_DIR / "retrieval_audit_report.txt"
 
@@ -101,6 +117,8 @@ def run_audit() -> None:
     orchestrator = RetrievalOrchestrator()
     print(f"[+] Orchestrator booted in {time.time() - start_boot:.2f} seconds.\n")
 
+    failed_audits = 0
+
     with report_file.open("w", encoding="utf-8") as f:
         f.write("====================================================\n")
         f.write(" RETRIEVAL ENGINE AUDIT REPORT\n")
@@ -111,7 +129,9 @@ def run_audit() -> None:
             print(f"  Query: '{query}'")
 
             try:
-                _audit_single_query(query, description, orchestrator, f)
+                success = _audit_single_query(query, description, orchestrator, f)
+                if not success:
+                    failed_audits += 1
             except (
                 ValueError,
                 TypeError,
@@ -120,6 +140,7 @@ def run_audit() -> None:
                 KeyError,
                 ImportError,
             ) as e:
+                failed_audits += 1
                 err_msg = f"  [!] Query Failed: {e}"
                 print(err_msg)
                 print("-" * 50)
@@ -127,15 +148,22 @@ def run_audit() -> None:
                 f.write("\n" + "=" * 50 + "\n\n")
 
     print(f"✅ Audit complete. Review {report_file} for formatting and lineage checks.")
+    return failed_audits
 
 
 def main() -> None:
     """Parses arguments and executes the retrieval engine audit."""
     parser = argparse.ArgumentParser(description="RFC Atlas Retrieval Auditor.")
-    _ = parser.parse_args()
+    parser.parse_args()
 
     try:
-        run_audit()
+        failures = run_audit()
+        if failures > 0:
+            print(
+                f"\n❌ AUDIT FAILED: {failures} queries failed to execute.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
     except (OSError, ValueError, RuntimeError, ImportError) as e:
         print(
             f"CRITICAL FAILURE: Retrieval Audit aborted abnormally: {e}",

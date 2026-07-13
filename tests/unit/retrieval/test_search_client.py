@@ -67,7 +67,6 @@ def test_search_table_success(mock_encode: MagicMock, tmp_path: Path) -> None:
     mock_vector.text.return_value = mock_text
     mock_text.limit.return_value = mock_limit
 
-    # Simulate LanceDB returning 2 raw dictionaries
     mock_limit.to_list.return_value = [
         {
             "chunk_id": "chunk-1",
@@ -82,7 +81,6 @@ def test_search_table_success(mock_encode: MagicMock, tmp_path: Path) -> None:
             "rfc_number": 2000,
             "text_payload": "Text B",
             "_score": 0.85,
-            # Intentionally omit table_route and hierarchy_path to test fallbacks
         },
     ]
 
@@ -90,14 +88,15 @@ def test_search_table_success(mock_encode: MagicMock, tmp_path: Path) -> None:
 
     results = client.search_table("TCP", [0.1] * 256, "prose", limit=2)
 
+    mock_table.search.assert_called_once_with(query_type="hybrid")
+
     assert len(results) == 2
     assert isinstance(results[0], RetrievalResult)
     assert results[0].chunk_id == "chunk-1"
     assert results[0].score == pytest.approx(0.95)
 
-    # Verify graceful fallbacks for missing metadata columns
     assert results[1].chunk_id == "chunk-2"
-    assert results[1].table_route == "prose"  # Defaulted to the queried table
+    assert results[1].table_route == "prose"
     assert results[1].hierarchy_path == "Unknown"
 
 
