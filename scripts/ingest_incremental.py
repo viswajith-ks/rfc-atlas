@@ -91,7 +91,7 @@ def _flush_and_route(
         texts,
         batch_size=BATCH_SIZE,
         convert_to_numpy=True,
-        show_progress_bar=True,
+        show_progress_bar=False,
     )
 
     table_groups: defaultdict[str, list[tuple[JSONDict, int]]] = defaultdict(list)

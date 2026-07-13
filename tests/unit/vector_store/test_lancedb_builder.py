@@ -16,7 +16,6 @@ def mock_parquet_dir(tmp_path: Path) -> Path:
     pq_dir = tmp_path / "parquet_vectors"
     pq_dir.mkdir()
 
-    # Generate 5 fake records (4 prose, 1 abnf to test dynamic PyArrow routing)
     records: list[dict[str, Any]] = [
         {
             "chunk_id": f"chunk-00{i}",
@@ -26,20 +25,18 @@ def mock_parquet_dir(tmp_path: Path) -> Path:
             "hierarchy_path": "Root",
             "text_payload": f"This is chunk {i} detailing the Transmission Control Protocol.",
             "parsing_confidence": 1.0,
-            "obsoletes": [],
-            "updated_by": [],
+            "obsoletes": [999] if i == 1 else [],
+            "updated_by": [2000] if i == 1 else [],
             "normative_statements": [],
         }
         for i in range(1, 6)
     ]
 
-    # Generate random 256D vectors matching the records
     fake_vectors = np.random.rand(len(records), VECTOR_DIMENSIONS).astype(np.float32)
     vector_array = pa.FixedSizeListArray.from_arrays(
         pa.array(fake_vectors.ravel(), type=pa.float32()), VECTOR_DIMENSIONS
     )
 
-    # Write the PyArrow table to a Parquet file mimicking the monolithic worker shards
     table = build_lance_table(records, vector_array)
     pq.write_table(table, pq_dir / "atlas_worker_0_shard_0000.parquet")  # pyright: ignore[reportUnknownMemberType]
 
@@ -79,3 +76,20 @@ def test_lancedb_bootstrapping_and_indexing(
     # It should successfully find the matching chunks via full-text search
     assert len(search_results) > 0  # pyright: ignore[reportUnknownArgumentType]
     assert search_results[0]["chunk_id"].startswith("chunk-")  # pyright: ignore[reportUnknownMemberType]
+
+
+def test_construct_database_exit_paths(tmp_path: Path) -> None:
+    db_dir = tmp_path / "lancedb"
+    missing_dir = tmp_path / "does_not_exist"
+    empty_dir = tmp_path / "empty_dir"
+    empty_dir.mkdir()
+
+    # 1. Test missing source directory
+    with pytest.raises(SystemExit) as exc1:
+        construct_database(missing_dir, db_dir)
+    assert exc1.value.code == 1
+
+    # 2. Test empty source directory (exists but no .parquet files)
+    with pytest.raises(SystemExit) as exc2:
+        construct_database(empty_dir, db_dir)
+    assert exc2.value.code == 1

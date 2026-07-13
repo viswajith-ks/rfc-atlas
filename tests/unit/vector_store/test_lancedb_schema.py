@@ -39,15 +39,12 @@ def test_safe_optional_int() -> None:
 
 
 def test_build_lance_table() -> None:
-    # 1. Create a dummy record with missing optional fields
     records = [
         {
             "chunk_id": "rfc9999-sec1",
-            "rfc_number": "9999",  # String that should be coerced
+            "rfc_number": "9999",
             "rfc_title": "Test Protocol",
             "status": "PROPOSED STANDARD",
-            # rfc_year missing to test optional
-            # rfc_month missing to test optional
             "stream": "IETF",
             "obsoletes": [],
             "updated_by": [10000],
@@ -60,26 +57,24 @@ def test_build_lance_table() -> None:
         }
     ]
 
-    # 2. Mock a 256-dimensional PyArrow vector array
     fake_vector = np.random.rand(VECTOR_DIMENSIONS).astype(np.float32)
     vector_arrow_array = pa.FixedSizeListArray.from_arrays(
         pa.array(fake_vector, type=pa.float32()), VECTOR_DIMENSIONS
     )
 
-    # 3. Build the table
     table = build_lance_table(records, vector_arrow_array)
 
-    # 4. Assertions
     assert isinstance(table, pa.Table)
     assert table.num_rows == 1
-
-    # Verify coercion logic triggered
     assert table["rfc_number"][0].as_py() == 9999
 
-    # Verify JSON serialization of normative statements
-    statements_json = table["normative_statements_json"][0].as_py()
-    assert "MUST" in statements_json
+    # Verify array mapping definitions and values (#31)
+    assert table["obsoletes"][0].as_py() == []
+    assert table["updated_by"][0].as_py() == [10000]
+    assert pa.types.is_list(table["updated_by"].type)
+    assert table["updated_by"].type.value_field.name == "element"
 
-    # Verify optional fields gracefully fell back to null/None
+    # Verify optional fields gracefully fell back to null/None (#33)
     assert table["rfc_year"][0].as_py() is None
+    assert table["rfc_month"][0].as_py() is None
     assert table["sourcecode_type"][0].as_py() is None

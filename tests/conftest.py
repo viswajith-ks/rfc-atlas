@@ -1,13 +1,15 @@
 """Global test configuration and shared fixtures for the RFC Atlas test suite."""
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Generator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
+from rfc_atlas.graph.lineage import TemporalLineageGraph
 from rfc_atlas.normalization.schema import CanonicalBlockDict, IntermediateBlockType
+from rfc_atlas.vector_store.errata_ledger import ErrataLedger
 
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 RAW_TXT_PATH: Path = FIXTURES_DIR / "raw_txt" / "synthetic_rfc_9999.txt"
@@ -51,3 +53,24 @@ def mock_canonical_block() -> Callable[..., CanonicalBlockDict]:
         )
 
     return _factory
+
+
+@pytest.fixture
+def reset_singletons() -> Generator[None, None, None]:
+    TemporalLineageGraph.is_instantiated = False
+    TemporalLineageGraph._graph.clear()  # pyright: ignore[reportPrivateUsage]
+    TemporalLineageGraph._is_loaded = False  # pyright: ignore[reportPrivateUsage]
+
+    ErrataLedger.is_instantiated = False
+    ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
+    ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]
+
+    yield
+
+    TemporalLineageGraph.is_instantiated = False
+    TemporalLineageGraph._graph.clear()  # pyright: ignore[reportPrivateUsage]
+    TemporalLineageGraph._is_loaded = False  # pyright: ignore[reportPrivateUsage]
+
+    ErrataLedger.is_instantiated = False
+    ErrataLedger._ledger.clear()  # pyright: ignore[reportPrivateUsage]
+    ErrataLedger._is_loaded = False  # pyright: ignore[reportPrivateUsage]

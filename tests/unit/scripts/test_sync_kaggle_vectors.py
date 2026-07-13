@@ -1,4 +1,5 @@
 import builtins
+from collections.abc import Generator
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -7,15 +8,17 @@ import pytest
 from scripts.sync_kaggle_vectors import (
     _PROJECT_ROOT,  # pyright: ignore[reportPrivateUsage]
     KaggleOrchestrator,
+    _generate_dataset_meta,  # pyright: ignore[reportPrivateUsage]
+    _generate_kernel_meta,  # pyright: ignore[reportPrivateUsage]
+    _generate_notebook_payload,  # pyright: ignore[reportPrivateUsage]
 )
 
 
 @pytest.fixture
-def mock_orchestrator() -> KaggleOrchestrator:
+def mock_orchestrator() -> Generator[KaggleOrchestrator, None, None]:
     with patch("scripts.sync_kaggle_vectors.KaggleApi") as mock_api:
-        # Mock the config value resolution so _resolve_username passes
         mock_api.return_value.config_values = {"username": "test_user"}
-        return KaggleOrchestrator()
+        yield KaggleOrchestrator()
 
 
 def test_ephemeral_cleanup_input_restoration(
@@ -105,3 +108,28 @@ def test_polling_state_machine(
 
         # ACTUALLY USE THE MOCK: Assert the script slept exactly 2 times between the 3 pings
         assert mock_sleep.call_count == 2
+
+
+def test_generate_notebook_payload() -> None:
+    payload = _generate_notebook_payload("test_user/test_dataset")
+    source_lines = payload["cells"][0]["source"]
+    full_source = "".join(source_lines)
+
+    # Assert the correct module is invoked directly without dynamic patching
+    assert "rfc_atlas.vector_store.kaggle_embedder" in full_source
+    assert "target_devices=" not in full_source
+
+    # Assert silent installation flags are present to prevent log explosion
+    assert "--progress-bar" in full_source
+    assert "off" in full_source
+
+
+def test_metadata_generators() -> None:
+    ds_meta = _generate_dataset_meta("test_user/ds_test", "ds_test")
+    assert ds_meta["id"] == "test_user/ds_test"
+    assert "RFC Atlas" in ds_meta["title"]
+
+    kernel_meta = _generate_kernel_meta("test_user/kernel", "test_user/ds_test")
+    assert kernel_meta["id"] == "test_user/kernel"
+    assert kernel_meta["dataset_sources"] == ["test_user/ds_test"]
+    assert kernel_meta["machine_shape"] == "NvidiaTeslaT4"

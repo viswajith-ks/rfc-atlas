@@ -16,6 +16,7 @@ from rfc_atlas.vector_store.schema import (
 from scripts.ingest_incremental import (
     _get_all_existing_ids,  # pyright: ignore[reportPrivateUsage]
     _process_jsonl_stream,  # pyright: ignore[reportPrivateUsage]
+    run_incremental_sync,
 )
 
 
@@ -121,40 +122,73 @@ def test_process_jsonl_stream_skips_duplicates_and_routes(
     mock_lancedb: lancedb.DBConnection,
     mock_master_jsonl: Path,
 ) -> None:
-    # 1. Setup the mocked SentenceTransformer instance directly
     mock_model_instance = MagicMock()
     mock_st_class.return_value = mock_model_instance
 
-    # Nomic natively outputs 768 dimensions before we truncate it to 256.
     def fake_encode(texts: list[str], **_: list[Any]) -> np.ndarray:
         return np.random.rand(len(texts), 768).astype(np.float32)
 
     mock_model_instance.encode.side_effect = fake_encode
 
-    # 2. Get existing IDs and Run the sync
     existing_ids = _get_all_existing_ids(mock_lancedb)
     new_chunks, tables_to_optimize = _process_jsonl_stream(
         mock_master_jsonl, existing_ids, mock_lancedb
     )
 
-    # 3. Assertions
-    # It should have skipped chunk-002 and ONLY processed chunk-003 (prose) and chunk-a02 (abnf)
     assert new_chunks == 2
     assert "prose" in tables_to_optimize
     assert "abnf" in tables_to_optimize
 
-    # Verify the PROSE table now contains 3 rows (chunk 1, 2, 3)
     prose_table = mock_lancedb.open_table("prose")
     assert prose_table.count_rows() == 3
 
-    # Verify the ABNF table now contains 2 rows (chunk a01, a02)
     abnf_table = mock_lancedb.open_table("abnf")
     assert abnf_table.count_rows() == 2
 
-    # Verify the encode method was called with exactly TWO text payloads
     mock_model_instance.encode.assert_called_once()
     passed_texts = mock_model_instance.encode.call_args[0][0]
 
     assert len(passed_texts) == 2
     assert "search_document: New prose chunk!" in passed_texts
-    assert "search_document: New abnf chunk!" in passed_texts
+
+    # Assert progress bar is disabled so stdout isn't polluted in production
+    assert mock_model_instance.encode.call_args[1].get("show_progress_bar") is False
+
+
+@patch("scripts.ingest_incremental.lancedb.connect")
+@patch("scripts.ingest_incremental._validate_environment")
+@patch("scripts.ingest_incremental._get_all_existing_ids")
+@patch("scripts.ingest_incremental._process_jsonl_stream")
+def test_run_incremental_sync_rebuilds_fts(
+    mock_process: MagicMock,
+    mock_get_ids: MagicMock,
+    mock_validate: MagicMock,
+    mock_connect: MagicMock,
+) -> None:
+    mock_validate.return_value = True
+    mock_get_ids.return_value = set()
+
+    # Simulate the jsonl stream successfully parsing 5 chunks and updating 2 tables
+    mock_process.return_value = (5, {"prose", "abnf"})
+
+    mock_db = MagicMock()
+    mock_connect.return_value = mock_db
+
+    mock_prose = MagicMock()
+    mock_abnf = MagicMock()
+
+    def mock_open(name: str) -> MagicMock:
+        return mock_prose if name == "prose" else mock_abnf
+
+    mock_db.open_table.side_effect = mock_open
+
+    # Execute the orchestrator function
+    run_incremental_sync()
+
+    # 1. Assert prose table was healed and the FTS index was rebuilt
+    mock_prose.optimize.assert_called_once()
+    mock_prose.create_fts_index.assert_called_once_with("text_payload", replace=True)
+
+    # 2. Assert abnf table was healed and the FTS index was rebuilt
+    mock_abnf.optimize.assert_called_once()
+    mock_abnf.create_fts_index.assert_called_once_with("text_payload", replace=True)

@@ -10,6 +10,7 @@ from rfc_atlas.utils.exceptions import SingletonViolationError
 
 # Force resetting the singleton before every test
 pytestmark = pytest.mark.usefixtures("_reset_graph")
+pytestmark = pytest.mark.usefixtures("reset_singletons")
 
 
 @pytest.fixture
@@ -131,17 +132,19 @@ def test_bfs_cyclic_dependency_protection(mock_metadata_file: Path) -> None:
 def test_format_lineage_warning(mock_metadata_file: Path) -> None:
     TemporalLineageGraph.force_reload(mock_metadata_file)
 
-    # 1. Obsolete Warning (Multi-generation)
+    # 1. Obsolete Warning (Semantic content checks instead of exact phrasing)
     warn_1000 = TemporalLineageGraph.format_lineage_warning(1000)
     assert warn_1000 is not None
     assert "OBSOLETE" in warn_1000
-    assert "superseded by RFC 2000" in warn_1000
-    assert "resolving this lineage are RFC 3000, RFC 3001" in warn_1000
+    assert str(2000) in warn_1000  # Must mention the direct obsoleting RFC
+    assert str(3000) in warn_1000  # Must mention the active lineage
+    assert str(3001) in warn_1000  # Must mention the active lineage
 
     # 2. Updated Warning
     warn_4000 = TemporalLineageGraph.format_lineage_warning(4000)
     assert warn_4000 is not None
-    assert "UPDATED by RFC 3000" in warn_4000
+    assert "UPDATED" in warn_4000
+    assert str(3000) in warn_4000  # Must mention the updating RFC
 
     # 3. Active Standard (No warning required)
     assert TemporalLineageGraph.format_lineage_warning(3000) is None
