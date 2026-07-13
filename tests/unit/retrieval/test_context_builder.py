@@ -45,3 +45,26 @@ def test_format_context_with_results() -> None:
 
     # 4. Verify Separator exists between blocks
     assert "-" * 65 in output
+
+
+def test_format_context_single_item_and_whitespace() -> None:
+    mock_results = [
+        RetrievalResult(
+            chunk_id="rfc999-sec1",
+            rfc_number=999,
+            table_route="prose",
+            hierarchy_path="Root",
+            text_payload="   \n\n  This text has excessive padding.  \n\n  ",
+            score=0.99,
+        )
+    ]
+
+    output = ContextBuilder.format_context(mock_results)
+
+    # 1. Verify single-item formatting
+    assert "### [SOURCE 1: RFC 999 | Format: PROSE | Path: Root]" in output
+    assert "SOURCE 2" not in output
+
+    # 2. Verify whitespace stripping
+    assert "This text has excessive padding." in output
+    assert output.endswith("This text has excessive padding.")

@@ -121,3 +121,30 @@ def test_successful_semantic_reordering(
 
     assert results[1].chunk_id == "chunk-2"
     assert results[1].score == pytest.approx(0.0)
+
+
+@patch.object(SemanticReranker, "_ensure_loaded")
+@patch.object(SemanticReranker, "_compute_scores")
+def test_reranker_length_mismatch_fallback(
+    mock_compute: MagicMock,
+    mock_ensure_loaded: MagicMock,
+    mock_candidates: list[RetrievalResult],
+) -> None:
+    mock_ensure_loaded.return_value = None
+
+    # 3 candidates are passed in, but the model maliciously/accidentally only returns 2 scores
+    mock_compute.return_value = [0.99, 0.88]
+
+    reranker = SemanticReranker()
+
+    # Pass in a shuffled list to prove the fallback explicitly re-sorts by the hybrid score
+    shuffled_candidates = [mock_candidates[2], mock_candidates[0], mock_candidates[1]]
+
+    # Will throw ValueError inside zip(strict=True) and get caught
+    results = reranker.rerank("test query", shuffled_candidates, top_k=3)
+
+    # The fallback should catch it and re-sort by the original LanceDB hybrid scores
+    assert len(results) == 3
+    assert results[0].chunk_id == "chunk-1"  # Score 0.9
+    assert results[1].chunk_id == "chunk-2"  # Score 0.8
+    assert results[2].chunk_id == "chunk-3"  # Score 0.7

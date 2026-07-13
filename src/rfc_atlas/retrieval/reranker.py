@@ -139,11 +139,6 @@ class SemanticReranker:
 
         try:
             all_scores = self._compute_scores(pairs)
-
-            for chunk, new_score in zip(candidates, all_scores, strict=True):
-                chunk.hybrid_score = chunk.score
-                chunk.score = new_score
-
         except (RuntimeError, ValueError, OSError) as e:
             logger.warning(
                 "⚠️ DEGRADED MODE: Reranker forward-pass failed (%s). "
@@ -152,6 +147,18 @@ class SemanticReranker:
             )
             candidates.sort(key=lambda x: x.score, reverse=True)
             return candidates[:top_k]
+
+        if len(all_scores) != len(candidates):
+            logger.warning(
+                "⚠️ DEGRADED MODE: Reranker output length mismatch. "
+                "Falling back to base hybrid retrieval scores."
+            )
+            candidates.sort(key=lambda x: x.score, reverse=True)
+            return candidates[:top_k]
+
+        for chunk, new_score in zip(candidates, all_scores, strict=True):
+            chunk.hybrid_score = chunk.score
+            chunk.score = new_score
 
         candidates.sort(key=lambda x: x.score, reverse=True)
         return candidates[:top_k]

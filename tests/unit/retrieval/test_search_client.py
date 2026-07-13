@@ -145,3 +145,61 @@ def test_search_multiple_no_truncation(
     assert mock_search_table.call_args_list[1][0][2] == "security"
     assert len(combined) == 6
     assert combined[0].chunk_id == "s-3"
+
+
+@patch.object(HybridSearchClient, "_encode_query")
+def test_search_table_malformed_row_drop(
+    mock_encode: MagicMock, tmp_path: Path
+) -> None:
+    mock_encode.return_value = [0.1] * 256
+
+    client = HybridSearchClient(db_path=tmp_path)
+    client._db = MagicMock()  # pyright: ignore[reportPrivateUsage]
+    client._db.list_tables.return_value.tables = ["prose"]  # pyright: ignore[reportPrivateUsage]
+
+    mock_table = MagicMock()
+    mock_table.count_rows.return_value = 100
+
+    mock_search = MagicMock()
+    # Fix: Actually link the table to the search chain!
+    mock_table.search.return_value = mock_search
+
+    mock_search.where.return_value = mock_search
+    mock_search.vector.return_value = mock_search
+    mock_search.text.return_value = mock_search
+    mock_search.limit.return_value = mock_search
+
+    # Return 1 valid row, 1 missing 'chunk_id' (KeyError), 1 with invalid 'rfc_number' (ValueError)
+    mock_search.to_list.return_value = [
+        {
+            "chunk_id": "valid-1",
+            "rfc_number": 1000,
+            "table_route": "prose",
+            "hierarchy_path": "Root",
+            "text_payload": "Valid text",
+            "_score": 0.9,
+        },
+        {
+            "rfc_number": 2000,
+            "table_route": "prose",
+            "hierarchy_path": "Root",
+            "text_payload": "Missing chunk_id",
+            "_score": 0.8,
+        },
+        {
+            "chunk_id": "invalid-2",
+            "rfc_number": "not_an_int",
+            "table_route": "prose",
+            "hierarchy_path": "Root",
+            "text_payload": "Bad RFC number",
+            "_score": 0.7,
+        },
+    ]
+
+    client._db.open_table.return_value = mock_table  # pyright: ignore[reportPrivateUsage]
+
+    results = client.search_table("test", [0.1] * 256, "prose")
+
+    # Only the valid row should survive the extraction loop
+    assert len(results) == 1
+    assert results[0].chunk_id == "valid-1"
