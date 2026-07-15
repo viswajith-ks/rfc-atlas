@@ -84,7 +84,7 @@ def run_audit() -> None:
 def main() -> None:
     """Parses arguments and executes the LanceDB integrity audit."""
     parser = argparse.ArgumentParser(description="RFC Atlas LanceDB Integrity Audit.")
-    parser.parse_args()  # Call it directly to validate inputs/help flag
+    parser.parse_args()
 
     try:
         run_audit()

@@ -9,9 +9,9 @@ import logging
 import sys
 
 from dotenv import load_dotenv
-from google.genai.errors import APIError
 
 from rfc_atlas.synthesis.orchestrator import SynthesisOrchestrator
+from rfc_atlas.utils.exceptions import SynthesisError
 
 
 def _process_query(query: str, orchestrator: SynthesisOrchestrator, top_k: int) -> bool:
@@ -92,7 +92,7 @@ def main() -> None:
             print("\n\nShutting down RFC Atlas. Goodbye! 👋\n")
             break
         except (
-            APIError,
+            SynthesisError,
             ConnectionError,
             TimeoutError,
             OSError,

@@ -42,6 +42,7 @@ class RetrievalResult(BaseModel):
 
     has_errata: bool = False
     is_obsolete: bool = False
+    is_updated: bool = False
 
 
 class HybridSearchClient:

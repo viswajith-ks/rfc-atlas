@@ -39,7 +39,7 @@ class QueryRouter:
     # Identifies threat modeling, encryption, and authorization queries
     # to ensure the dedicated 'security' considerations table is searched.
     _SECURITY_KEYWORDS = re.compile(
-        r"\b(security|attack|vulnerabilit\w*|threat|mitigation|tls|crypto|encryption|oauth|auth\w*|hack)\b",
+        r"\b(security|attack|vulnerabilit\w*|threats?|mitigation|tls|crypto|encryption|oauth|auth\w*|hack)\b",
         re.IGNORECASE,
     )
 

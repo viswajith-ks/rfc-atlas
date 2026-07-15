@@ -28,8 +28,11 @@ class ContextInterceptor:
             return
 
         node = TemporalLineageGraph.get_node(chunk.rfc_number)
-        if node and node.obsoleted_by:
-            chunk.is_obsolete = True
+        if node:
+            if node.obsoleted_by:
+                chunk.is_obsolete = True
+            if node.updated_by:
+                chunk.is_updated = True
 
         warning_msg = TemporalLineageGraph.format_lineage_warning(chunk.rfc_number)
         if warning_msg:
@@ -72,10 +75,6 @@ class ContextInterceptor:
                     f"known error. Replace:\n'{orig_text}'\nWITH:\n'{correction}'"
                 )
                 applied_corrections.append(injection)
-
-        if applied_corrections:
-            correction_block = "\n\n".join(applied_corrections)
-            chunk.text_payload = f"{chunk.text_payload}\n\n{correction_block}"
 
         if applied_corrections:
             correction_block = "\n\n".join(applied_corrections)
