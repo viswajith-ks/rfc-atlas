@@ -40,6 +40,7 @@ api = [
     "uvicorn==0.51.0",
 ]
 dev = [
+    "httpx==0.28.1",
     "poethepoet==0.47.0",
     "pyright==1.1.410",
     "pytest==9.1.1",
