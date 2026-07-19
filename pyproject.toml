@@ -35,6 +35,10 @@ synthesis = [
     "google-genai==2.10.0",
     "python-dotenv==1.2.2",
 ]
+api = [
+    "fastapi==0.139.2",
+    "uvicorn==0.51.0",
+]
 dev = [
     "poethepoet==0.47.0",
     "pyright==1.1.410",
