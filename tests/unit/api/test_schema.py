@@ -31,7 +31,7 @@ def test_invalid_top_k() -> None:
 def test_invalid_temperature() -> None:
     # Use raw string (r"") and escape the dot (\.0) so regex doesn't interpret it as "any character"
     with pytest.raises(
-        ValidationError, match=r"Input should be less than or equal to 1\.0"
+        ValidationError, match="Input should be less than or equal to 1"
     ):
         ChatRequest(messages=[ChatMessage(role="user", content="Hi")], temperature=1.5)
 

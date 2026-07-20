@@ -236,7 +236,7 @@ reportUnreachable = "error"                     # Flags structurally/type-analyt
 [tool.pytest.ini_options]
 pythonpath = [".", "src"]
 testpaths = ["tests"]
-addopts = "-ra -q --strict-markers --cov=. --cov-report=term-missing"
+addopts = "-ra -q --strict-markers --cov=. --cov-report=term-missing --import-mode=importlib"
 
 [tool.coverage.run]
 omit = [
